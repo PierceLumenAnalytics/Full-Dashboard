@@ -48,7 +48,10 @@ export default function DashboardShell() {
   const syncClients = async () => {
     try {
       const res = await fetch("/api/clients");
-      if (!res.ok) throw new Error("Could not sync clients list.");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Could not sync clients list.");
+      }
       const data = await res.json();
       setClients(data);
       
@@ -57,7 +60,7 @@ export default function DashboardShell() {
         setSelectedClientId(data[0].id);
       }
     } catch (err: any) {
-      addToast("Network Error", "Failed to retrieve connected clients from database.", "error");
+      addToast("Network Error", err.message || "Failed to retrieve connected clients from database.", "error");
     }
   };
 
@@ -65,11 +68,15 @@ export default function DashboardShell() {
   const syncLogs = async () => {
     try {
       const res = await fetch("/api/logs");
-      if (!res.ok) throw new Error("Could not sync audit logs.");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Could not sync audit logs.");
+      }
       const data = await res.json();
       setAuditLogs(data);
     } catch (err: any) {
       console.error(err);
+      addToast("Audit Logs Error", err.message || "Failed to retrieve audit logs.", "error");
     }
   };
 

@@ -104,7 +104,7 @@ app.get("/api/clients", async (req, res) => {
     res.json(mapped);
   } catch (err: any) {
     console.error("Error fetching clients:", err.message);
-    res.status(500).json({ error: "Failed to fetch clients from database." });
+    res.status(500).json({ error: "Failed to fetch clients from database: " + err.message });
   }
 });
 
@@ -178,7 +178,7 @@ app.post("/api/clients", async (req, res) => {
     res.status(201).json(mappedClient);
   } catch (err: any) {
     console.error("Error creating client:", err.message);
-    res.status(500).json({ error: "Failed to create client in database." });
+    res.status(500).json({ error: "Failed to create client in database: " + err.message });
   }
 });
 
@@ -249,7 +249,7 @@ app.put("/api/clients/:id", async (req, res) => {
     res.json(mappedClient);
   } catch (err: any) {
     console.error("Error updating client:", err.message);
-    res.status(500).json({ error: "Failed to update client in database." });
+    res.status(500).json({ error: "Failed to update client in database: " + err.message });
   }
 });
 
@@ -299,7 +299,7 @@ app.delete("/api/clients/:id", async (req, res) => {
     res.json({ success: true, deletedId: id });
   } catch (err: any) {
     console.error("Error deleting client:", err.message);
-    res.status(500).json({ error: "Failed to delete client from database." });
+    res.status(500).json({ error: "Failed to delete client from database: " + err.message });
   }
 });
 
@@ -335,7 +335,7 @@ app.get("/api/analytics/:clientId", async (req, res) => {
     });
   } catch (err: any) {
     console.error("Error fetching analytics:", err.message);
-    res.status(500).json({ error: "Failed to fetch analytics from database." });
+    res.status(500).json({ error: "Failed to fetch analytics from database: " + err.message });
   }
 });
 
@@ -361,7 +361,7 @@ app.get("/api/logs", async (req, res) => {
     res.json(mapped);
   } catch (err: any) {
     console.error("Error fetching audit logs:", err.message);
-    res.status(500).json({ error: "Failed to fetch audit logs from database." });
+    res.status(500).json({ error: "Failed to fetch audit logs from database: " + err.message });
   }
 });
 
