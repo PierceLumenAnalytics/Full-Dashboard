@@ -7,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
@@ -42,6 +42,82 @@ async function testSupabaseConnection() {
   }
 }
 testSupabaseConnection();
+
+// Dynamic configurations route
+app.get("/api/config", (req, res) => {
+  res.json({
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyYmdia213dXNiZWFua2l0d2V4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDY5MzgsImV4cCI6MjA5OTg4MjkzOH0.3gY2dWwSu0uc3MGrcpIOz6mJXej1JJeueGQUdC_wrYg"
+  });
+});
+
+// Authentication and Multi-Tenancy Middleware
+const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized: Missing token." });
+    }
+
+    const token = authHeader.split(" ")[1];
+    
+    // Verify user JWT
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return res.status(401).json({ error: "Unauthorized: Invalid or expired token." });
+    }
+
+    // Look up profile using service role client
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("agency_id, is_admin, agencies(name)")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return res.status(401).json({ error: "Unauthorized: User profile not found." });
+    }
+
+    const typedProfile = profile as any;
+    
+    // Attach user profile details
+    (req as any).user = {
+      id: user.id,
+      email: user.email,
+      agencyId: typedProfile.agency_id,
+      isAdmin: typedProfile.is_admin,
+      agencyName: typedProfile.agencies?.name || null
+    };
+
+    next();
+  } catch (err: any) {
+    console.error("Auth middleware error:", err.message);
+    res.status(401).json({ error: "Unauthorized: Auth check failed." });
+  }
+};
+
+// API: Get current user profile details
+app.get("/api/profile", requireAuth, (req, res) => {
+  res.json((req as any).user);
+});
+
+// API: List all agencies (Admin only)
+app.get("/api/agencies", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    if (!user.isAdmin) {
+      return res.status(403).json({ error: "Access Denied: Admin role required." });
+    }
+    const { data, error } = await supabase
+      .from("agencies")
+      .select("*")
+      .order("name", { ascending: true });
+    if (error) throw error;
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to fetch agencies: " + err.message });
+  }
+});
 
 // Initialize Gemini SDK with telemetry header as per the skill
 const getGeminiClient = () => {
@@ -104,13 +180,21 @@ const generateMockMetrics = (clientId: string, baseBudget: number): PerformanceM
 };
 
 // API: List connected clients
-app.get("/api/clients", async (req, res) => {
+app.get("/api/clients", requireAuth, async (req, res) => {
   try {
-    console.log("GET /api/clients: Querying clients table in Supabase...");
-    const { data, error } = await supabase
+    const user = (req as any).user;
+    console.log(`GET /api/clients: Querying clients table for ${user.email} (Admin: ${user.isAdmin})`);
+    
+    let query = supabase
       .from("clients")
       .select("*")
       .order("created_at", { ascending: true });
+
+    if (!user.isAdmin) {
+      query = query.eq("agency_id", user.agencyId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("GET /api/clients query failed in Supabase:", error.message, error.details);
@@ -124,7 +208,8 @@ app.get("/api/clients", async (req, res) => {
       platform: c.platform,
       monthlyBudget: Number(c.monthly_budget),
       status: c.status,
-      createdAt: c.created_at
+      createdAt: c.created_at,
+      agencyId: c.agency_id
     }));
 
     console.log(`GET /api/clients: Successfully retrieved and mapped ${mapped.length} clients.`);
@@ -136,8 +221,9 @@ app.get("/api/clients", async (req, res) => {
 });
 
 // API: Create a client
-app.post("/api/clients", async (req, res) => {
-  const { name, domain, platform, monthlyBudget } = req.body;
+app.post("/api/clients", requireAuth, async (req, res) => {
+  const { name, domain, platform, monthlyBudget, agencyId: inputAgencyId } = req.body;
+  const user = (req as any).user;
   
   // Zod-like simple key validation for security/safety
   if (!name || typeof name !== "string" || name.trim().length === 0) {
@@ -155,6 +241,7 @@ app.post("/api/clients", async (req, res) => {
 
   const id = `c_${Math.random().toString(36).substr(2, 9)}`;
   const createdAt = new Date().toISOString();
+  const targetAgencyId = user.isAdmin ? (inputAgencyId || null) : user.agencyId;
 
   try {
     const { data: newClientData, error: clientError } = await supabase
@@ -166,7 +253,8 @@ app.post("/api/clients", async (req, res) => {
         platform,
         monthly_budget: monthlyBudget,
         status: "Active",
-        created_at: createdAt
+        created_at: createdAt,
+        agency_id: targetAgencyId
       })
       .select()
       .single();
@@ -185,7 +273,8 @@ app.post("/api/clients", async (req, res) => {
         action: "CREATE",
         entity: "Client",
         details,
-        user: "pierce@lumenanalytics.co"
+        user: user.email || "system",
+        agency_id: targetAgencyId
       });
 
     if (logError) {
@@ -199,7 +288,8 @@ app.post("/api/clients", async (req, res) => {
       platform: newClientData.platform,
       monthlyBudget: Number(newClientData.monthly_budget),
       status: newClientData.status,
-      createdAt: newClientData.created_at
+      createdAt: newClientData.created_at,
+      agencyId: newClientData.agency_id
     };
 
     res.status(201).json(mappedClient);
@@ -210,12 +300,13 @@ app.post("/api/clients", async (req, res) => {
 });
 
 // API: Update a client budget or details
-app.put("/api/clients/:id", async (req, res) => {
+app.put("/api/clients/:id", requireAuth, async (req, res) => {
   const { id } = req.params;
   const { name, domain, platform, monthlyBudget, status } = req.body;
+  const user = (req as any).user;
   
   try {
-    // 1. Fetch current client first
+    // 1. Fetch current client first to verify ownership
     const { data: currentClient, error: fetchError } = await supabase
       .from("clients")
       .select("*")
@@ -224,6 +315,10 @@ app.put("/api/clients/:id", async (req, res) => {
 
     if (fetchError || !currentClient) {
       return res.status(404).json({ error: "Client account not found." });
+    }
+
+    if (!user.isAdmin && currentClient.agency_id !== user.agencyId) {
+      return res.status(403).json({ error: "Access Denied: You do not own this client account." });
     }
 
     // 2. Prepare updates
@@ -256,7 +351,8 @@ app.put("/api/clients/:id", async (req, res) => {
         action: "UPDATE",
         entity: "Client",
         details,
-        user: "pierce@lumenanalytics.co"
+        user: user.email || "system",
+        agency_id: currentClient.agency_id
       });
 
     if (logError) {
@@ -270,7 +366,8 @@ app.put("/api/clients/:id", async (req, res) => {
       platform: updatedClientData.platform,
       monthlyBudget: Number(updatedClientData.monthly_budget),
       status: updatedClientData.status,
-      createdAt: updatedClientData.created_at
+      createdAt: updatedClientData.created_at,
+      agencyId: updatedClientData.agency_id
     };
 
     res.json(mappedClient);
@@ -281,11 +378,12 @@ app.put("/api/clients/:id", async (req, res) => {
 });
 
 // API: Delete a client
-app.delete("/api/clients/:id", async (req, res) => {
+app.delete("/api/clients/:id", requireAuth, async (req, res) => {
   const { id } = req.params;
+  const user = (req as any).user;
   
   try {
-    // 1. Fetch current client first to log its name
+    // 1. Fetch current client first to log its name and verify ownership
     const { data: currentClient, error: fetchError } = await supabase
       .from("clients")
       .select("*")
@@ -294,6 +392,10 @@ app.delete("/api/clients/:id", async (req, res) => {
 
     if (fetchError || !currentClient) {
       return res.status(404).json({ error: "Client account not found." });
+    }
+
+    if (!user.isAdmin && currentClient.agency_id !== user.agencyId) {
+      return res.status(403).json({ error: "Access Denied: You do not own this client account." });
     }
 
     // 2. Delete client
@@ -316,7 +418,8 @@ app.delete("/api/clients/:id", async (req, res) => {
         action: "DELETE",
         entity: "Client",
         details,
-        user: "pierce@lumenanalytics.co"
+        user: user.email || "system",
+        agency_id: currentClient.agency_id
       });
 
     if (logError) {
@@ -331,8 +434,9 @@ app.delete("/api/clients/:id", async (req, res) => {
 });
 
 // API: Get analytics data for a specific client
-app.get("/api/analytics/:clientId", async (req, res) => {
+app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
   const { clientId } = req.params;
+  const user = (req as any).user;
 
   try {
     const { data: client, error } = await supabase
@@ -345,6 +449,10 @@ app.get("/api/analytics/:clientId", async (req, res) => {
       return res.status(404).json({ error: "Client account not found" });
     }
 
+    if (!user.isAdmin && client.agency_id !== user.agencyId) {
+      return res.status(403).json({ error: "Access Denied: You do not own this client account." });
+    }
+
     const mappedClient = {
       id: client.id,
       name: client.name,
@@ -352,7 +460,8 @@ app.get("/api/analytics/:clientId", async (req, res) => {
       platform: client.platform,
       monthlyBudget: Number(client.monthly_budget),
       status: client.status,
-      createdAt: client.created_at
+      createdAt: client.created_at,
+      agencyId: client.agency_id
     };
 
     const metrics = generateMockMetrics(clientId, mappedClient.monthlyBudget);
@@ -367,12 +476,20 @@ app.get("/api/analytics/:clientId", async (req, res) => {
 });
 
 // API: List audit logs
-app.get("/api/logs", async (req, res) => {
+app.get("/api/logs", requireAuth, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const user = (req as any).user;
+    
+    let query = supabase
       .from("audit_logs")
       .select("*")
       .order("timestamp", { ascending: false });
+
+    if (!user.isAdmin) {
+      query = query.eq("agency_id", user.agencyId);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -382,7 +499,8 @@ app.get("/api/logs", async (req, res) => {
       action: l.action,
       entity: l.entity,
       details: l.details,
-      user: l.user
+      user: l.user,
+      agencyId: l.agency_id
     }));
 
     res.json(mapped);
@@ -394,11 +512,31 @@ app.get("/api/logs", async (req, res) => {
 
 
 // API: Generate AI summary report using Claude or Gemini API (secured on server)
-app.post("/api/gemini/summary", async (req, res) => {
+app.post("/api/gemini/summary", requireAuth, async (req, res) => {
   const { clientId, clientName, metricsSummary } = req.body;
+  const user = (req as any).user;
   
   if (!clientId || !clientName || !metricsSummary) {
     return res.status(400).json({ error: "clientId, clientName, and metricsSummary are required." });
+  }
+
+  try {
+    // Verify client access
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .select("agency_id")
+      .eq("id", clientId)
+      .single();
+
+    if (clientError || !client) {
+      return res.status(404).json({ error: "Client account not found" });
+    }
+
+    if (!user.isAdmin && client.agency_id !== user.agencyId) {
+      return res.status(403).json({ error: "Access Denied: You do not own this client account." });
+    }
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to verify client access: " + err.message });
   }
 
   // Graceful fallback generator using actual client performance metrics

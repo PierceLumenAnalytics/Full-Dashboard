@@ -13,10 +13,11 @@ import { ActiveTab } from "../types";
 interface SidebarProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
-  userEmail: string;
+  profile: any;
+  onLogout: () => void;
 }
 
-export default function Sidebar({ activeTab, setActiveTab, userEmail }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, profile, onLogout }: SidebarProps) {
   const mainNavigation = [
     { id: "overview" as ActiveTab, name: "Dashboard Overview", icon: LayoutDashboard },
     { id: "summary" as ActiveTab, name: "AI Daily Summary", icon: Sparkles },
@@ -26,6 +27,8 @@ export default function Sidebar({ activeTab, setActiveTab, userEmail }: SidebarP
     { id: "clients" as ActiveTab, name: "Connected Clients", icon: Users },
     { id: "logs" as ActiveTab, name: "Security Audit Logs", icon: FileTerminal },
   ];
+
+  const userInitial = profile?.email ? profile.email.charAt(0).toUpperCase() : "U";
 
   return (
     <aside className="w-64 bg-slate-950 border-r border-slate-900/80 flex flex-col justify-between select-none h-screen shrink-0 font-sans">
@@ -109,7 +112,7 @@ export default function Sidebar({ activeTab, setActiveTab, userEmail }: SidebarP
       <div className="p-3 space-y-3">
         {/* Subtle Footnote instead of bulky card */}
         <div className="px-3 py-1 flex justify-between text-[9px] text-slate-600 font-mono pt-2 border-t border-slate-900/30">
-          <span>Enterprise Tier</span>
+          <span>{profile?.isAdmin ? "Admin Console" : "Agency Portal"}</span>
           <span>v4.1.2</span>
         </div>
 
@@ -117,17 +120,19 @@ export default function Sidebar({ activeTab, setActiveTab, userEmail }: SidebarP
         <div className="flex items-center justify-between p-2 border-t border-slate-900/50 pt-3">
           <div className="flex items-center gap-2 overflow-hidden">
             <div className="w-7 h-7 rounded-full bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center font-medium text-xs shrink-0 select-none">
-              P
+              {userInitial}
             </div>
             <div className="flex flex-col text-left overflow-hidden">
-              <span className="text-xs font-medium text-slate-300 truncate">Pierce</span>
-              <span className="text-[9px] text-slate-600 truncate" title={userEmail}>
-                {userEmail}
+              <span className="text-xs font-bold text-slate-300 truncate" title={profile?.agencyName || "Lumen Admin"}>
+                {profile?.agencyName || "Lumen Admin"}
+              </span>
+              <span className="text-[9px] text-slate-500 truncate" title={profile?.email}>
+                {profile?.email}
               </span>
             </div>
           </div>
           <button
-            onClick={() => alert("Simulation logout: To reset context, reload the browser.")}
+            onClick={onLogout}
             className="text-slate-600 hover:text-rose-400 transition-colors p-1 rounded hover:bg-slate-900/40 cursor-pointer"
             title="Log Out"
           >

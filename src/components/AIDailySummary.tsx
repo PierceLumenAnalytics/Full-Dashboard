@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { authFetch } from "../lib/supabaseClient";
 import Markdown from "react-markdown";
 import { 
   Sparkles, 
@@ -31,7 +32,7 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast }: 
 
     try {
       // First, fetch some analytics metrics so we can pass current aggregates to Gemini
-      const analyticsRes = await fetch(`/api/analytics/${selectedClient.id}`);
+      const analyticsRes = await authFetch(`/api/analytics/${selectedClient.id}`);
       if (!analyticsRes.ok) throw new Error("Failed to get latest client metrics.");
       const analyticsData = await analyticsRes.json();
       let metrics: PerformanceMetric[] = analyticsData.metrics || [];
@@ -64,7 +65,7 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast }: 
       };
 
       // Query Gemini Secure Server-Side Endpoint
-      const response = await fetch("/api/gemini/summary", {
+      const response = await authFetch("/api/gemini/summary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

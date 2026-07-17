@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { authFetch } from "../lib/supabaseClient";
 import { 
   TrendingUp, 
   Hourglass, 
@@ -160,7 +161,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     setIsLoading(true);
     setError(null);
 
-    fetch(`/api/analytics/${selectedClient.id}`)
+    authFetch(`/api/analytics/${selectedClient.id}`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to load client performance state.");
         return res.json();

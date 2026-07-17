@@ -8,14 +8,25 @@ import ToastContainer, { ToastMessage } from "./Toast";
 import { ClientAccount, AuditLog, ActiveTab } from "../types";
 import { RefreshCw, Calendar, ChevronDown } from "lucide-react";
 import { DateRange, getPresetRange, formatDisplayDate } from "../utils/dateHelpers";
+import { authFetch } from "../lib/supabaseClient";
 
-export default function DashboardShell() {
+interface DashboardShellProps {
+  session: any;
+  onLogout: () => void;
+}
+
+export default function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [clients, setClients] = useState<ClientAccount[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Auth profile & agency filtering states
+  const [profile, setProfile] = useState<any>(null);
+  const [agencies, setAgencies] = useState<any[]>([]);
+  const [selectedAgencyId, setSelectedAgencyId] = useState<string>("All");
 
   // Functional Date Range state
   const [dateRange, setDateRange] = useState<DateRange>({
@@ -44,10 +55,44 @@ export default function DashboardShell() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  // Fetch logged-in user profile details
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await authFetch("/api/profile");
+        if (res.ok) {
+          const data = await res.json();
+          setProfile(data);
+        }
+      } catch (err) {
+        console.error("Failed to load user profile:", err);
+      }
+    };
+    fetchProfile();
+  }, [session]);
+
+  // Fetch list of all agencies if admin
+  useEffect(() => {
+    if (profile?.isAdmin) {
+      const fetchAgencies = async () => {
+        try {
+          const res = await authFetch("/api/agencies");
+          if (res.ok) {
+            const data = await res.json();
+            setAgencies(data);
+          }
+        } catch (err) {
+          console.error("Failed to load agencies:", err);
+        }
+      };
+      fetchAgencies();
+    }
+  }, [profile]);
+
   // Sync client list from Express server (Server State Cache)
   const syncClients = async () => {
     try {
-      const res = await fetch("/api/clients");
+      const res = await authFetch("/api/clients");
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || "Could not sync clients list.");
@@ -67,7 +112,7 @@ export default function DashboardShell() {
   // Sync security audit logs from server
   const syncLogs = async () => {
     try {
-      const res = await fetch("/api/logs");
+      const res = await authFetch("/api/logs");
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || "Could not sync audit logs.");
@@ -95,7 +140,7 @@ export default function DashboardShell() {
         action: "REFRESH",
         entity: "System",
         details: "Triggered global marketing channels sync override",
-        user: "pierce@lumenanalytics.co"
+        user: profile?.email || "system"
       };
       setAuditLogs((prev) => [refreshLog, ...prev]);
 
@@ -107,11 +152,13 @@ export default function DashboardShell() {
     }
   };
 
-  // Initial Seed mount
+  // Initial Seed mount when profile loads
   useEffect(() => {
-    syncClients();
-    syncLogs();
-  }, []);
+    if (session) {
+      syncClients();
+      syncLogs();
+    }
+  }, [session, profile]);
 
   // Selected client entity object helper
   const activeClientEntity = clients.find(c => c.id === selectedClientId) || null;
@@ -141,7 +188,7 @@ export default function DashboardShell() {
     );
 
     try {
-      const res = await fetch("/api/clients", {
+      const res = await authFetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newClientData)
@@ -176,7 +223,7 @@ export default function DashboardShell() {
     setClients((prev) => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     
     try {
-      const res = await fetch(`/api/clients/${id}`, {
+      const res = await authFetch(`/api/clients/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates)
@@ -206,7 +253,7 @@ export default function DashboardShell() {
     }
 
     try {
-      const res = await fetch(`/api/clients/${id}`, {
+      const res = await authFetch(`/api/clients/${id}`, {
         method: "DELETE"
       });
 
@@ -221,44 +268,90 @@ export default function DashboardShell() {
     }
   };
 
+  // Filter clients based on agency selection if admin
+  const visibleClients = clients.filter((c) => {
+    if (profile?.isAdmin && selectedAgencyId !== "All") {
+      return c.agencyId === selectedAgencyId;
+    }
+    return true;
+  });
+
   return (
     <div className="flex h-screen w-screen bg-[#0b0f19] text-slate-100 overflow-hidden font-sans select-none">
       {/* Persistent Left Sidebar */}
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
-        userEmail="pierce@lumenanalytics.co" 
+        profile={profile} 
+        onLogout={onLogout}
       />
 
       {/* Main Container Area */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Global Action Header Bar */}
         <header className="h-16 bg-slate-950/40 border-b border-slate-900/60 px-6 flex items-center justify-between shrink-0">
-          {/* Left Context: Selected Client Dropdown */}
-          <div className="flex items-center gap-3 text-left">
-            <span className="text-[10px] font-mono tracking-wider text-slate-500 uppercase">
-              ACTIVE CLIENT:
-            </span>
-            <div className="relative">
-              <select
-                value={selectedClientId}
-                onChange={(e) => {
-                  setSelectedClientId(e.target.value);
-                  addToast(
-                    "Context Switched", 
-                    `Reporting cache updated for ${clients.find(c => c.id === e.target.value)?.name}`, 
-                    "info"
-                  );
-                }}
-                className="appearance-none bg-slate-900 border border-slate-800 text-slate-200 text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 focus:ring-1 focus:ring-violet-500 outline-none cursor-pointer"
-              >
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name} ({client.domain})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-2.5 pointer-events-none" />
+          <div className="flex items-center gap-6">
+            {/* Global Agency Filter for Admin */}
+            {profile?.isAdmin && (
+              <div className="flex items-center gap-2 text-left">
+                <span className="text-[9px] font-mono tracking-wider text-slate-500 uppercase">
+                  AGENCY:
+                </span>
+                <div className="relative">
+                  <select
+                    value={selectedAgencyId}
+                    onChange={(e) => {
+                      setSelectedAgencyId(e.target.value);
+                      const filtered = clients.filter(c => e.target.value === "All" || c.agencyId === e.target.value);
+                      if (filtered.length > 0) {
+                        setSelectedClientId(filtered[0].id);
+                      } else {
+                        setSelectedClientId("");
+                      }
+                    }}
+                    className="appearance-none bg-slate-900 border border-slate-800 text-slate-200 text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 focus:ring-1 focus:ring-violet-500 outline-none cursor-pointer"
+                  >
+                    <option value="All">All Agencies</option>
+                    {agencies.map((agency) => (
+                      <option key={agency.id} value={agency.id}>
+                        {agency.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-2.5 pointer-events-none" />
+                </div>
+              </div>
+            )}
+
+            {/* Left Context: Selected Client Dropdown */}
+            <div className="flex items-center gap-2 text-left">
+              <span className="text-[9px] font-mono tracking-wider text-slate-500 uppercase">
+                CLIENT:
+              </span>
+              <div className="relative">
+                <select
+                  value={selectedClientId}
+                  onChange={(e) => {
+                    setSelectedClientId(e.target.value);
+                    addToast(
+                      "Context Switched", 
+                      `Reporting cache updated for ${clients.find(c => c.id === e.target.value)?.name}`, 
+                      "info"
+                    );
+                  }}
+                  className="appearance-none bg-slate-900 border border-slate-800 text-slate-200 text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 focus:ring-1 focus:ring-violet-500 outline-none cursor-pointer"
+                >
+                  {visibleClients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name} ({client.domain})
+                    </option>
+                  ))}
+                  {visibleClients.length === 0 && (
+                    <option value="">No clients found</option>
+                  )}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-2.5 pointer-events-none" />
+              </div>
             </div>
           </div>
 
@@ -409,7 +502,7 @@ export default function DashboardShell() {
 
           {activeTab === "clients" && (
             <ClientsManager 
-              clients={clients}
+              clients={visibleClients}
               onAddClient={handleAddClientMutation}
               onUpdateClient={handleUpdateClientMutation}
               onDeleteClient={handleDeleteClientMutation}

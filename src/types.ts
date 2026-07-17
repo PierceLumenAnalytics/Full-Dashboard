@@ -6,6 +6,7 @@ export interface ClientAccount {
   monthlyBudget: number;
   status: "Active" | "Paused" | "Needs Review";
   createdAt: string;
+  agencyId?: string | null;
 }
 
 export interface PerformanceMetric {
@@ -23,6 +24,7 @@ export interface AuditLog {
   entity: string;
   details: string;
   user: string;
+  agencyId?: string | null;
 }
 
 export type ActiveTab = "overview" | "clients" | "summary" | "logs";
