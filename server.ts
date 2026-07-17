@@ -15,11 +15,33 @@ app.use(express.json());
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+console.log("Supabase URL initialized:", supabaseUrl);
+console.log("Supabase Service Role Key configured:", !!supabaseKey);
+
 if (!supabaseUrl || !supabaseKey) {
-  console.warn("Warning: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY environment variables are not defined.");
+  console.error("CRITICAL: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY environment variables are not defined.");
 }
 
 const supabase = createClient(supabaseUrl || "", supabaseKey || "");
+
+// Test connection on server start
+async function testSupabaseConnection() {
+  try {
+    console.log("Attempting database connectivity check...");
+    const { error } = await supabase
+      .from("clients")
+      .select("id")
+      .limit(1);
+    if (error) {
+      console.error("Supabase Connection Check FAILED during initialization:", error.message, error.details);
+    } else {
+      console.log("Supabase Connection Check SUCCESSFUL: Database is reachable.");
+    }
+  } catch (err: any) {
+    console.error("Supabase Connection Check Exception:", err.message);
+  }
+}
+testSupabaseConnection();
 
 // Initialize Gemini SDK with telemetry header as per the skill
 const getGeminiClient = () => {
@@ -84,12 +106,16 @@ const generateMockMetrics = (clientId: string, baseBudget: number): PerformanceM
 // API: List connected clients
 app.get("/api/clients", async (req, res) => {
   try {
+    console.log("GET /api/clients: Querying clients table in Supabase...");
     const { data, error } = await supabase
       .from("clients")
       .select("*")
       .order("created_at", { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      console.error("GET /api/clients query failed in Supabase:", error.message, error.details);
+      throw error;
+    }
 
     const mapped = (data || []).map((c: any) => ({
       id: c.id,
@@ -101,9 +127,10 @@ app.get("/api/clients", async (req, res) => {
       createdAt: c.created_at
     }));
 
+    console.log(`GET /api/clients: Successfully retrieved and mapped ${mapped.length} clients.`);
     res.json(mapped);
   } catch (err: any) {
-    console.error("Error fetching clients:", err.message);
+    console.error("Error in GET /api/clients handler:", err.message);
     res.status(500).json({ error: "Failed to fetch clients from database: " + err.message });
   }
 });
