@@ -1,0 +1,6 @@
+{
+  "name": "Lumen Analytics",
+  "description": "A calm, clear, and high-performance agency dashboard for live client reporting. Integrates Google Ads and Meta Ads data with server-side AI written daily summary insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
