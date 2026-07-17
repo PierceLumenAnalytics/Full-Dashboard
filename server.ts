@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
 
@@ -9,6 +10,16 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// Initialize Supabase Client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn("Warning: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY environment variables are not defined.");
+}
+
+const supabase = createClient(supabaseUrl || "", supabaseKey || "");
 
 // Initialize Gemini SDK with telemetry header as per the skill
 const getGeminiClient = () => {
@@ -27,17 +38,6 @@ const getGeminiClient = () => {
   });
 };
 
-// In-memory data store for server-authoritative state
-interface ClientAccount {
-  id: string;
-  name: string;
-  domain: string;
-  platform: "Google Ads" | "Meta Ads" | "TikTok Ads" | "All Platforms";
-  monthlyBudget: number;
-  status: "Active" | "Paused" | "Needs Review";
-  createdAt: string;
-}
-
 interface PerformanceMetric {
   date: string;
   spend: number;
@@ -46,79 +46,9 @@ interface PerformanceMetric {
   conversions: number;
 }
 
-// In-memory state seed data
-let clients: ClientAccount[] = [
-  {
-    id: "c1",
-    name: "Luxe Apparel",
-    domain: "luxeapparel.co",
-    platform: "All Platforms",
-    monthlyBudget: 12500,
-    status: "Active",
-    createdAt: "2026-01-15T08:00:00Z"
-  },
-  {
-    id: "c2",
-    name: "AeroMedia Agency",
-    domain: "aeromedia.io",
-    platform: "Google Ads",
-    monthlyBudget: 8000,
-    status: "Active",
-    createdAt: "2026-02-10T10:30:00Z"
-  },
-  {
-    id: "c3",
-    name: "Apex Fitness",
-    domain: "apexfit.com",
-    platform: "Meta Ads",
-    monthlyBudget: 5500,
-    status: "Needs Review",
-    createdAt: "2026-03-22T14:15:00Z"
-  },
-  {
-    id: "c4",
-    name: "Horizon tech",
-    domain: "horizontech.net",
-    platform: "All Platforms",
-    monthlyBudget: 22000,
-    status: "Active",
-    createdAt: "2026-04-05T09:00:00Z"
-  }
-];
-
-// Audit logging system for key actions (Least Privilege + Secure Audit Logging)
-interface AuditLog {
-  id: string;
-  timestamp: string;
-  action: "CREATE" | "UPDATE" | "DELETE" | "REFRESH";
-  entity: string;
-  details: string;
-  user: string;
-}
-
-let auditLogs: AuditLog[] = [
-  {
-    id: "log-1",
-    timestamp: "2026-07-16T10:00:00Z",
-    action: "CREATE",
-    entity: "Client",
-    details: "Connected new account Luxe Apparel",
-    user: "pierce@lumenanalytics.co"
-  },
-  {
-    id: "log-2",
-    timestamp: "2026-07-16T12:30:00Z",
-    action: "UPDATE",
-    entity: "Client",
-    details: "Updated budget for Apex Fitness to $5,500",
-    user: "pierce@lumenanalytics.co"
-  }
-];
-
 // Generative historical metric generator for dashboard charts
-const generateMockMetrics = (clientId: string): PerformanceMetric[] => {
+const generateMockMetrics = (clientId: string, baseBudget: number): PerformanceMetric[] => {
   const data: PerformanceMetric[] = [];
-  const baseBudget = clients.find(c => c.id === clientId)?.monthlyBudget || 10000;
   const dailyBaseSpend = baseBudget / 30;
   
   // Create last 120 days of data to support 7, 30, 90 day ranges
@@ -152,12 +82,34 @@ const generateMockMetrics = (clientId: string): PerformanceMetric[] => {
 };
 
 // API: List connected clients
-app.get("/api/clients", (req, res) => {
-  res.json(clients);
+app.get("/api/clients", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("clients")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (error) throw error;
+
+    const mapped = (data || []).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      domain: c.domain,
+      platform: c.platform,
+      monthlyBudget: Number(c.monthly_budget),
+      status: c.status,
+      createdAt: c.created_at
+    }));
+
+    res.json(mapped);
+  } catch (err: any) {
+    console.error("Error fetching clients:", err.message);
+    res.status(500).json({ error: "Failed to fetch clients from database." });
+  }
 });
 
 // API: Create a client
-app.post("/api/clients", (req, res) => {
+app.post("/api/clients", async (req, res) => {
   const { name, domain, platform, monthlyBudget } = req.body;
   
   // Zod-like simple key validation for security/safety
@@ -174,110 +126,245 @@ app.post("/api/clients", (req, res) => {
     return res.status(400).json({ error: "Monthly budget must be a positive number." });
   }
 
-  const newClient: ClientAccount = {
-    id: `c_${Math.random().toString(36).substr(2, 9)}`,
-    name: name.trim(),
-    domain: domain.trim().toLowerCase(),
-    platform: platform as any,
-    monthlyBudget,
-    status: "Active",
-    createdAt: new Date().toISOString()
-  };
+  const id = `c_${Math.random().toString(36).substr(2, 9)}`;
+  const createdAt = new Date().toISOString();
 
-  clients.push(newClient);
+  try {
+    const { data: newClientData, error: clientError } = await supabase
+      .from("clients")
+      .insert({
+        id,
+        name: name.trim(),
+        domain: domain.trim().toLowerCase(),
+        platform,
+        monthly_budget: monthlyBudget,
+        status: "Active",
+        created_at: createdAt
+      })
+      .select()
+      .single();
 
-  // Add audit log entry
-  const logEntry: AuditLog = {
-    id: `log-${Date.now()}`,
-    timestamp: new Date().toISOString(),
-    action: "CREATE",
-    entity: "Client",
-    details: `Connected new account ${newClient.name} with budget $${newClient.monthlyBudget.toLocaleString()}`,
-    user: "pierce@lumenanalytics.co"
-  };
-  auditLogs.unshift(logEntry);
+    if (clientError) throw clientError;
 
-  res.status(201).json(newClient);
+    // Add audit log entry
+    const logId = `log-${Date.now()}`;
+    const details = `Connected new account ${name.trim()} with budget $${monthlyBudget.toLocaleString()}`;
+
+    const { error: logError } = await supabase
+      .from("audit_logs")
+      .insert({
+        id: logId,
+        timestamp: new Date().toISOString(),
+        action: "CREATE",
+        entity: "Client",
+        details,
+        user: "pierce@lumenanalytics.co"
+      });
+
+    if (logError) {
+      console.error("Warning: Failed to log audit event:", logError.message);
+    }
+
+    const mappedClient = {
+      id: newClientData.id,
+      name: newClientData.name,
+      domain: newClientData.domain,
+      platform: newClientData.platform,
+      monthlyBudget: Number(newClientData.monthly_budget),
+      status: newClientData.status,
+      createdAt: newClientData.created_at
+    };
+
+    res.status(201).json(mappedClient);
+  } catch (err: any) {
+    console.error("Error creating client:", err.message);
+    res.status(500).json({ error: "Failed to create client in database." });
+  }
 });
 
 // API: Update a client budget or details
-app.put("/api/clients/:id", (req, res) => {
+app.put("/api/clients/:id", async (req, res) => {
   const { id } = req.params;
   const { name, domain, platform, monthlyBudget, status } = req.body;
   
-  const clientIndex = clients.findIndex(c => c.id === id);
-  if (clientIndex === -1) {
-    return res.status(404).json({ error: "Client account not found." });
+  try {
+    // 1. Fetch current client first
+    const { data: currentClient, error: fetchError } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !currentClient) {
+      return res.status(404).json({ error: "Client account not found." });
+    }
+
+    // 2. Prepare updates
+    const updates: any = {};
+    if (name && typeof name === "string") updates.name = name.trim();
+    if (domain && typeof domain === "string" && domain.includes(".")) updates.domain = domain.trim().toLowerCase();
+    if (platform && ["Google Ads", "Meta Ads", "TikTok Ads", "All Platforms"].includes(platform)) updates.platform = platform;
+    if (monthlyBudget !== undefined && typeof monthlyBudget === "number" && monthlyBudget > 0) updates.monthly_budget = monthlyBudget;
+    if (status && ["Active", "Paused", "Needs Review"].includes(status)) updates.status = status;
+
+    // 3. Update client
+    const { data: updatedClientData, error: updateError } = await supabase
+      .from("clients")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    // 4. Add audit log entry
+    const details = `Updated account ${updatedClientData.name}: budget $${Number(updatedClientData.monthly_budget).toLocaleString()}, status ${updatedClientData.status}`;
+    const logId = `log-${Date.now()}`;
+    
+    const { error: logError } = await supabase
+      .from("audit_logs")
+      .insert({
+        id: logId,
+        timestamp: new Date().toISOString(),
+        action: "UPDATE",
+        entity: "Client",
+        details,
+        user: "pierce@lumenanalytics.co"
+      });
+
+    if (logError) {
+      console.error("Warning: Failed to log audit event:", logError.message);
+    }
+
+    const mappedClient = {
+      id: updatedClientData.id,
+      name: updatedClientData.name,
+      domain: updatedClientData.domain,
+      platform: updatedClientData.platform,
+      monthlyBudget: Number(updatedClientData.monthly_budget),
+      status: updatedClientData.status,
+      createdAt: updatedClientData.created_at
+    };
+
+    res.json(mappedClient);
+  } catch (err: any) {
+    console.error("Error updating client:", err.message);
+    res.status(500).json({ error: "Failed to update client in database." });
   }
-
-  const currentClient = clients[clientIndex];
-
-  // Simple safe assignments
-  if (name && typeof name === "string") currentClient.name = name.trim();
-  if (domain && typeof domain === "string" && domain.includes(".")) currentClient.domain = domain.trim().toLowerCase();
-  if (platform && ["Google Ads", "Meta Ads", "TikTok Ads", "All Platforms"].includes(platform)) currentClient.platform = platform as any;
-  if (monthlyBudget !== undefined && typeof monthlyBudget === "number" && monthlyBudget > 0) currentClient.monthlyBudget = monthlyBudget;
-  if (status && ["Active", "Paused", "Needs Review"].includes(status)) currentClient.status = status as any;
-
-  // Add audit log entry
-  const logEntry: AuditLog = {
-    id: `log-${Date.now()}`,
-    timestamp: new Date().toISOString(),
-    action: "UPDATE",
-    entity: "Client",
-    details: `Updated account ${currentClient.name}: budget $${currentClient.monthlyBudget.toLocaleString()}, status ${currentClient.status}`,
-    user: "pierce@lumenanalytics.co"
-  };
-  auditLogs.unshift(logEntry);
-
-  res.json(currentClient);
 });
 
 // API: Delete a client
-app.delete("/api/clients/:id", (req, res) => {
+app.delete("/api/clients/:id", async (req, res) => {
   const { id } = req.params;
-  const clientIndex = clients.findIndex(c => c.id === id);
   
-  if (clientIndex === -1) {
-    return res.status(404).json({ error: "Client account not found." });
+  try {
+    // 1. Fetch current client first to log its name
+    const { data: currentClient, error: fetchError } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !currentClient) {
+      return res.status(404).json({ error: "Client account not found." });
+    }
+
+    // 2. Delete client
+    const { error: deleteError } = await supabase
+      .from("clients")
+      .delete()
+      .eq("id", id);
+
+    if (deleteError) throw deleteError;
+
+    // 3. Add audit log entry
+    const details = `Disconnected account ${currentClient.name}`;
+    const logId = `log-${Date.now()}`;
+
+    const { error: logError } = await supabase
+      .from("audit_logs")
+      .insert({
+        id: logId,
+        timestamp: new Date().toISOString(),
+        action: "DELETE",
+        entity: "Client",
+        details,
+        user: "pierce@lumenanalytics.co"
+      });
+
+    if (logError) {
+      console.error("Warning: Failed to log audit event:", logError.message);
+    }
+
+    res.json({ success: true, deletedId: id });
+  } catch (err: any) {
+    console.error("Error deleting client:", err.message);
+    res.status(500).json({ error: "Failed to delete client from database." });
   }
-
-  const deletedClient = clients[clientIndex];
-  clients.splice(clientIndex, 1);
-
-  // Add audit log entry
-  const logEntry: AuditLog = {
-    id: `log-${Date.now()}`,
-    timestamp: new Date().toISOString(),
-    action: "DELETE",
-    entity: "Client",
-    details: `Disconnected account ${deletedClient.name}`,
-    user: "pierce@lumenanalytics.co"
-  };
-  auditLogs.unshift(logEntry);
-
-  res.json({ success: true, deletedId: id });
 });
 
 // API: Get analytics data for a specific client
-app.get("/api/analytics/:clientId", (req, res) => {
+app.get("/api/analytics/:clientId", async (req, res) => {
   const { clientId } = req.params;
-  const client = clients.find(c => c.id === clientId);
-  if (!client) {
-    return res.status(404).json({ error: "Client account not found" });
+
+  try {
+    const { data: client, error } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("id", clientId)
+      .single();
+
+    if (error || !client) {
+      return res.status(404).json({ error: "Client account not found" });
+    }
+
+    const mappedClient = {
+      id: client.id,
+      name: client.name,
+      domain: client.domain,
+      platform: client.platform,
+      monthlyBudget: Number(client.monthly_budget),
+      status: client.status,
+      createdAt: client.created_at
+    };
+
+    const metrics = generateMockMetrics(clientId, mappedClient.monthlyBudget);
+    res.json({
+      client: mappedClient,
+      metrics
+    });
+  } catch (err: any) {
+    console.error("Error fetching analytics:", err.message);
+    res.status(500).json({ error: "Failed to fetch analytics from database." });
   }
-  
-  const metrics = generateMockMetrics(clientId);
-  res.json({
-    client,
-    metrics
-  });
 });
 
 // API: List audit logs
-app.get("/api/logs", (req, res) => {
-  res.json(auditLogs);
+app.get("/api/logs", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("audit_logs")
+      .select("*")
+      .order("timestamp", { ascending: false });
+
+    if (error) throw error;
+
+    const mapped = (data || []).map((l: any) => ({
+      id: l.id,
+      timestamp: l.timestamp,
+      action: l.action,
+      entity: l.entity,
+      details: l.details,
+      user: l.user
+    }));
+
+    res.json(mapped);
+  } catch (err: any) {
+    console.error("Error fetching audit logs:", err.message);
+    res.status(500).json({ error: "Failed to fetch audit logs from database." });
+  }
 });
+
 
 // API: Generate AI summary report using Claude or Gemini API (secured on server)
 app.post("/api/gemini/summary", async (req, res) => {

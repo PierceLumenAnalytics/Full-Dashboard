@@ -519,16 +519,15 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             
             {/* KPI Ad Spend */}
-            <div className="p-5 rounded-xl bg-slate-900/30 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-all duration-200 relative group overflow-hidden text-left">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-violet-600/5 rounded-full blur-2xl group-hover:bg-violet-600/10 transition-colors"></div>
+            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 tracking-wider">TOTAL AD SPEND</span>
-                <span className="p-1 rounded-md bg-violet-500/10 text-violet-400">
+                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">TOTAL AD SPEND</span>
+                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
                   <DollarSign className="w-3.5 h-3.5" />
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
+                <h3 className="text-xl font-bold font-display text-slate-100">
                   ${stats.spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </h3>
                 
@@ -540,7 +539,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </div>
 
                 {/* Goal Track */}
-                <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mt-2">
+                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
                   <div 
                     className={`h-full rounded-full ${getStatusPacingDetails(goalsData.spend.status).progressColor}`} 
                     style={{ width: `${goalsData.spend.progress}%` }}
@@ -554,16 +553,15 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
             </div>
 
             {/* KPI Conversions (Leads) */}
-            <div className="p-5 rounded-xl bg-slate-900/30 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-all duration-200 relative group overflow-hidden text-left">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-600/5 rounded-full blur-2xl group-hover:bg-emerald-600/10 transition-colors"></div>
+            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 tracking-wider">CONVERSIONS</span>
-                <span className="p-1 rounded-md bg-emerald-500/10 text-emerald-400">
+                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">CONVERSIONS</span>
+                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
                   <CheckCircle className="w-3.5 h-3.5" />
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
+                <h3 className="text-xl font-bold font-display text-slate-100">
                   {stats.conversions.toLocaleString()}
                 </h3>
 
@@ -575,7 +573,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </div>
 
                 {/* Goal Track */}
-                <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mt-2">
+                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
                   <div 
                     className={`h-full rounded-full ${getStatusPacingDetails(goalsData.conversions.status).progressColor}`} 
                     style={{ width: `${goalsData.conversions.progress}%` }}
@@ -589,16 +587,15 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
             </div>
 
             {/* KPI Cost Per Lead (CPL) */}
-            <div className="p-5 rounded-xl bg-slate-900/30 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-all duration-200 relative group overflow-hidden text-left">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-amber-600/5 rounded-full blur-2xl group-hover:bg-amber-600/10 transition-colors"></div>
+            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 tracking-wider">COST PER LEAD (CPL)</span>
-                <span className="p-1 rounded-md bg-amber-500/10 text-amber-400">
+                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">COST PER LEAD (CPL)</span>
+                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
                   <Target className="w-3.5 h-3.5" />
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
+                <h3 className="text-xl font-bold font-display text-slate-100">
                   ${stats.cpl.toFixed(2)}
                 </h3>
 
@@ -610,7 +607,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </div>
 
                 {/* Goal Track */}
-                <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mt-2">
+                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
                   <div 
                     className={`h-full rounded-full ${getStatusPacingDetails(goalsData.cpl.status).progressColor}`} 
                     style={{ width: `${goalsData.cpl.progress}%` }}
@@ -624,16 +621,15 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
             </div>
 
             {/* KPI ROAS */}
-            <div className="p-5 rounded-xl bg-slate-900/30 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-all duration-200 relative group overflow-hidden text-left">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-rose-600/5 rounded-full blur-2xl group-hover:bg-rose-600/10 transition-colors"></div>
+            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 tracking-wider">AD RETURN (ROAS)</span>
-                <span className="p-1 rounded-md bg-rose-500/10 text-rose-400">
+                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">AD RETURN (ROAS)</span>
+                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
                   <Percent className="w-3.5 h-3.5" />
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
+                <h3 className="text-xl font-bold font-display text-slate-100">
                   {stats.roas.toFixed(2)}x
                 </h3>
 
@@ -645,7 +641,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </div>
 
                 {/* Goal Track */}
-                <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mt-2">
+                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
                   <div 
                     className={`h-full rounded-full ${getStatusPacingDetails(goalsData.roas.status).progressColor}`} 
                     style={{ width: `${goalsData.roas.progress}%` }}
@@ -659,16 +655,15 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
             </div>
 
             {/* KPI Avg CTR */}
-            <div className="p-5 rounded-xl bg-slate-900/30 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-all duration-200 relative group overflow-hidden text-left">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-sky-600/5 rounded-full blur-2xl group-hover:bg-sky-600/10 transition-colors"></div>
+            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 tracking-wider">AVG CTR</span>
-                <span className="p-1 rounded-md bg-sky-500/10 text-sky-400">
+                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">AVG CTR</span>
+                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
                   <MousePointerClick className="w-3.5 h-3.5" />
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
+                <h3 className="text-xl font-bold font-display text-slate-100">
                   {stats.ctr.toFixed(2)}%
                 </h3>
 
@@ -680,7 +675,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </div>
 
                 {/* Goal Track */}
-                <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mt-2">
+                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
                   <div 
                     className={`h-full rounded-full ${getStatusPacingDetails(goalsData.ctr.status).progressColor}`} 
                     style={{ width: `${goalsData.ctr.progress}%` }}
@@ -694,16 +689,15 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
             </div>
 
             {/* KPI Saved Reporting Hours */}
-            <div className="p-5 rounded-xl bg-slate-900/30 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-all duration-200 relative group overflow-hidden text-left">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-teal-600/5 rounded-full blur-2xl group-hover:bg-teal-600/10 transition-colors"></div>
+            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 tracking-wider">SAVED TIME</span>
-                <span className="p-1 rounded-md bg-teal-500/10 text-teal-400">
+                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">SAVED TIME</span>
+                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
                   <Hourglass className="w-3.5 h-3.5" />
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
+                <h3 className="text-xl font-bold font-display text-slate-100">
                   {stats.savedHours} hrs
                 </h3>
 
@@ -715,7 +709,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </div>
 
                 {/* Goal Track */}
-                <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mt-2">
+                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
                   <div 
                     className={`h-full rounded-full ${getStatusPacingDetails(goalsData.savedHours.status).progressColor}`} 
                     style={{ width: `${goalsData.savedHours.progress}%` }}
@@ -1014,7 +1008,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                   }}
                   className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                     activeTableTab === "campaigns"
-                      ? "bg-violet-600 text-white shadow-lg"
+                      ? "bg-slate-900 text-slate-100 border border-slate-800"
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
@@ -1028,7 +1022,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                   }}
                   className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                     activeTableTab === "regions"
-                      ? "bg-violet-600 text-white shadow-lg"
+                      ? "bg-slate-900 text-slate-100 border border-slate-800"
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
