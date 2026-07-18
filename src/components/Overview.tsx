@@ -491,7 +491,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     setSelectedCampaignRows([]);
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (!selectedClient) return;
 
     // Create a print-friendly document container
@@ -662,24 +662,60 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     try {
       addToast("Exporting PDF", "Generating your executive performance overview PDF...", "info");
       
+      // Temporarily append the element to body off-screen so html2canvas can measure it
+      element.style.position = "absolute";
+      element.style.left = "-9999px";
+      element.style.top = "0";
+      document.body.appendChild(element);
+
+      // Race canvas generation against a 15-second timeout
+      const canvasPromise = html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false
+      });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("PDF generation timed out")), 15000)
+      );
+
+      const canvas = await Promise.race([canvasPromise, timeoutPromise]);
+      
+      // Clean up the DOM element immediately
+      document.body.removeChild(element);
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a4"
       });
 
-      doc.html(element, {
-        html2canvas: html2canvas,
-        callback: function (doc) {
-          doc.save(fileName);
-          addToast("Export Successful", "Dashboard Overview PDF downloaded successfully.", "success");
-        },
-        x: 10,
-        y: 10,
-        width: 190,
-        windowWidth: 650
-      } as any);
+      const imgWidth = 190;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 10; // 10mm top margin
+
+      // Page 1
+      doc.addImage(imgData, "JPEG", 10, position, imgWidth, imgHeight);
+      heightLeft -= (pageHeight - 20); // 20mm margin (10mm top + 10mm bottom)
+
+      // Dynamic page breaks
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + 10;
+        doc.addPage();
+        doc.addImage(imgData, "JPEG", 10, position, imgWidth, imgHeight);
+        heightLeft -= (pageHeight - 20);
+      }
+
+      doc.save(fileName);
+      addToast("Export Successful", "Dashboard Overview PDF downloaded successfully.", "success");
     } catch (err: any) {
+      if (document.body.contains(element)) {
+        document.body.removeChild(element);
+      }
       console.error(err);
       addToast("Export Failed", "Could not generate PDF: " + err.message, "error");
     }
