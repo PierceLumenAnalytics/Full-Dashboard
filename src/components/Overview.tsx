@@ -398,12 +398,80 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
   };
 
   const handleBulkExport = () => {
-    const itemCount = activeTableTab === "campaigns" ? selectedCampaignRows.length : selectedRows.length;
-    addToast(
-      "Exporting Dataset",
-      `Bulk exporting raw data for ${itemCount} selected items. Check downloads in 3s.`,
-      "success"
-    );
+    let csvContent = "";
+    let fileName = "";
+    
+    if (activeTableTab === "campaigns") {
+      fileName = `${selectedClient?.name || "Client"}_Campaigns_Export.csv`;
+      const headers = ["Campaign Name", "Platform", "Status", "Spend ($)", "Impressions", "Clicks", "Conversions", "CPL ($)", "ROAS"];
+      
+      const targetCampaigns = selectedCampaignRows.length > 0 
+        ? filteredCampaigns.filter(c => selectedCampaignRows.includes(c.id))
+        : filteredCampaigns;
+        
+      const rows = targetCampaigns.map(c => [
+        `"${c.name.replace(/"/g, '""')}"`,
+        `"${c.platform}"`,
+        `"${c.status}"`,
+        c.spend.toFixed(2),
+        c.impressions,
+        c.clicks,
+        c.conversions,
+        c.cpl.toFixed(2),
+        c.roas.toFixed(2)
+      ]);
+      
+      csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    } else {
+      fileName = `${selectedClient?.name || "Client"}_Regions_Export.csv`;
+      const headers = ["Country", "Code", "Type", "Views", "Bounce Rate", "Conversion Rate", "Avg Time on Page"];
+      
+      const targetRegions = selectedRows.length > 0
+        ? filteredCountryTraffic.filter(r => selectedRows.includes(r.country))
+        : filteredCountryTraffic;
+        
+      const rows = targetRegions.map(r => [
+        `"${r.country}"`,
+        `"${r.code}"`,
+        `"${r.type}"`,
+        r.views,
+        `"${r.bounceRate}"`,
+        `"${r.conversionRate}"`,
+        `"${r.timeOnPage}"`
+      ]);
+      
+      csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    }
+    
+    try {
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", fileName);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      const itemsCount = activeTableTab === "campaigns" 
+        ? (selectedCampaignRows.length > 0 ? selectedCampaignRows.length : filteredCampaigns.length)
+        : (selectedRows.length > 0 ? selectedRows.length : filteredCountryTraffic.length);
+        
+      addToast(
+        "Export Successful",
+        `Downloaded ${itemsCount} records successfully as ${fileName}.`,
+        "success"
+      );
+    } catch (err: any) {
+      addToast(
+        "Export Failed",
+        `Error generating CSV: ${err.message}`,
+        "error"
+      );
+    }
+    
     setSelectedRows([]);
     setSelectedCampaignRows([]);
   };
