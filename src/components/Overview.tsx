@@ -656,7 +656,16 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
         </div>
       </div>
     `;
-    element.innerHTML = `${headerHtml}${kpisHtml}${chartHtml}${channelsHtml}`;
+
+    // Custom CTA Block for PDF report
+    const ctaHtml = customCta ? `
+      <div style="padding: 12px 16px; border: 1px solid ${(profile?.primaryColor || '#6d28d9')}33; border-radius: 8px; background-color: #f8fafc; margin-bottom: 20px;">
+        <div style="font-size: 8px; font-weight: 700; color: ${profile?.primaryColor || '#6d28d9'}; text-transform: uppercase; letter-spacing: 0.5px;">Agency Message</div>
+        <div style="font-size: 11px; font-weight: 500; color: #1e293b; margin-top: 4px; line-height: 1.45;">${customCta}</div>
+      </div>
+    ` : "";
+
+    element.innerHTML = `${headerHtml}${ctaHtml}${kpisHtml}${chartHtml}${channelsHtml}`;
 
     const fileName = `${selectedClient.name.replace(/\s+/g, '_')}_Dashboard_Overview_${dateRange.startDate}_to_${dateRange.endDate}.pdf`;
 
