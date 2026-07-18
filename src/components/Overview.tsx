@@ -844,6 +844,21 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
           onClick={handleExportPDF}
           disabled={isLoading || filteredMetrics.length === 0}
           className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5 shrink-0"
+          style={profile?.primaryColor ? {
+            backgroundColor: profile.primaryColor,
+            borderColor: profile.primaryColor,
+            color: "#ffffff"
+          } : {}}
+          onMouseEnter={(e) => {
+            if (profile?.primaryColor) {
+              e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (profile?.primaryColor) {
+              e.currentTarget.style.backgroundColor = profile.primaryColor;
+            }
+          }}
           title="Download full dashboard PDF report"
         >
           <Download className="w-3.5 h-3.5 text-violet-400" />
@@ -1146,7 +1161,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                         y={bar.y}
                         width={bar.width}
                         height={bar.height}
-                        fill="#8b5cf6"
+                        fill={profile?.primaryColor || "#8b5cf6"}
                         fillOpacity="0.15"
                         className="hover:fill-opacity-40 transition-all cursor-pointer duration-200"
                         onMouseEnter={(e) => {
@@ -1165,7 +1180,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                     {/* Line Path (Spend Chart) */}
                     <polyline
                       fill="none"
-                      stroke="#8b5cf6"
+                      stroke={profile?.primaryColor || "#8b5cf6"}
                       strokeWidth="2.5"
                       strokeLinecap="round"
                       points={chartCoordinates.linePoints}
@@ -1179,7 +1194,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                         cy={p.y}
                         r="3.5"
                         fill="#0b0f19"
-                        stroke="#8b5cf6"
+                        stroke={profile?.primaryColor || "#8b5cf6"}
                         strokeWidth="2"
                         className="hover:r-5 hover:fill-violet-400 transition-all cursor-pointer duration-150"
                         onMouseEnter={(e) => {
@@ -1258,7 +1273,10 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${chan.active ? "bg-emerald-500 animate-pulse" : "bg-slate-700"}`}></span>
+                          <span 
+                            className={`w-2 h-2 rounded-full ${chan.active ? (profile?.primaryColor ? "animate-pulse" : "bg-emerald-500 animate-pulse") : "bg-slate-700"}`}
+                            style={chan.active && profile?.primaryColor ? { backgroundColor: profile.primaryColor } : {}}
+                          ></span>
                           <span className="text-xs font-bold text-slate-200">{chan.label}</span>
                         </div>
                         <span className="text-[10px] font-mono text-slate-500">
@@ -1302,7 +1320,15 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                       {chan.active && (
                         <div className="mt-3.5">
                           <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden">
-                            <div className={`h-full bg-gradient-to-r ${chan.color}`} style={{ width: `${chan.share}%` }}></div>
+                            <div 
+                              className={`h-full ${profile?.primaryColor ? "" : `bg-gradient-to-r ${chan.color}`}`} 
+                              style={profile?.primaryColor ? { 
+                                width: `${chan.share}%`, 
+                                background: `linear-gradient(to right, ${profile.primaryColor}, ${profile.accentColor || profile.primaryColor})` 
+                              } : { 
+                                width: `${chan.share}%` 
+                              }}
+                            ></div>
                           </div>
                         </div>
                       )}

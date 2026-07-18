@@ -280,6 +280,21 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
             onClick={fetchAISummary}
             disabled={loading}
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5"
+            style={profile?.primaryColor ? {
+              backgroundColor: profile.primaryColor,
+              borderColor: profile.primaryColor,
+              color: "#ffffff"
+            } : {}}
+            onMouseEnter={(e) => {
+              if (profile?.primaryColor) {
+                e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (profile?.primaryColor) {
+                e.currentTarget.style.backgroundColor = profile.primaryColor;
+              }
+            }}
             title="Re-compile insights"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-violet-400" : ""}`} />
@@ -290,6 +305,21 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
             onClick={handleCopy}
             disabled={loading || !summary}
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5"
+            style={profile?.primaryColor ? {
+              backgroundColor: profile.primaryColor,
+              borderColor: profile.primaryColor,
+              color: "#ffffff"
+            } : {}}
+            onMouseEnter={(e) => {
+              if (profile?.primaryColor) {
+                e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (profile?.primaryColor) {
+                e.currentTarget.style.backgroundColor = profile.primaryColor;
+              }
+            }}
             title="Copy summary content"
           >
             <Copy className="w-3.5 h-3.5 text-slate-400" />
@@ -300,6 +330,21 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
             onClick={handleExportPDF}
             disabled={loading || !summary}
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5"
+            style={profile?.primaryColor ? {
+              backgroundColor: profile.primaryColor,
+              borderColor: profile.primaryColor,
+              color: "#ffffff"
+            } : {}}
+            onMouseEnter={(e) => {
+              if (profile?.primaryColor) {
+                e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (profile?.primaryColor) {
+                e.currentTarget.style.backgroundColor = profile.primaryColor;
+              }
+            }}
             title="Download executive PDF report"
           >
             <Download className="w-3.5 h-3.5 text-violet-400" />
@@ -347,6 +392,21 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
               <button
                 onClick={handleCopy}
                 className="p-2 bg-slate-950 hover:bg-slate-900 border border-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                style={profile?.primaryColor ? {
+                  backgroundColor: profile.primaryColor,
+                  borderColor: profile.primaryColor,
+                  color: "#ffffff"
+                } : {}}
+                onMouseEnter={(e) => {
+                  if (profile?.primaryColor) {
+                    e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (profile?.primaryColor) {
+                    e.currentTarget.style.backgroundColor = profile.primaryColor;
+                  }
+                }}
                 title="Copy formatted markdown report"
               >
                 <Copy className="w-3.5 h-3.5" />
