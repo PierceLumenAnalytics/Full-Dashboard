@@ -16,8 +16,12 @@ export const authFetch = async (url: string, options: RequestInit = {}) => {
   if (globalSession?.access_token) {
     headers.set("Authorization", `Bearer ${globalSession.access_token}`);
   }
-  return fetch(url, {
+  const res = await fetch(url, {
     ...options,
     headers
   });
+  if (res.status === 401) {
+    supabase.auth.signOut().catch(() => {});
+  }
+  return res;
 };
