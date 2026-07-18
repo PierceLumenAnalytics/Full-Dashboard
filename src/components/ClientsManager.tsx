@@ -24,6 +24,9 @@ interface ClientsManagerProps {
   onUpdateClient: (id: string, updates: Partial<ClientAccount>, silent?: boolean) => Promise<void>;
   onDeleteClient: (id: string) => Promise<void>;
   addToast: (title: string, description?: string, type?: "success" | "error" | "warning" | "info") => void;
+  clientLimit?: number;
+  isAdmin?: boolean;
+  profile?: any;
 }
 
 export default function ClientsManager({ 
@@ -31,7 +34,10 @@ export default function ClientsManager({
   onAddClient, 
   onUpdateClient, 
   onDeleteClient,
-  addToast
+  addToast,
+  clientLimit = 5,
+  isAdmin = false,
+  profile
 }: ClientsManagerProps) {
   const [search, setSearch] = useState("");
   const [platformFilter, setPlatformFilter] = useState("All");
@@ -317,12 +323,42 @@ export default function ClientsManager({
           </p>
         </div>
 
-        <button
-          onClick={handleOpenCreateModal}
-          className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-lg text-xs cursor-pointer flex items-center gap-1.5 transition-colors shadow-lg shadow-violet-500/10 shrink-0 self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" /> Connect New Client
-        </button>
+        {(!isAdmin && clients.length >= clientLimit) ? (
+          <div className="flex flex-col items-end gap-1">
+            <button
+              disabled
+              className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-500 font-semibold rounded-lg text-xs cursor-not-allowed flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+              title={`You've reached your limit of ${clientLimit} clients.`}
+            >
+              <Plus className="w-4 h-4 text-slate-600" /> Connect New Client
+            </button>
+            <p className="text-[10px] text-amber-500/90 font-medium font-mono text-right mt-0.5">
+              ⚠️ You've reached your client limit — contact us to add more
+            </p>
+          </div>
+        ) : (
+          <button
+            onClick={handleOpenCreateModal}
+            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-lg text-xs cursor-pointer flex items-center gap-1.5 transition-colors shadow-lg shadow-violet-500/10 shrink-0 self-start sm:self-auto"
+            style={profile?.primaryColor ? {
+              backgroundColor: profile.primaryColor,
+              borderColor: profile.primaryColor,
+              color: "#ffffff"
+            } : {}}
+            onMouseEnter={(e) => {
+              if (profile?.primaryColor) {
+                e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (profile?.primaryColor) {
+                e.currentTarget.style.backgroundColor = profile.primaryColor;
+              }
+            }}
+          >
+            <Plus className="w-4 h-4" /> Connect New Client
+          </button>
+        )}
       </div>
 
       {/* Grid Filter Actions */}

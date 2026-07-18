@@ -575,7 +575,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
 
     // Chart Section
     let chartSvgHtml = "";
-    const originalChartSvg = document.querySelector(".relative svg");
+    const originalChartSvg = document.getElementById("performance-trend-chart-svg");
     if (originalChartSvg) {
       const clonedSvg = originalChartSvg.cloneNode(true) as SVGSVGElement;
       
@@ -1155,7 +1155,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
               {/* Performance Charts Area using responsive pure SVGs for elite fidelity and iframe durability */}
               <div className="relative h-56 w-full">
                 {filteredMetrics.length > 0 ? (
-                  <svg className="w-full h-full" viewBox="0 0 600 180" preserveAspectRatio="none">
+                  <svg id="performance-trend-chart-svg" className="w-full h-full" viewBox="0 0 600 180" preserveAspectRatio="none">
                     {/* Grid Lines */}
                     <line x1="25" y1="25" x2="575" y2="25" stroke="#131b2e" strokeWidth="0.5" strokeDasharray="3 3" />
                     <line x1="25" y1="70" x2="575" y2="70" stroke="#131b2e" strokeWidth="0.5" strokeDasharray="3 3" />

@@ -548,6 +548,9 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
               onUpdateClient={handleUpdateClientMutation}
               onDeleteClient={handleDeleteClientMutation}
               addToast={addToast}
+              clientLimit={profile?.clientLimit}
+              isAdmin={profile?.isAdmin}
+              profile={profile}
             />
           )}
 

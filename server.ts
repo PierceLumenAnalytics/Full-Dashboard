@@ -70,7 +70,7 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
     // Look up profile using service role client
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("agency_id, is_admin, agencies(name, custom_cta, logo_url, primary_color, accent_color)")
+      .select("agency_id, is_admin, agencies(name, custom_cta, logo_url, primary_color, accent_color, client_limit)")
       .eq("id", user.id)
       .single();
 
@@ -90,7 +90,8 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
       customCta: typedProfile.agencies?.custom_cta || null,
       logoUrl: typedProfile.agencies?.logo_url || null,
       primaryColor: typedProfile.agencies?.primary_color || null,
-      accentColor: typedProfile.agencies?.accent_color || null
+      accentColor: typedProfile.agencies?.accent_color || null,
+      clientLimit: typedProfile.agencies?.client_limit || 5
     };
 
     next();
@@ -264,6 +265,21 @@ app.post("/api/clients", requireAuth, async (req, res) => {
   const targetAgencyId = user.isAdmin ? (inputAgencyId || null) : user.agencyId;
 
   try {
+    if (!user.isAdmin) {
+      if (!user.agencyId) {
+        return res.status(400).json({ error: "User is not linked to any agency." });
+      }
+      const { count, error: countError } = await supabase
+        .from("clients")
+        .select("id", { count: "exact", head: true })
+        .eq("agency_id", user.agencyId);
+      
+      if (countError) throw countError;
+      if (count !== null && count >= user.clientLimit) {
+        return res.status(403).json({ error: `You have reached your client limit of ${user.clientLimit} clients. Contact us to add more.` });
+      }
+    }
+
     const { data: newClientData, error: clientError } = await supabase
       .from("clients")
       .insert({
