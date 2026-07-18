@@ -840,7 +840,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
 
               {/* Performance Charts Area using responsive pure SVGs for elite fidelity and iframe durability */}
               <div className="relative h-56 w-full">
-                {filteredMetrics.length > 0 && (
+                {filteredMetrics.length > 0 ? (
                   <svg className="w-full h-full" viewBox="0 0 600 180" preserveAspectRatio="none">
                     {/* Grid Lines */}
                     <line x1="25" y1="25" x2="575" y2="25" stroke="#131b2e" strokeWidth="0.5" strokeDasharray="3 3" />
@@ -921,6 +921,14 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                       {formatDisplayDate(filteredMetrics[filteredMetrics.length - 1]?.date)}
                     </text>
                   </svg>
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-slate-950/20 border border-slate-900 rounded-xl">
+                    <AlertTriangle className="w-8 h-8 text-amber-500/80 mb-2 animate-pulse" />
+                    <h4 className="text-xs font-bold text-slate-300">No data available for this date range</h4>
+                    <p className="text-[10px] text-slate-500 max-w-xs mt-1">
+                      Try selecting a different date range or preset from the header calendar.
+                    </p>
+                  </div>
                 )}
 
                 {/* Dynamic hover tooltip window */}

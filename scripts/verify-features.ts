@@ -54,7 +54,7 @@ async function main() {
       throw new Error("Failed to fetch profile");
     }
 
-    const profileData = await profileRes.json();
+    const profileData = await profileRes.json() as any;
     console.log("Profile customCta:", profileData.customCta);
     if (profileData.customCta !== testCtaText) {
       throw new Error("CTA mismatch in fetched profile!");
@@ -81,7 +81,7 @@ async function main() {
       throw new Error(`Failed to import metrics: ${importRes.statusText} (${await importRes.text()})`);
     }
 
-    const importResult = await importRes.json();
+    const importResult = await importRes.json() as any;
     console.log(`✅ CSV Import succeeded! Imported count: ${importResult.count}`);
 
     // 5. Verify analytics endpoint returns the imported data
@@ -91,7 +91,7 @@ async function main() {
       throw new Error("Failed to fetch analytics");
     }
 
-    const analyticsData = await analyticsRes.json();
+    const analyticsData = await analyticsRes.json() as any;
     console.log(`Fetched metrics count: ${analyticsData.metrics.length}`);
     
     if (analyticsData.metrics.length !== sampleMetrics.length) {
