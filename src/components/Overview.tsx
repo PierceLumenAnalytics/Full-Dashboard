@@ -1113,10 +1113,11 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                     <Download className="w-3 h-3" /> Export
                   </button>
                   <button
-                    onClick={handleBulkExclude}
-                    className="px-2.5 py-1 bg-slate-950 hover:bg-slate-900 text-slate-300 text-xs font-semibold rounded-md transition-colors cursor-pointer"
+                    disabled
+                    className="px-2.5 py-1 bg-slate-950/40 text-slate-600 text-xs font-semibold rounded-md cursor-not-allowed"
+                    title="Exclusions feature coming soon"
                   >
-                    Exclude
+                    Exclude (Coming Soon)
                   </button>
                 </div>
               ) : (
