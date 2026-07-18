@@ -659,14 +659,47 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
 
     const fileName = `${selectedClient.name.replace(/\s+/g, '_')}_Dashboard_Overview_${dateRange.startDate}_to_${dateRange.endDate}.pdf`;
 
+    let iframe: HTMLIFrameElement | null = null;
     try {
       addToast("Exporting PDF", "Generating your executive performance overview PDF...", "info");
       
-      // Temporarily append the element to body off-screen so html2canvas can measure it
-      element.style.position = "absolute";
-      element.style.left = "-9999px";
-      element.style.top = "0";
-      document.body.appendChild(element);
+      // Create a temporary hidden iframe to sandbox the rendering context
+      iframe = document.createElement("iframe");
+      iframe.style.position = "absolute";
+      iframe.style.width = "700px";
+      iframe.style.height = "1000px";
+      iframe.style.left = "-9999px";
+      iframe.style.top = "0";
+      iframe.style.border = "none";
+      iframe.style.visibility = "hidden";
+      document.body.appendChild(iframe);
+
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) {
+        throw new Error("Could not access iframe document context");
+      }
+
+      iframeDoc.open();
+      iframeDoc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { margin: 0; padding: 0; background: #ffffff; }
+          </style>
+        </head>
+        <body>
+          <div id="pdf-root"></div>
+        </body>
+        </html>
+      `);
+      iframeDoc.close();
+
+      const pdfRoot = iframeDoc.getElementById("pdf-root");
+      if (!pdfRoot) {
+        throw new Error("Could not find pdf-root inside iframe");
+      }
+      pdfRoot.appendChild(element);
 
       // Race canvas generation against a 15-second timeout
       const canvasPromise = html2canvas(element, {
@@ -681,8 +714,9 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
 
       const canvas = await Promise.race([canvasPromise, timeoutPromise]);
       
-      // Clean up the DOM element immediately
-      document.body.removeChild(element);
+      // Clean up the iframe immediately
+      document.body.removeChild(iframe);
+      iframe = null;
 
       const imgData = canvas.toDataURL("image/jpeg", 0.95);
       
@@ -713,8 +747,8 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
       doc.save(fileName);
       addToast("Export Successful", "Dashboard Overview PDF downloaded successfully.", "success");
     } catch (err: any) {
-      if (document.body.contains(element)) {
-        document.body.removeChild(element);
+      if (iframe && document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
       }
       console.error(err);
       addToast("Export Failed", "Could not generate PDF: " + err.message, "error");
