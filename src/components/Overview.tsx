@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { authFetch } from "../lib/supabaseClient";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 import { 
   TrendingUp, 
   Hourglass, 
@@ -653,24 +655,30 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
         </div>
       </div>
     `;
-
-    // Assemble Print Body
     element.innerHTML = `${headerHtml}${kpisHtml}${chartHtml}${channelsHtml}`;
 
-    const opt = {
-      margin:       [15, 15, 15, 15],
-      filename:     `${selectedClient.name.replace(/\s+/g, '_')}_Dashboard_Overview_${dateRange.startDate}_to_${dateRange.endDate}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
+    const fileName = `${selectedClient.name.replace(/\s+/g, '_')}_Dashboard_Overview_${dateRange.startDate}_to_${dateRange.endDate}.pdf`;
 
     try {
       addToast("Exporting PDF", "Generating your executive performance overview PDF...", "info");
-      // @ts-ignore
-      html2pdf().from(element).set(opt).save().then(() => {
-        addToast("Export Successful", "Dashboard Overview PDF downloaded successfully.", "success");
+      
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
       });
+
+      doc.html(element, {
+        html2canvas: html2canvas,
+        callback: function (doc) {
+          doc.save(fileName);
+          addToast("Export Successful", "Dashboard Overview PDF downloaded successfully.", "success");
+        },
+        x: 10,
+        y: 10,
+        width: 190,
+        windowWidth: 650
+      } as any);
     } catch (err: any) {
       console.error(err);
       addToast("Export Failed", "Could not generate PDF: " + err.message, "error");

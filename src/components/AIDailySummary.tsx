@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { authFetch } from "../lib/supabaseClient";
 import Markdown from "react-markdown";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 import { 
   Sparkles, 
   FileText, 
@@ -112,7 +114,7 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast }: 
   const handleExportPDF = () => {
     if (!summary || !selectedClient) return;
 
-    // Create a temporary container with the styled report for html2pdf
+    // Create a temporary container with the styled report for jsPDF
     const element = document.createElement("div");
     element.style.padding = "30px";
     element.style.color = "#0f172a";
@@ -120,13 +122,14 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast }: 
     element.style.fontFamily = "system-ui, -apple-system, sans-serif";
     element.style.fontSize = "12px";
     element.style.lineHeight = "1.5";
+    element.style.width = "650px";
 
     // Printable Executive Header
     element.innerHTML = `
       <div style="border-bottom: 2px solid #6d28d9; padding-bottom: 16px; margin-bottom: 24px;">
         <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">Lumen Analytics Summary</div>
         <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: #6d28d9; margin-top: 4px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE REPORT</div>
-        <div style="margin-top: 12px; font-size: 11px; color: #334155; display: grid; grid-template-cols: 1fr 1fr; gap: 6px;">
+        <div style="margin-top: 12px; font-size: 11px; color: #334155; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
           <div><strong>Client Name:</strong> ${selectedClient.name} (${selectedClient.domain})</div>
           <div><strong>Date Range:</strong> ${dateRange.startDate} to ${dateRange.endDate}</div>
           <div><strong>Generated On:</strong> ${new Date().toLocaleDateString()}</div>
@@ -145,20 +148,28 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast }: 
       }
     }
 
-    const opt = {
-      margin:       [15, 15, 15, 15],
-      filename:     `${selectedClient.name.replace(/\s+/g, '_')}_AI_Summary_${dateRange.startDate}_to_${dateRange.endDate}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
+    const fileName = `${selectedClient.name.replace(/\s+/g, '_')}_AI_Summary_${dateRange.startDate}_to_${dateRange.endDate}.pdf`;
 
     try {
       addToast("Exporting PDF", "Generating your executive performance report PDF...", "info");
-      // @ts-ignore
-      html2pdf().from(element).set(opt).save().then(() => {
-        addToast("Export Successful", "Executive PDF downloaded successfully.", "success");
+      
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
       });
+
+      doc.html(element, {
+        html2canvas: html2canvas,
+        callback: function (doc) {
+          doc.save(fileName);
+          addToast("Export Successful", "Executive PDF downloaded successfully.", "success");
+        },
+        x: 10,
+        y: 10,
+        width: 190,
+        windowWidth: 650
+      } as any);
     } catch (err: any) {
       console.error(err);
       addToast("Export Failed", "Could not generate PDF: " + err.message, "error");
