@@ -167,6 +167,12 @@ const generateMockMetrics = (clientId: string, baseBudget: number): PerformanceM
   const data: PerformanceMetric[] = [];
   const dailyBaseSpend = baseBudget / 30;
   
+  // Deterministic client-specific ROAS factor to target realistic 3x-8x range
+  const clientRng = seedRandom(clientId);
+  for (let k = 0; k < 15; k++) clientRng(); // Warm up LCG to scramble close seeds
+  const clientRoasTarget = 3.2 + clientRng() * 4.3; // believable 3.2x to 7.5x target
+  const crMultiplier = clientRoasTarget / 3.55;
+
   // Create last 120 days of data to support 7, 30, 90 day ranges
   for (let i = 119; i >= 0; i--) {
     const d = new Date();
@@ -187,7 +193,7 @@ const generateMockMetrics = (clientId: string, baseBudget: number): PerformanceM
     // Impressions: clicks / CTR (avg CTR around 2.5%)
     const impressions = Math.round(clicks / (0.02 + rng() * 0.01));
     // Conversions: clicks * ConvRate (avg Conversion Rate around 3.5%)
-    const conversions = Math.round(clicks * (0.025 + rng() * 0.02));
+    const conversions = Math.round(clicks * (0.025 + rng() * 0.02) * crMultiplier);
     
     data.push({
       date: dateStr,

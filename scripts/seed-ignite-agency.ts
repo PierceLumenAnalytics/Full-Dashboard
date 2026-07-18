@@ -150,38 +150,38 @@ async function main() {
     // 5. Seed some sample campaign metrics
     console.log("\nSeeding campaign metrics for c5, c6, c7...");
     const mockMetrics = [
-      // c5 (Google Ads, $5000 budget, spend ~ $150/day)
-      { client_id: "c5", agency_id: agencyId, date: "2026-07-10", platform: "Google Ads", spend: 152.50, impressions: 6100, clicks: 183, conversions: 15 },
-      { client_id: "c5", agency_id: agencyId, date: "2026-07-11", platform: "Google Ads", spend: 148.00, impressions: 5900, clicks: 177, conversions: 12 },
-      { client_id: "c5", agency_id: agencyId, date: "2026-07-12", platform: "Google Ads", spend: 161.20, impressions: 6450, clicks: 194, conversions: 16 },
-      { client_id: "c5", agency_id: agencyId, date: "2026-07-13", platform: "Google Ads", spend: 150.00, impressions: 6000, clicks: 180, conversions: 14 },
-      { client_id: "c5", agency_id: agencyId, date: "2026-07-14", platform: "Google Ads", spend: 155.80, impressions: 6230, clicks: 187, conversions: 18 },
-      // c6 (Meta Ads, $8000 budget, spend ~ $240/day)
-      { client_id: "c6", agency_id: agencyId, date: "2026-07-10", platform: "Meta Ads", spend: 238.40, impressions: 11920, clicks: 358, conversions: 24 },
-      { client_id: "c6", agency_id: agencyId, date: "2026-07-11", platform: "Meta Ads", spend: 245.00, impressions: 12250, clicks: 368, conversions: 28 },
-      { client_id: "c6", agency_id: agencyId, date: "2026-07-12", platform: "Meta Ads", spend: 228.90, impressions: 11445, clicks: 343, conversions: 21 },
-      { client_id: "c6", agency_id: agencyId, date: "2026-07-13", platform: "Meta Ads", spend: 251.30, impressions: 12565, clicks: 377, conversions: 31 },
-      { client_id: "c6", agency_id: agencyId, date: "2026-07-14", platform: "Meta Ads", spend: 240.00, impressions: 12000, clicks: 360, conversions: 25 },
-      // c7 (All Platforms, $12000 budget, spend ~ $360/day total split across channels)
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-10", platform: "Google Ads", spend: 180.00, impressions: 7200, clicks: 216, conversions: 18 },
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-10", platform: "Meta Ads", spend: 120.00, impressions: 6000, clicks: 180, conversions: 12 },
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-10", platform: "TikTok Ads", spend: 60.00, impressions: 3000, clicks: 90, conversions: 5 },
+      // c5 (Google Ads, $5000 budget, spend ~ $150/day, target ROAS ~ 4.2x)
+      { client_id: "c5", agency_id: agencyId, date: "2026-07-10", platform: "Google Ads", spend: 152.50, impressions: 6100, clicks: 183, conversions: 5 }, // 4.9x
+      { client_id: "c5", agency_id: agencyId, date: "2026-07-11", platform: "Google Ads", spend: 148.00, impressions: 5900, clicks: 177, conversions: 4 }, // 4.0x
+      { client_id: "c5", agency_id: agencyId, date: "2026-07-12", platform: "Google Ads", spend: 161.20, impressions: 6450, clicks: 194, conversions: 5 }, // 4.6x
+      { client_id: "c5", agency_id: agencyId, date: "2026-07-13", platform: "Google Ads", spend: 150.00, impressions: 6000, clicks: 180, conversions: 4 }, // 4.0x
+      { client_id: "c5", agency_id: agencyId, date: "2026-07-14", platform: "Google Ads", spend: 155.80, impressions: 6230, clicks: 187, conversions: 5 }, // 4.8x
+      // c6 (Meta Ads, $8000 budget, spend ~ $240/day, target ROAS ~ 5.5x)
+      { client_id: "c6", agency_id: agencyId, date: "2026-07-10", platform: "Meta Ads", spend: 238.40, impressions: 11920, clicks: 358, conversions: 9 }, // 5.6x
+      { client_id: "c6", agency_id: agencyId, date: "2026-07-11", platform: "Meta Ads", spend: 245.00, impressions: 12250, clicks: 368, conversions: 9 }, // 5.5x
+      { client_id: "c6", agency_id: agencyId, date: "2026-07-12", platform: "Meta Ads", spend: 228.90, impressions: 11445, clicks: 343, conversions: 8 }, // 5.2x
+      { client_id: "c6", agency_id: agencyId, date: "2026-07-13", platform: "Meta Ads", spend: 251.30, impressions: 12565, clicks: 377, conversions: 10 }, // 5.9x
+      { client_id: "c6", agency_id: agencyId, date: "2026-07-14", platform: "Meta Ads", spend: 240.00, impressions: 12000, clicks: 360, conversions: 9 }, // 5.6x
+      // c7 (All Platforms, $12000 budget, spend ~ $360/day total split, target ROAS ~ 3.5x)
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-10", platform: "Google Ads", spend: 180.00, impressions: 7200, clicks: 216, conversions: 5 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-10", platform: "Meta Ads", spend: 120.00, impressions: 6000, clicks: 180, conversions: 3 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-10", platform: "TikTok Ads", spend: 60.00, impressions: 3000, clicks: 90, conversions: 1 },
       
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-11", platform: "Google Ads", spend: 175.00, impressions: 7000, clicks: 210, conversions: 16 },
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-11", platform: "Meta Ads", spend: 125.00, impressions: 6250, clicks: 188, conversions: 15 },
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-11", platform: "TikTok Ads", spend: 65.00, impressions: 3250, clicks: 98, conversions: 7 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-11", platform: "Google Ads", spend: 175.00, impressions: 7000, clicks: 210, conversions: 4 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-11", platform: "Meta Ads", spend: 125.00, impressions: 6250, clicks: 188, conversions: 3 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-11", platform: "TikTok Ads", spend: 65.00, impressions: 3250, clicks: 98, conversions: 1 },
       
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-12", platform: "Google Ads", spend: 190.00, impressions: 7600, clicks: 228, conversions: 21 },
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-12", platform: "Meta Ads", spend: 110.00, impressions: 5500, clicks: 165, conversions: 10 },
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-12", platform: "TikTok Ads", spend: 55.00, impressions: 2750, clicks: 83, conversions: 4 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-12", platform: "Google Ads", spend: 190.00, impressions: 7600, clicks: 228, conversions: 5 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-12", platform: "Meta Ads", spend: 110.00, impressions: 5500, clicks: 165, conversions: 3 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-12", platform: "TikTok Ads", spend: 55.00, impressions: 2750, clicks: 83, conversions: 1 },
       
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-13", platform: "Google Ads", spend: 185.00, impressions: 7400, clicks: 222, conversions: 19 },
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-13", platform: "Meta Ads", spend: 130.00, impressions: 6500, clicks: 195, conversions: 16 },
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-13", platform: "TikTok Ads", spend: 62.00, impressions: 3100, clicks: 93, conversions: 6 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-13", platform: "Google Ads", spend: 185.00, impressions: 7400, clicks: 222, conversions: 5 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-13", platform: "Meta Ads", spend: 130.00, impressions: 6500, clicks: 195, conversions: 3 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-13", platform: "TikTok Ads", spend: 62.00, impressions: 3100, clicks: 93, conversions: 1 },
       
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-14", platform: "Google Ads", spend: 178.00, impressions: 7120, clicks: 214, conversions: 17 },
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-14", platform: "Meta Ads", spend: 118.00, impressions: 5900, clicks: 177, conversions: 11 },
-      { client_id: "c7", agency_id: agencyId, date: "2026-07-14", platform: "TikTok Ads", spend: 58.00, impressions: 2900, clicks: 87, conversions: 5 }
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-14", platform: "Google Ads", spend: 178.00, impressions: 7120, clicks: 214, conversions: 4 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-14", platform: "Meta Ads", spend: 118.00, impressions: 5900, clicks: 177, conversions: 3 },
+      { client_id: "c7", agency_id: agencyId, date: "2026-07-14", platform: "TikTok Ads", spend: 58.00, impressions: 2900, clicks: 87, conversions: 1 }
     ];
 
     const { error: metricsError } = await supabase.from("campaign_metrics").insert(mockMetrics);

@@ -190,6 +190,17 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     };
   }, [selectedClient, isRefreshing]);
 
+  // Calculate date range duration in days
+  const daysInRange = useMemo(() => {
+    if (dateRange && dateRange.startDate && dateRange.endDate) {
+      const start = new Date(dateRange.startDate);
+      const end = new Date(dateRange.endDate);
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    }
+    return 30; // default to a month
+  }, [dateRange]);
+
   // Calculated KPI Aggregates
   const stats = useMemo(() => {
     if (filteredMetrics.length === 0) return { spend: 0, clicks: 0, conversions: 0, impressions: 0, ctr: 0, cr: 0, cpc: 0, savedHours: 0, cpl: 0, roas: 0 };
@@ -200,7 +211,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     const impressions = filteredMetrics.reduce((acc, m) => acc + m.impressions, 0);
     
     const budgetFactor = (selectedClient?.monthlyBudget || 10000) / 10000;
-    const savedHours = Math.round(15 * budgetFactor * 10) / 10;
+    const savedHours = Math.round(15 * budgetFactor * (daysInRange / 30) * 10) / 10;
 
     const cpl = conversions > 0 ? spend / conversions : 0;
     // Assume average lead value is $150 to derive standard revenue for ROAS calculation
@@ -218,22 +229,23 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
       cpl,
       roas
     };
-  }, [filteredMetrics, selectedClient]);
+  }, [filteredMetrics, selectedClient, daysInRange]);
 
   // Goal Tracker Calculations (Monthly Goals vs Actual Performance)
   const goalsData = useMemo(() => {
     const monthlyBudget = selectedClient?.monthlyBudget || 10000;
+    const timeRatio = daysInRange / 30;
     
-    // Total Spend Goal
-    const spendGoal = monthlyBudget;
+    // Total Spend Goal (scaled to range duration)
+    const spendGoal = Math.round(monthlyBudget * timeRatio);
     const spendProgress = Math.min((stats.spend / spendGoal) * 100, 100);
     let spendStatus: "on_track" | "warning" | "danger" = "on_track";
     const spendRatio = stats.spend / spendGoal;
     if (spendRatio < 0.75 || spendRatio > 1.2) spendStatus = "danger";
     else if (spendRatio < 0.9 || spendRatio > 1.1) spendStatus = "warning";
 
-    // Conversions Goal (Assume a target CPA of $40 per conversion)
-    const conversionGoal = Math.round(monthlyBudget / 40);
+    // Conversions Goal (scaled to range duration, target CPA $40)
+    const conversionGoal = Math.max(1, Math.round((monthlyBudget / 40) * timeRatio));
     const conversionProgress = Math.min((stats.conversions / conversionGoal) * 100, 100);
     let conversionStatus: "on_track" | "warning" | "danger" = "on_track";
     if (conversionProgress < 80) conversionStatus = "danger";
@@ -260,8 +272,8 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     if (stats.ctr < ctrGoal * 0.8) ctrStatus = "danger";
     else if (stats.ctr < ctrGoal) ctrStatus = "warning";
 
-    // Saved Reporting Hours Goal - Target is 15 hours
-    const savedHoursGoal = 15;
+    // Saved Reporting Hours Goal (scaled to range duration)
+    const savedHoursGoal = Math.max(1, Math.round(15 * timeRatio));
     const savedHoursProgress = Math.min((stats.savedHours / savedHoursGoal) * 100, 100);
     let savedHoursStatus: "on_track" | "warning" | "danger" = "on_track";
     if (stats.savedHours < savedHoursGoal * 0.8) savedHoursStatus = "danger";
@@ -275,7 +287,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
       ctr: { goal: ctrGoal, progress: ctrProgress, status: ctrStatus, label: `${ctrGoal.toFixed(1)}%` },
       savedHours: { goal: savedHoursGoal, progress: savedHoursProgress, status: savedHoursStatus, label: `${savedHoursGoal} hrs` }
     };
-  }, [stats, selectedClient]);
+  }, [stats, selectedClient, daysInRange]);
 
   // Channel Level breakdown logic (Google vs Meta vs TikTok)
   const channelBreakdown = useMemo(() => {
