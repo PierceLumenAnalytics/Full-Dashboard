@@ -70,7 +70,7 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
     // Look up profile using service role client
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("agency_id, is_admin, agencies(name, custom_cta)")
+      .select("agency_id, is_admin, agencies(name, custom_cta, logo_url, primary_color, accent_color)")
       .eq("id", user.id)
       .single();
 
@@ -87,7 +87,10 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
       agencyId: typedProfile.agency_id,
       isAdmin: typedProfile.is_admin,
       agencyName: typedProfile.agencies?.name || null,
-      customCta: typedProfile.agencies?.custom_cta || null
+      customCta: typedProfile.agencies?.custom_cta || null,
+      logoUrl: typedProfile.agencies?.logo_url || null,
+      primaryColor: typedProfile.agencies?.primary_color || null,
+      accentColor: typedProfile.agencies?.accent_color || null
     };
 
     next();

@@ -19,9 +19,10 @@ interface AIDailySummaryProps {
   selectedClient: ClientAccount | null;
   dateRange: DateRange;
   addToast: (title: string, description?: string, type?: "success" | "error" | "warning" | "info") => void;
+  profile?: any;
 }
 
-export default function AIDailySummary({ selectedClient, dateRange, addToast }: AIDailySummaryProps) {
+export default function AIDailySummary({ selectedClient, dateRange, addToast, profile }: AIDailySummaryProps) {
   const [summary, setSummary] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,9 +127,9 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast }: 
 
     // Printable Executive Header
     element.innerHTML = `
-      <div style="border-bottom: 2px solid #6d28d9; padding-bottom: 16px; margin-bottom: 24px;">
-        <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">Lumen Analytics Summary</div>
-        <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: #6d28d9; margin-top: 4px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE REPORT</div>
+      <div style="border-bottom: 2px solid ${profile?.primaryColor || '#6d28d9'}; padding-bottom: 16px; margin-bottom: 24px;">
+        <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">${profile?.agencyName || 'Lumen Analytics'} Summary</div>
+        <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: ${profile?.primaryColor || '#6d28d9'}; margin-top: 4px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE REPORT</div>
         <div style="margin-top: 12px; font-size: 11px; color: #334155; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
           <div><strong>Client Name:</strong> ${selectedClient.name} (${selectedClient.domain})</div>
           <div><strong>Date Range:</strong> ${dateRange.startDate} to ${dateRange.endDate}</div>

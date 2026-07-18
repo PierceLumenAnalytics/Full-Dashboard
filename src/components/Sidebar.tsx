@@ -39,16 +39,22 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout }: 
     <aside className="w-64 bg-slate-950 border-r border-slate-900/80 flex flex-col justify-between select-none h-screen shrink-0 font-sans">
       {/* Brand Header */}
       <div>
-        <div className="p-5 flex items-center gap-2.5 border-b border-slate-900/40">
-          <div className="w-8 h-8 rounded-lg border border-slate-800 bg-slate-900/30 flex items-center justify-center">
-            <Layers className="w-4 h-4 text-slate-400" />
+        <div className="p-5 flex items-center gap-2.5 border-b border-slate-900/40 text-left">
+          <div className="w-8 h-8 rounded-lg border border-slate-800 bg-slate-900/30 flex items-center justify-center font-bold text-xs">
+            {profile?.logoUrl ? (
+              <span style={{ color: profile.primaryColor || '#ea580c' }}>
+                {profile.logoUrl === "IGNITE_PPC" ? "IP" : profile.agencyName?.substring(0, 2).toUpperCase()}
+              </span>
+            ) : (
+              <Layers className="w-4 h-4 text-slate-400" />
+            )}
           </div>
           <div>
             <h1 className="text-sm font-semibold tracking-tight text-slate-200">
-              Lumen Analytics
+              {profile?.agencyName || "Lumen Analytics"}
             </h1>
             <span className="text-[9px] text-slate-600 tracking-wider font-mono uppercase block">
-              Insights Platform
+              {profile?.logoUrl ? "Agency Portal" : "Insights Platform"}
             </span>
           </div>
         </div>

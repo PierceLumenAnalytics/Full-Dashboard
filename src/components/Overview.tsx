@@ -36,6 +36,7 @@ interface OverviewProps {
   isRefreshing: boolean;
   addToast: (title: string, description?: string, type?: "success" | "error" | "warning" | "info") => void;
   customCta?: string | null;
+  profile?: any;
 }
 
 // Country Traffic representation
@@ -132,7 +133,7 @@ const getMockCampaignsForClient = (
   });
 };
 
-export default function Overview({ selectedClient, dateRange, onRefresh, isRefreshing, addToast, customCta }: OverviewProps) {
+export default function Overview({ selectedClient, dateRange, onRefresh, isRefreshing, addToast, customCta, profile }: OverviewProps) {
   const [metrics, setMetrics] = useState<PerformanceMetric[]>([]);
 
   // Filter metrics based on selected date range
@@ -505,11 +506,11 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
 
     // Executive Header
     const headerHtml = `
-      <div style="border-bottom: 2px solid #6d28d9; padding-bottom: 16px; margin-bottom: 24px;">
+      <div style="border-bottom: 2px solid ${profile?.primaryColor || '#6d28d9'}; padding-bottom: 16px; margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: flex-end;">
           <div>
-            <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">Lumen Analytics Report</div>
-            <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: #6d28d9; margin-top: 3px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE DASHBOARD</div>
+            <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">${profile?.agencyName || 'Lumen Analytics'} Report</div>
+            <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: ${profile?.primaryColor || '#6d28d9'}; margin-top: 3px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE DASHBOARD</div>
           </div>
           <div style="font-size: 10px; color: #64748b; font-weight: 600; text-align: right;">
             Generated: ${new Date().toLocaleDateString()}
@@ -596,14 +597,14 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
         text.style.fontFamily = "sans-serif";
       });
       clonedSvg.querySelectorAll("polyline").forEach((polyline) => {
-        polyline.setAttribute("stroke", "#6d28d9");
+        polyline.setAttribute("stroke", profile?.primaryColor || "#6d28d9");
       });
       clonedSvg.querySelectorAll("circle").forEach((circle) => {
-        circle.setAttribute("stroke", "#6d28d9");
+        circle.setAttribute("stroke", profile?.primaryColor || "#6d28d9");
         circle.setAttribute("fill", "#ffffff");
       });
       clonedSvg.querySelectorAll("rect").forEach((rect) => {
-        rect.setAttribute("fill", "#a78bfa");
+        rect.setAttribute("fill", profile?.primaryColor || "#a78bfa");
         rect.setAttribute("fill-opacity", "0.2");
       });
       

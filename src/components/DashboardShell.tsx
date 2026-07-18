@@ -73,6 +73,40 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
     fetchProfile();
   }, [session]);
 
+  // Apply dynamic agency branding colors
+  useEffect(() => {
+    const styleId = "dynamic-brand-styles";
+    let styleElement = document.getElementById(styleId);
+
+    if (profile?.primaryColor) {
+      const cssRules = `
+        :root {
+          --color-violet-400: ${profile.primaryColor} !important;
+          --color-violet-500: ${profile.primaryColor} !important;
+          --color-violet-600: ${profile.accentColor || profile.primaryColor} !important;
+          --color-violet-700: ${profile.accentColor || profile.primaryColor} !important;
+          --color-violet-800: ${profile.accentColor || profile.primaryColor} !important;
+          --color-violet-900: ${profile.accentColor || profile.primaryColor} !important;
+        }
+      `;
+      if (!styleElement) {
+        styleElement = document.createElement("style");
+        styleElement.id = styleId;
+        document.head.appendChild(styleElement);
+      }
+      styleElement.textContent = cssRules;
+    } else {
+      if (styleElement) {
+        styleElement.remove();
+      }
+    }
+
+    return () => {
+      const el = document.getElementById(styleId);
+      if (el) el.remove();
+    };
+  }, [profile]);
+
   // Fetch list of all agencies if admin
   useEffect(() => {
     if (profile?.isAdmin) {
@@ -500,6 +534,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
               isRefreshing={isRefreshing}
               addToast={addToast}
               customCta={profile?.customCta}
+              profile={profile}
             />
           )}
 
@@ -518,6 +553,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
               selectedClient={activeClientEntity}
               dateRange={dateRange}
               addToast={addToast}
+              profile={profile}
             />
           )}
 
