@@ -427,14 +427,14 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
               <Markdown
                 components={{
                   h1: ({ children }) => <h1 className="text-lg font-bold text-slate-100 mt-6 mb-3 font-display border-b border-slate-900/40 pb-2">{children}</h1>,
-                  h2: ({ children }) => <h2 className="text-base font-bold text-violet-400 mt-5 mb-2 font-display">{children}</h2>,
-                  h3: ({ children }) => <h3 className="text-sm font-bold text-violet-300 mt-4 mb-2 uppercase tracking-wider font-display">{children}</h3>,
+                  h2: ({ children }) => <h2 className="text-base font-bold text-violet-400 mt-5 mb-2 font-display" style={profile?.primaryColor ? { color: profile.primaryColor } : {}}>{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-sm font-bold text-violet-300 mt-4 mb-2 uppercase tracking-wider font-display" style={profile?.primaryColor ? { color: profile.primaryColor } : {}}>{children}</h3>,
                   p: ({ children }) => <p className="text-xs text-slate-300 leading-relaxed mt-2 mb-2">{children}</p>,
                   ul: ({ children }) => <ul className="space-y-2.5 my-3 pl-1">{children}</ul>,
                   ol: ({ children }) => <ol className="space-y-2.5 my-3 pl-1 list-decimal">{children}</ol>,
                   li: ({ children }) => (
                     <li className="flex gap-2 text-xs text-slate-300 py-1 pl-1 leading-relaxed items-start">
-                      <span className="text-violet-400 font-semibold shrink-0 mt-1">●</span>
+                      <span className="text-violet-400 font-semibold shrink-0 mt-1" style={profile?.primaryColor ? { color: profile.primaryColor } : {}}>●</span>
                       <span>{children}</span>
                     </li>
                   ),

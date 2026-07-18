@@ -21,7 +21,7 @@ import { authFetch } from "../lib/supabaseClient";
 interface ClientsManagerProps {
   clients: ClientAccount[];
   onAddClient: (client: Omit<ClientAccount, "id" | "createdAt" | "status">) => Promise<void>;
-  onUpdateClient: (id: string, updates: Partial<ClientAccount>) => Promise<void>;
+  onUpdateClient: (id: string, updates: Partial<ClientAccount>, silent?: boolean) => Promise<void>;
   onDeleteClient: (id: string) => Promise<void>;
   addToast: (title: string, description?: string, type?: "success" | "error" | "warning" | "info") => void;
 }
@@ -292,7 +292,7 @@ export default function ClientsManager({
   const toggleStatus = async (client: ClientAccount) => {
     const nextStatus = client.status === "Active" ? "Paused" : "Active";
     try {
-      await onUpdateClient(client.id, { status: nextStatus });
+      await onUpdateClient(client.id, { status: nextStatus }, true);
       addToast(
         "Status Changed", 
         `Audit logged status update for ${client.name} to ${nextStatus}`, 
@@ -343,13 +343,13 @@ export default function ClientsManager({
           <select
             value={platformFilter}
             onChange={(e) => setPlatformFilter(e.target.value)}
-            className="bg-transparent text-slate-300 text-xs outline-none cursor-pointer pr-4 font-medium"
+            className="bg-slate-950 text-slate-300 text-xs outline-none cursor-pointer pr-4 font-medium border border-transparent focus:border-slate-800 rounded px-1"
           >
-            <option value="All">All Ad Networks</option>
-            <option value="Google Ads">Google Ads</option>
-            <option value="Meta Ads">Meta Ads</option>
-            <option value="TikTok Ads">TikTok Ads</option>
-            <option value="All Platforms">Omnichannel</option>
+            <option value="All" className="bg-slate-950 text-slate-200">All Ad Networks</option>
+            <option value="Google Ads" className="bg-slate-950 text-slate-200">Google Ads</option>
+            <option value="Meta Ads" className="bg-slate-950 text-slate-200">Meta Ads</option>
+            <option value="TikTok Ads" className="bg-slate-950 text-slate-200">TikTok Ads</option>
+            <option value="All Platforms" className="bg-slate-950 text-slate-200">Omnichannel</option>
           </select>
         </div>
       </div>

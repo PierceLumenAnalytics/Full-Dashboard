@@ -14,9 +14,10 @@ interface ToastProps {
 }
 
 export default function ToastContainer({ toasts, onClose }: ToastProps) {
+  const visibleToasts = toasts.slice(-3);
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
-      {toasts.map((toast) => (
+      {visibleToasts.map((toast) => (
         <div key={toast.id}>
           <ToastItem toast={toast} onClose={onClose} />
         </div>
@@ -29,7 +30,7 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: (id: stri
   useEffect(() => {
     const timer = setTimeout(() => {
       onClose(toast.id);
-    }, 4500);
+    }, 3000);
     return () => clearTimeout(timer);
   }, [toast.id, onClose]);
 

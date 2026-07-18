@@ -81,6 +81,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
     if (profile?.primaryColor) {
       const cssRules = `
         :root {
+          --color-violet-300: ${profile.primaryColor} !important;
           --color-violet-400: ${profile.primaryColor} !important;
           --color-violet-500: ${profile.primaryColor} !important;
           --color-violet-600: ${profile.accentColor || profile.primaryColor} !important;
@@ -252,7 +253,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
     }
   };
 
-  const handleUpdateClientMutation = async (id: string, updates: Partial<ClientAccount>) => {
+  const handleUpdateClientMutation = async (id: string, updates: Partial<ClientAccount>, silent = false) => {
     const previousClients = [...clients];
     
     // Optimistic UI update
@@ -269,7 +270,9 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
       const updatedClient = await res.json();
       setClients((prev) => prev.map(c => c.id === id ? updatedClient : c));
       
-      addToast("Account Updated", "Modifications written to secure database.", "success");
+      if (!silent) {
+        addToast("Account Updated", "Modifications written to secure database.", "success");
+      }
       syncLogs();
     } catch (err) {
       // Rollback

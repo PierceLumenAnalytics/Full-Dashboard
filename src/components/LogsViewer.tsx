@@ -86,13 +86,13 @@ export default function LogsViewer({ logs, onRefresh, isRefreshing }: LogsViewer
           <select
             value={selectedActionFilter}
             onChange={(e) => setSelectedActionFilter(e.target.value)}
-            className="bg-transparent text-slate-300 text-xs outline-none cursor-pointer pr-4 font-medium"
+            className="bg-slate-950 text-slate-300 text-xs outline-none cursor-pointer pr-4 font-medium border border-transparent focus:border-slate-800 rounded px-1"
           >
-            <option value="All">All Mutations</option>
-            <option value="CREATE">CREATE</option>
-            <option value="UPDATE">UPDATE</option>
-            <option value="DELETE">DELETE</option>
-            <option value="REFRESH">REFRESH</option>
+            <option value="All" className="bg-slate-950 text-slate-200">All Mutations</option>
+            <option value="CREATE" className="bg-slate-950 text-slate-200">CREATE</option>
+            <option value="UPDATE" className="bg-slate-950 text-slate-200">UPDATE</option>
+            <option value="DELETE" className="bg-slate-950 text-slate-200">DELETE</option>
+            <option value="REFRESH" className="bg-slate-950 text-slate-200">REFRESH</option>
           </select>
         </div>
       </div>
