@@ -8,7 +8,7 @@ import {
   RefreshCw, 
   ChevronRight, 
   AlertTriangle,
-  ExternalLink
+  Download
 } from "lucide-react";
 import { ClientAccount, PerformanceMetric } from "../types";
 import { DateRange } from "../utils/dateHelpers";
@@ -109,13 +109,63 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast }: 
     );
   };
 
-  const handleShareLink = () => {
-    addToast(
-      "Live Link Generated", 
-      `Copied live sharing link for ${selectedClient?.name}. Client can access anytime.`, 
-      "info"
-    );
+  const handleExportPDF = () => {
+    if (!summary || !selectedClient) return;
+
+    // Create a temporary container with the styled report for html2pdf
+    const element = document.createElement("div");
+    element.style.padding = "30px";
+    element.style.color = "#0f172a";
+    element.style.backgroundColor = "#ffffff";
+    element.style.fontFamily = "system-ui, -apple-system, sans-serif";
+    element.style.fontSize = "12px";
+    element.style.lineHeight = "1.5";
+
+    // Printable Executive Header
+    element.innerHTML = `
+      <div style="border-bottom: 2px solid #6d28d9; padding-bottom: 16px; margin-bottom: 24px;">
+        <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">Lumen Analytics Summary</div>
+        <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: #6d28d9; margin-top: 4px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE REPORT</div>
+        <div style="margin-top: 12px; font-size: 11px; color: #334155; display: grid; grid-template-cols: 1fr 1fr; gap: 6px;">
+          <div><strong>Client Name:</strong> ${selectedClient.name} (${selectedClient.domain})</div>
+          <div><strong>Date Range:</strong> ${dateRange.startDate} to ${dateRange.endDate}</div>
+          <div><strong>Generated On:</strong> ${new Date().toLocaleDateString()}</div>
+        </div>
+      </div>
+      <div id="pdf-markdown-content" style="color: #334155;"></div>
+    `;
+
+    const markdownContainer = document.querySelector(".markdown-body");
+    const contentElement = element.querySelector("#pdf-markdown-content") as HTMLElement | null;
+    if (contentElement) {
+      if (markdownContainer) {
+        contentElement.innerHTML = markdownContainer.innerHTML;
+      } else {
+        contentElement.textContent = summary;
+      }
+    }
+
+    const opt = {
+      margin:       [15, 15, 15, 15],
+      filename:     `${selectedClient.name.replace(/\s+/g, '_')}_AI_Summary_${dateRange.startDate}_to_${dateRange.endDate}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    try {
+      addToast("Exporting PDF", "Generating your executive performance report PDF...", "info");
+      // @ts-ignore
+      html2pdf().from(element).set(opt).save().then(() => {
+        addToast("Export Successful", "Executive PDF downloaded successfully.", "success");
+      });
+    } catch (err: any) {
+      console.error(err);
+      addToast("Export Failed", "Could not generate PDF: " + err.message, "error");
+    }
   };
+
+
 
   if (!selectedClient) {
     return (
@@ -155,12 +205,23 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast }: 
           </button>
 
           <button
-            onClick={handleShareLink}
+            onClick={handleCopy}
             disabled={loading || !summary}
             className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5"
+            title="Copy summary content"
           >
-            <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-            <span>Share Link</span>
+            <Copy className="w-3.5 h-3.5 text-slate-400" />
+            <span>Copy All</span>
+          </button>
+
+          <button
+            onClick={handleExportPDF}
+            disabled={loading || !summary}
+            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5"
+            title="Download executive PDF report"
+          >
+            <Download className="w-3.5 h-3.5 text-violet-400" />
+            <span>Export as PDF</span>
           </button>
         </div>
       </div>

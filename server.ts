@@ -144,6 +144,19 @@ interface PerformanceMetric {
   conversions: number;
 }
 
+// Seedable LCG random number generator
+const seedRandom = (seedStr: string) => {
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = seedStr.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  let seed = Math.abs(hash);
+  return () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+};
+
 // Generative historical metric generator for dashboard charts
 const generateMockMetrics = (clientId: string, baseBudget: number): PerformanceMetric[] => {
   const data: PerformanceMetric[] = [];
@@ -155,18 +168,21 @@ const generateMockMetrics = (clientId: string, baseBudget: number): PerformanceM
     d.setDate(d.getDate() - i);
     const dateStr = d.toISOString().split("T")[0];
     
+    // Seed using client ID and the date string
+    const rng = seedRandom(`${clientId}-${dateStr}`);
+    
     // Add some realistic volatility and trend
     const dayOfWeek = d.getDay();
     const weekendMultiplier = (dayOfWeek === 0 || dayOfWeek === 6) ? 0.75 : 1.15;
-    const volatility = 0.85 + Math.random() * 0.3; // 85% to 115% volatility
+    const volatility = 0.85 + rng() * 0.3; // 85% to 115% volatility
     
     const spend = Math.round(dailyBaseSpend * weekendMultiplier * volatility * 100) / 100;
     // Clicks: spend / CPC (avg CPC around $1.50)
-    const clicks = Math.round((spend / (1.2 + Math.random() * 0.6)) * 1);
+    const clicks = Math.round((spend / (1.2 + rng() * 0.6)) * 1);
     // Impressions: clicks / CTR (avg CTR around 2.5%)
-    const impressions = Math.round(clicks / (0.02 + Math.random() * 0.01));
+    const impressions = Math.round(clicks / (0.02 + rng() * 0.01));
     // Conversions: clicks * ConvRate (avg Conversion Rate around 3.5%)
-    const conversions = Math.round(clicks * (0.025 + Math.random() * 0.02));
+    const conversions = Math.round(clicks * (0.025 + rng() * 0.02));
     
     data.push({
       date: dateStr,
