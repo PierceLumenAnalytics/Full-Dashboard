@@ -4,6 +4,7 @@ import Overview from "./Overview";
 import ClientsManager from "./ClientsManager";
 import AIDailySummary from "./AIDailySummary";
 import LogsViewer from "./LogsViewer";
+import AgencySettings from "./AgencySettings";
 import ToastContainer, { ToastMessage } from "./Toast";
 import { ClientAccount, AuditLog, ActiveTab } from "../types";
 import { RefreshCw, Calendar, ChevronDown } from "lucide-react";
@@ -55,19 +56,20 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const fetchProfile = async () => {
+    try {
+      const res = await authFetch("/api/profile");
+      if (res.ok) {
+        const data = await res.json();
+        setProfile(data);
+      }
+    } catch (err) {
+      console.error("Failed to load user profile:", err);
+    }
+  };
+
   // Fetch logged-in user profile details
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const res = await authFetch("/api/profile");
-        if (res.ok) {
-          const data = await res.json();
-          setProfile(data);
-        }
-      } catch (err) {
-        console.error("Failed to load user profile:", err);
-      }
-    };
     fetchProfile();
   }, [session]);
 
@@ -497,6 +499,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
               onRefresh={handleManualRefresh}
               isRefreshing={isRefreshing}
               addToast={addToast}
+              customCta={profile?.customCta}
             />
           )}
 
@@ -523,6 +526,14 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
               logs={auditLogs}
               onRefresh={syncLogs}
               isRefreshing={isRefreshing}
+            />
+          )}
+
+          {activeTab === "settings" && (
+            <AgencySettings
+              profile={profile}
+              refreshProfile={fetchProfile}
+              addToast={addToast}
             />
           )}
         </main>

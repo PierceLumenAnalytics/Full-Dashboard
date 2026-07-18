@@ -6,7 +6,8 @@ import {
   FileTerminal, 
   LogOut, 
   ChevronRight, 
-  Layers
+  Layers,
+  Settings
 } from "lucide-react";
 import { ActiveTab } from "../types";
 
@@ -27,6 +28,10 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout }: 
     { id: "clients" as ActiveTab, name: "Connected Clients", icon: Users },
     { id: "logs" as ActiveTab, name: "Security Audit Logs", icon: FileTerminal },
   ];
+
+  if (profile && !profile.isAdmin) {
+    managementNavigation.push({ id: "settings" as ActiveTab, name: "Agency Settings", icon: Settings });
+  }
 
   const userInitial = profile?.email ? profile.email.charAt(0).toUpperCase() : "U";
 

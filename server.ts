@@ -70,7 +70,7 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
     // Look up profile using service role client
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("agency_id, is_admin, agencies(name)")
+      .select("agency_id, is_admin, agencies(name, custom_cta)")
       .eq("id", user.id)
       .single();
 
@@ -86,7 +86,8 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
       email: user.email,
       agencyId: typedProfile.agency_id,
       isAdmin: typedProfile.is_admin,
-      agencyName: typedProfile.agencies?.name || null
+      agencyName: typedProfile.agencies?.name || null,
+      customCta: typedProfile.agencies?.custom_cta || null
     };
 
     next();
@@ -480,7 +481,27 @@ app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
       agencyId: client.agency_id
     };
 
-    const metrics = generateMockMetrics(clientId, mappedClient.monthlyBudget);
+    // Check if there are any imported metrics in DB
+    const { data: dbMetrics, error: metricsError } = await supabase
+      .from("campaign_metrics")
+      .select("date, spend, impressions, clicks, conversions, platform")
+      .eq("client_id", clientId)
+      .order("date", { ascending: true });
+
+    let metrics: PerformanceMetric[] = [];
+    if (!metricsError && dbMetrics && dbMetrics.length > 0) {
+      metrics = dbMetrics.map((m: any) => ({
+        date: m.date,
+        spend: Number(m.spend),
+        clicks: Number(m.clicks),
+        impressions: Number(m.impressions),
+        conversions: Number(m.conversions)
+      }));
+      console.log(`GET /api/analytics/${clientId}: Loaded ${metrics.length} imported campaign metrics.`);
+    } else {
+      metrics = generateMockMetrics(clientId, mappedClient.monthlyBudget);
+    }
+
     res.json({
       client: mappedClient,
       metrics
@@ -488,6 +509,136 @@ app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
   } catch (err: any) {
     console.error("Error fetching analytics:", err.message);
     res.status(500).json({ error: "Failed to fetch analytics from database: " + err.message });
+  }
+});
+
+// API: Import campaign metrics from CSV
+app.post("/api/clients/:id/import", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const { rows } = req.body;
+  const user = (req as any).user;
+
+  try {
+    const { data: client, error: fetchError } = await supabase
+      .from("clients")
+      .select("agency_id, name")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !client) {
+      return res.status(404).json({ error: "Client not found." });
+    }
+
+    if (!user.isAdmin && client.agency_id !== user.agencyId) {
+      return res.status(403).json({ error: "Access Denied: You do not own this client account." });
+    }
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: "Invalid payload: 'rows' must be a non-empty array." });
+    }
+
+    const validatedRows: any[] = [];
+    for (let index = 0; index < rows.length; index++) {
+      const row = rows[index];
+      const rowNum = index + 1;
+
+      if (!row.date || typeof row.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) {
+        return res.status(400).json({ error: `Validation error at row ${rowNum}: 'date' must be YYYY-MM-DD.` });
+      }
+
+      if (!row.platform || typeof row.platform !== "string") {
+        return res.status(400).json({ error: `Validation error at row ${rowNum}: 'platform' must be a string.` });
+      }
+
+      const spend = Number(row.spend);
+      if (isNaN(spend) || spend < 0) {
+        return res.status(400).json({ error: `Validation error at row ${rowNum}: 'spend' must be a non-negative number.` });
+      }
+
+      const impressions = Number(row.impressions);
+      if (isNaN(impressions) || !Number.isInteger(impressions) || impressions < 0) {
+        return res.status(400).json({ error: `Validation error at row ${rowNum}: 'impressions' must be a non-negative integer.` });
+      }
+
+      const clicks = Number(row.clicks);
+      if (isNaN(clicks) || !Number.isInteger(clicks) || clicks < 0) {
+        return res.status(400).json({ error: `Validation error at row ${rowNum}: 'clicks' must be a non-negative integer.` });
+      }
+
+      const conversions = Number(row.conversions);
+      if (isNaN(conversions) || !Number.isInteger(conversions) || conversions < 0) {
+        return res.status(400).json({ error: `Validation error at row ${rowNum}: 'conversions' must be a non-negative integer.` });
+      }
+
+      validatedRows.push({
+        client_id: id,
+        agency_id: client.agency_id,
+        date: row.date,
+        platform: row.platform.trim(),
+        spend,
+        impressions,
+        clicks,
+        conversions
+      });
+    }
+
+    // Clear existing campaign metrics for this client
+    const { error: deleteError } = await supabase
+      .from("campaign_metrics")
+      .delete()
+      .eq("client_id", id);
+    if (deleteError) throw deleteError;
+
+    // Insert new metrics
+    const { error: insertError } = await supabase
+      .from("campaign_metrics")
+      .insert(validatedRows);
+    if (insertError) throw insertError;
+
+    // Audit log
+    const details = `Imported ${validatedRows.length} campaign metrics from CSV for client ${client.name}`;
+    const logId = `log-${Date.now()}`;
+    await supabase.from("audit_logs").insert({
+      id: logId,
+      timestamp: new Date().toISOString(),
+      action: "UPDATE",
+      entity: "Client",
+      details,
+      user: user.email || "system",
+      agency_id: client.agency_id
+    });
+
+    res.json({ success: true, count: validatedRows.length });
+  } catch (err: any) {
+    console.error("CSV Import Error:", err.message);
+    res.status(500).json({ error: "Failed to import campaign metrics: " + err.message });
+  }
+});
+
+// API: Update agency custom CTA message
+app.put("/api/agency/cta", requireAuth, async (req, res) => {
+  const { customCta } = req.body;
+  const user = (req as any).user;
+
+  if (user.isAdmin) {
+    return res.status(400).json({ error: "Admin role cannot set an agency custom CTA." });
+  }
+  if (!user.agencyId) {
+    return res.status(400).json({ error: "User is not linked to any agency." });
+  }
+
+  try {
+    const { error } = await supabase
+      .from("agencies")
+      .update({ custom_cta: customCta ? customCta.trim() : null })
+      .eq("id", user.agencyId);
+
+    if (error) throw error;
+
+    res.json({ success: true, customCta });
+  } catch (err: any) {
+    console.error("Update CTA Error:", err.message);
+    res.status(500).json({ error: "Failed to update agency CTA: " + err.message });
   }
 });
 

@@ -27,7 +27,7 @@ export interface AuditLog {
   agencyId?: string | null;
 }
 
-export type ActiveTab = "overview" | "clients" | "summary" | "logs";
+export type ActiveTab = "overview" | "clients" | "summary" | "logs" | "settings";
 
 export interface AnalyticsData {
   client: ClientAccount;

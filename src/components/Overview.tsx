@@ -32,6 +32,7 @@ interface OverviewProps {
   onRefresh: () => Promise<void>;
   isRefreshing: boolean;
   addToast: (title: string, description?: string, type?: "success" | "error" | "warning" | "info") => void;
+  customCta?: string | null;
 }
 
 // Country Traffic representation
@@ -128,7 +129,7 @@ const getMockCampaignsForClient = (
   });
 };
 
-export default function Overview({ selectedClient, dateRange, onRefresh, isRefreshing, addToast }: OverviewProps) {
+export default function Overview({ selectedClient, dateRange, onRefresh, isRefreshing, addToast, customCta }: OverviewProps) {
   const [metrics, setMetrics] = useState<PerformanceMetric[]>([]);
 
   // Filter metrics based on selected date range
@@ -584,6 +585,22 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
         </div>
       ) : (
         <>
+          {customCta && (
+            <div className="p-4 rounded-xl bg-gradient-to-r from-violet-950/20 to-indigo-950/20 border border-violet-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in mb-6">
+              <div className="flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" />
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-mono tracking-widest text-violet-400 uppercase">
+                    Agency Message
+                  </span>
+                  <p className="text-xs text-slate-300 mt-1 font-medium leading-relaxed">
+                    {customCta}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Section 1: KPI Grid with deep performance metrics & goal pacing progress bars */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             
