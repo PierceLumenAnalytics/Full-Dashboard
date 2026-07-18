@@ -21,7 +21,8 @@ import {
   HelpCircle,
   Briefcase,
   Play,
-  Pause
+  Pause,
+  LayoutDashboard
 } from "lucide-react";
 import { ClientAccount, PerformanceMetric } from "../types";
 import { DateRange, formatDisplayDate } from "../utils/dateHelpers";
@@ -488,6 +489,194 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     setSelectedCampaignRows([]);
   };
 
+  const handleExportPDF = () => {
+    if (!selectedClient) return;
+
+    // Create a print-friendly document container
+    const element = document.createElement("div");
+    element.style.padding = "35px";
+    element.style.color = "#0f172a";
+    element.style.backgroundColor = "#ffffff";
+    element.style.fontFamily = "system-ui, -apple-system, sans-serif";
+    element.style.fontSize = "11px";
+    element.style.lineHeight = "1.5";
+
+    // Executive Header
+    const headerHtml = `
+      <div style="border-bottom: 2px solid #6d28d9; padding-bottom: 16px; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+          <div>
+            <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">Lumen Analytics Report</div>
+            <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: #6d28d9; margin-top: 3px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE DASHBOARD</div>
+          </div>
+          <div style="font-size: 10px; color: #64748b; font-weight: 600; text-align: right;">
+            Generated: ${new Date().toLocaleDateString()}
+          </div>
+        </div>
+        <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px; color: #334155; border-top: 1px solid #f1f5f9; padding-top: 10px;">
+          <div><strong>Client:</strong> ${selectedClient.name} (${selectedClient.domain})</div>
+          <div><strong>Selected Date Range:</strong> ${dateRange.startDate} to ${dateRange.endDate}</div>
+          <div><strong>Core Ad Network:</strong> ${selectedClient.platform}</div>
+          <div><strong>Monthly Budget:</strong> $${selectedClient.monthlyBudget.toLocaleString()}</div>
+        </div>
+      </div>
+    `;
+
+    // KPI Metrics Section (6 Cards in a clean 3x2 grid)
+    const kpisHtml = `
+      <div style="margin-bottom: 30px;">
+        <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+          Key Performance Indicators (KPIs)
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+          
+          <div style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc;">
+            <div style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase;">Total Ad Spend</div>
+            <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px;">$${stats.spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div style="font-size: 8px; color: #475569; margin-top: 2px;">Goal: $${goalsData.spend.label}</div>
+          </div>
+
+          <div style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc;">
+            <div style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase;">Conversions</div>
+            <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px;">${stats.conversions.toLocaleString()}</div>
+            <div style="font-size: 8px; color: #475569; margin-top: 2px;">Goal: ${goalsData.conversions.goal}</div>
+          </div>
+
+          <div style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc;">
+            <div style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase;">Cost Per Lead (CPL)</div>
+            <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px;">$${stats.cpl.toFixed(2)}</div>
+            <div style="font-size: 8px; color: #475569; margin-top: 2px;">Target: ${goalsData.cpl.label}</div>
+          </div>
+
+          <div style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc;">
+            <div style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase;">Return on Ad Spend</div>
+            <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px;">${stats.roas.toFixed(2)}x</div>
+            <div style="font-size: 8px; color: #475569; margin-top: 2px;">Target: ${goalsData.roas.label}</div>
+          </div>
+
+          <div style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc;">
+            <div style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase;">Average CTR</div>
+            <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px;">${stats.ctr.toFixed(2)}%</div>
+            <div style="font-size: 8px; color: #475569; margin-top: 2px;">Target: ${goalsData.ctr.label}</div>
+          </div>
+
+          <div style="padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc;">
+            <div style="font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase;">Saved Hours</div>
+            <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 4px;">${stats.savedHours} hrs</div>
+            <div style="font-size: 8px; color: #475569; margin-top: 2px;">Goal: ${goalsData.savedHours.label}</div>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    // Chart Section
+    let chartSvgHtml = "";
+    const originalChartSvg = document.querySelector(".relative svg");
+    if (originalChartSvg) {
+      const clonedSvg = originalChartSvg.cloneNode(true) as SVGSVGElement;
+      
+      clonedSvg.style.backgroundColor = "#ffffff";
+      clonedSvg.style.color = "#0f172a";
+      clonedSvg.setAttribute("width", "100%");
+      clonedSvg.setAttribute("height", "180");
+      
+      clonedSvg.querySelectorAll("line").forEach((line) => {
+        const currentDash = line.getAttribute("stroke-dasharray");
+        if (currentDash) {
+          line.setAttribute("stroke", "#e2e8f0");
+        } else {
+          line.setAttribute("stroke", "#94a3b8");
+        }
+      });
+      clonedSvg.querySelectorAll("text").forEach((text) => {
+        text.setAttribute("fill", "#64748b");
+        text.style.fontFamily = "sans-serif";
+      });
+      clonedSvg.querySelectorAll("polyline").forEach((polyline) => {
+        polyline.setAttribute("stroke", "#6d28d9");
+      });
+      clonedSvg.querySelectorAll("circle").forEach((circle) => {
+        circle.setAttribute("stroke", "#6d28d9");
+        circle.setAttribute("fill", "#ffffff");
+      });
+      clonedSvg.querySelectorAll("rect").forEach((rect) => {
+        rect.setAttribute("fill", "#a78bfa");
+        rect.setAttribute("fill-opacity", "0.2");
+      });
+      
+      chartSvgHtml = clonedSvg.outerHTML;
+    }
+
+    const chartHtml = `
+      <div style="margin-bottom: 30px; page-break-inside: avoid;">
+        <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+          Paid Campaign Performance Trend
+        </div>
+        <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; background-color: #ffffff;">
+          ${chartSvgHtml || `<div style="color: #94a3b8; font-size: 12px; font-style: italic">Performance chart preview not available</div>`}
+        </div>
+      </div>
+    `;
+
+    // Cross-Channel Wallet Share breakdown
+    const channelsListHtml = channelBreakdown.map((chan) => {
+      return `
+        <div style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; background-color: ${chan.active ? "#ffffff" : "#f8fafc"}; opacity: ${chan.active ? "1" : "0.5"};">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 6px;">
+            <span style="font-size: 11px; font-weight: 700; color: #1e1b4b;">${chan.label}</span>
+            <span style="font-size: 9px; font-weight: 600; color: #64748b; font-family: monospace;">
+              ${chan.active ? `${Math.round(chan.share)}% Budget` : "Not Connected"}
+            </span>
+          </div>
+          ${chan.active ? `
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-size: 10px;">
+              <div><span style="color: #64748b; font-size: 8px; text-transform: uppercase;">Spend</span><br/><strong>$${Math.round(chan.spend).toLocaleString()}</strong></div>
+              <div><span style="color: #64748b; font-size: 8px; text-transform: uppercase;">Convs</span><br/><strong>${chan.conversions}</strong></div>
+              <div><span style="color: #64748b; font-size: 8px; text-transform: uppercase;">CPL</span><br/><strong>$${chan.cpl.toFixed(2)}</strong></div>
+              <div><span style="color: #64748b; font-size: 8px; text-transform: uppercase;">ROAS</span><br/><strong>${chan.roas.toFixed(2)}x</strong></div>
+            </div>
+          ` : `
+            <div style="font-size: 9px; color: #94a3b8; font-style: italic; padding: 4px 0;">This channel is not connected for this client.</div>
+          `}
+        </div>
+      `;
+    }).join("");
+
+    const channelsHtml = `
+      <div style="page-break-inside: avoid;">
+        <div style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+          Cross-Channel Share of Wallet
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+          ${channelsListHtml}
+        </div>
+      </div>
+    `;
+
+    // Assemble Print Body
+    element.innerHTML = `${headerHtml}${kpisHtml}${chartHtml}${channelsHtml}`;
+
+    const opt = {
+      margin:       [15, 15, 15, 15],
+      filename:     `${selectedClient.name.replace(/\s+/g, '_')}_Dashboard_Overview_${dateRange.startDate}_to_${dateRange.endDate}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    try {
+      addToast("Exporting PDF", "Generating your executive performance overview PDF...", "info");
+      // @ts-ignore
+      html2pdf().from(element).set(opt).save().then(() => {
+        addToast("Export Successful", "Dashboard Overview PDF downloaded successfully.", "success");
+      });
+    } catch (err: any) {
+      console.error(err);
+      addToast("Export Failed", "Could not generate PDF: " + err.message, "error");
+    }
+  };
+
   // Custom Line and Bar Chart helper calculation (Responsive SVGs)
   const chartCoordinates = useMemo(() => {
     if (filteredMetrics.length === 0) return { linePoints: "", barPoints: [] };
@@ -561,6 +750,28 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
 
   return (
     <div className="space-y-6 font-sans">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 text-left">
+        <div>
+          <h2 className="text-xl font-bold font-display text-slate-100 flex items-center gap-2">
+            <LayoutDashboard className="w-5 h-5 text-violet-400" />
+            Executive Performance Overview
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Real-time attribution and performance metrics for connected ad accounts.
+          </p>
+        </div>
+
+        <button
+          onClick={handleExportPDF}
+          disabled={isLoading || filteredMetrics.length === 0}
+          className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5 shrink-0"
+          title="Download full dashboard PDF report"
+        >
+          <Download className="w-3.5 h-3.5 text-violet-400" />
+          <span>Export Overview as PDF</span>
+        </button>
+      </div>
+
       {/* Skeletons Loading View */}
       {isLoading ? (
         <div className="space-y-6 animate-pulse">
