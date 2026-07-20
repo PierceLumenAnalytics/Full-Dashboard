@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
@@ -124,22 +123,7 @@ app.get("/api/agencies", requireAuth, async (req, res) => {
   }
 });
 
-// Initialize Gemini SDK with telemetry header as per the skill
-const getGeminiClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn("Warning: GEMINI_API_KEY environment variable is not defined.");
-    return null;
-  }
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        "User-Agent": "aistudio-build",
-      },
-    },
-  });
-};
+
 
 interface PerformanceMetric {
   date: string;
@@ -515,14 +499,26 @@ app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
 
     let metrics: PerformanceMetric[] = [];
     if (!metricsError && dbMetrics && dbMetrics.length > 0) {
-      metrics = dbMetrics.map((m: any) => ({
-        date: m.date,
-        spend: Number(m.spend),
-        clicks: Number(m.clicks),
-        impressions: Number(m.impressions),
-        conversions: Number(m.conversions)
-      }));
-      console.log(`GET /api/analytics/${clientId}: Loaded ${metrics.length} imported campaign metrics.`);
+      // Group and aggregate metrics by date to handle multiple campaigns/platforms per day
+      const dailyGroup: { [date: string]: PerformanceMetric } = {};
+      for (const m of dbMetrics) {
+        const dateStr = m.date;
+        if (!dailyGroup[dateStr]) {
+          dailyGroup[dateStr] = {
+            date: dateStr,
+            spend: 0,
+            clicks: 0,
+            impressions: 0,
+            conversions: 0
+          };
+        }
+        dailyGroup[dateStr].spend += Number(m.spend);
+        dailyGroup[dateStr].clicks += Number(m.clicks);
+        dailyGroup[dateStr].impressions += Number(m.impressions);
+        dailyGroup[dateStr].conversions += Number(m.conversions);
+      }
+      metrics = Object.values(dailyGroup).sort((a, b) => a.date.localeCompare(b.date));
+      console.log(`GET /api/analytics/${clientId}: Loaded and aggregated ${dbMetrics.length} campaign metrics into ${metrics.length} daily entries.`);
     } else {
       metrics = generateMockMetrics(clientId, mappedClient.monthlyBudget);
     }
@@ -703,8 +699,8 @@ app.get("/api/logs", requireAuth, async (req, res) => {
 });
 
 
-// API: Generate AI summary report using Claude or Gemini API (secured on server)
-app.post("/api/gemini/summary", requireAuth, async (req, res) => {
+// API: Generate AI summary report using Claude API (secured on server)
+app.post("/api/summary", requireAuth, async (req, res) => {
   const { clientId, clientName, metricsSummary } = req.body;
   const user = (req as any).user;
   
@@ -769,13 +765,12 @@ Include three short sections:
 
 Address this to our agency dashboard and write directly, clearly, with beautiful typography format using markdown bullet points. Make it feel highly strategic, calm, and tailored.`;
 
-  const claudeApiKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
+  const claudeApiKey = process.env.ANTHROPIC_API_KEY;
 
   try {
-    // 1. Try Claude first if key is present
     if (claudeApiKey) {
       try {
-        console.log("Attempting to compile summary with Claude...");
+        console.log("Attempting to compile summary with Claude (claude-sonnet-5)...");
         const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -784,7 +779,7 @@ Address this to our agency dashboard and write directly, clearly, with beautiful
             "anthropic-version": "2023-06-01"
           },
           body: JSON.stringify({
-            model: "claude-3-5-sonnet-20241022",
+            model: "claude-sonnet-5",
             max_tokens: 1500,
             system: systemInstruction,
             messages: [
@@ -812,34 +807,11 @@ Address this to our agency dashboard and write directly, clearly, with beautiful
       } catch (claudeError: any) {
         console.warn("Claude API call exception:", claudeError.message);
       }
+    } else {
+      console.warn("Warning: ANTHROPIC_API_KEY environment variable is not defined.");
     }
 
-    // 2. Try Gemini as second option
-    const ai = getGeminiClient();
-    if (ai) {
-      try {
-        console.log("Attempting to compile summary with Gemini...");
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: prompt,
-          config: {
-            systemInstruction,
-            temperature: 0.7,
-          },
-        });
-
-        if (response.text) {
-          return res.json({
-            summary: response.text,
-            provider: "Gemini"
-          });
-        }
-      } catch (geminiError: any) {
-        console.warn("Gemini API call failed:", geminiError.message);
-      }
-    }
-
-    // 3. Fallback to high-fidelity dynamic sandbox summary
+    // Fallback to high-fidelity dynamic sandbox summary
     const mockSummary = generateDynamicFallbackSummary(clientName, metricsSummary);
     return res.json({
       summary: mockSummary,

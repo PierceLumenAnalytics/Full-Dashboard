@@ -34,7 +34,7 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
     setError(null);
 
     try {
-      // First, fetch some analytics metrics so we can pass current aggregates to Gemini
+      // First, fetch some analytics metrics so we can pass current aggregates to Claude AI
       const analyticsRes = await authFetch(`/api/analytics/${selectedClient.id}`);
       if (!analyticsRes.ok) throw new Error("Failed to get latest client metrics.");
       const analyticsData = await analyticsRes.json();
@@ -67,8 +67,8 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
         costPerConversion: totalSpend / totalConversions || 0
       };
 
-      // Query Gemini Secure Server-Side Endpoint
-      const response = await authFetch("/api/gemini/summary", {
+      // Query Claude AI Secure Server-Side Endpoint
+      const response = await authFetch("/api/summary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -79,7 +79,7 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
       });
 
       if (!response.ok) {
-        throw new Error("Gemini AI failed to compile the performance summary.");
+        throw new Error("Claude AI failed to compile the performance summary.");
       }
 
       const data = await response.json();
