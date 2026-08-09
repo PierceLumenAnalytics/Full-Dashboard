@@ -330,6 +330,11 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
         {/* Global Action Header Bar */}
         <header className="h-16 bg-slate-950/40 border-b border-slate-900/60 px-6 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-6">
+            {!profile?.logoUrl && (
+              <div className="bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-md text-[10px] font-bold text-amber-500/90 tracking-wide uppercase shrink-0">
+                Demo Mode (Read Only)
+              </div>
+            )}
             {/* Global Agency Filter for Admin */}
             {profile?.isAdmin && (
               <div className="flex items-center gap-2 text-left">

@@ -10,6 +10,34 @@ const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
+// Global read-only protection for public demo mode (bypassable for admin/windsor)
+app.use(async (req, res, next) => {
+  const isWriteMethod = ["POST", "PUT", "DELETE", "PATCH"].includes(req.method);
+  const isMutation = isWriteMethod && !req.path.endsWith("/summary") && !req.path.endsWith("/config");
+  
+  if (isMutation) {
+    // 1. Check if authenticated as Windsor.ai
+    const apiKey = req.query.apiKey || req.headers["x-api-key"];
+    const expectedApiKey = process.env.WINDSOR_API_KEY || "windsor_secret_123";
+    if (apiKey && apiKey === expectedApiKey) {
+      return next();
+    }
+
+    // 2. Check if authenticated as User (Admin or Agency)
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+      if (!authError && authUser) {
+        return next();
+      }
+    }
+    
+    return res.status(403).json({ error: "This is a read-only public demonstration. Modifications are disabled." });
+  }
+  next();
+});
+
 // Initialize Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -53,47 +81,133 @@ app.get("/api/config", (req, res) => {
 // Authentication and Multi-Tenancy Middleware
 const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   try {
+    // 1. Check Windsor API key first (e.g. for server-to-server webhook syncing)
+    const apiKey = req.query.apiKey || req.headers["x-api-key"];
+    const expectedApiKey = process.env.WINDSOR_API_KEY || "windsor_secret_123";
+    if (apiKey && apiKey === expectedApiKey) {
+      const clientId = req.params.id || req.body.clientId;
+      let agencyId = null;
+      if (clientId) {
+        const { data: client } = await supabase
+          .from("clients")
+          .select("agency_id")
+          .eq("id", clientId)
+          .single();
+        if (client) {
+          agencyId = client.agency_id;
+        }
+      }
+      (req as any).user = {
+        id: "windsor-ai-system",
+        email: "system@windsor.ai",
+        agencyId,
+        isAdmin: true, // system bypasses client limit checks and can write
+        agencyName: "Windsor.ai Sync Integration",
+        clientLimit: 9999
+      };
+      return next();
+    }
+
+    // 2. Check standard Bearer Token
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized: Missing token." });
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+      if (!authError && authUser) {
+        // Query profiles
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("*, agencies(*)")
+          .eq("id", authUser.id)
+          .single();
+
+        if (!profileError && profile) {
+          if (profile.is_admin) {
+            (req as any).user = {
+              id: authUser.id,
+              email: authUser.email,
+              isAdmin: true,
+              agencyId: null,
+              agencyName: null,
+              customCta: null,
+              logoUrl: null,
+              primaryColor: null,
+              accentColor: null,
+              clientLimit: 9999
+            };
+            return next();
+          } else {
+            const agency = (profile as any).agencies;
+            (req as any).user = {
+              id: authUser.id,
+              email: authUser.email,
+              agencyId: profile.agency_id,
+              isAdmin: false,
+              agencyName: agency?.name || null,
+              customCta: agency?.custom_cta || null,
+              logoUrl: agency?.logo_url || null,
+              primaryColor: agency?.primary_color || null,
+              accentColor: agency?.accent_color || null,
+              clientLimit: agency?.client_limit || 5
+            };
+            return next();
+          }
+        }
+      }
     }
 
-    const token = authHeader.split(" ")[1];
-    
-    // Verify user JWT
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return res.status(401).json({ error: "Unauthorized: Invalid or expired token." });
+    // 3. Check X-Agency-Slug header for public white-label dashboard requests (read-only)
+    const agencySlug = req.headers["x-agency-slug"];
+    if (agencySlug && typeof agencySlug === "string") {
+      const { data: agency, error: agencyError } = await supabase
+        .from("agencies")
+        .select("*")
+        .eq("slug", agencySlug)
+        .single();
+      
+      if (agencyError || !agency) {
+        return res.status(404).json({ error: `White-label agency dashboard not found for slug: ${agencySlug}` });
+      }
+
+      (req as any).user = {
+        id: "public-reader",
+        email: agency.contact_email || `agency@${agency.slug}.com`,
+        agencyId: agency.id,
+        isAdmin: false,
+        agencyName: agency.name,
+        customCta: agency.custom_cta || null,
+        logoUrl: agency.logo_url || null,
+        primaryColor: agency.primary_color || null,
+        accentColor: agency.accent_color || null,
+        clientLimit: agency.client_limit || 5
+      };
+      return next();
     }
 
-    // Look up profile using service role client
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("agency_id, is_admin, agencies(name, custom_cta, logo_url, primary_color, accent_color, client_limit)")
-      .eq("id", user.id)
+    // 4. Default fallback lookup of Ignite PPC Group agency info for backward compatibility / public demo session
+    const { data: agency, error: agencyError } = await supabase
+      .from("agencies")
+      .select("*")
+      .eq("name", "Ignite PPC Group")
       .single();
 
-    if (profileError || !profile) {
-      return res.status(401).json({ error: "Unauthorized: User profile not found." });
+    if (!agencyError && agency) {
+      (req as any).user = {
+        id: "public-demo-user-id",
+        email: "demo@igniteppc.com",
+        agencyId: agency.id,
+        isAdmin: false,
+        agencyName: agency.name,
+        customCta: agency.custom_cta || null,
+        logoUrl: agency.logo_url || null,
+        primaryColor: agency.primary_color || null,
+        accentColor: agency.accent_color || null,
+        clientLimit: agency.client_limit || 5
+      };
+      return next();
     }
 
-    const typedProfile = profile as any;
-    
-    // Attach user profile details
-    (req as any).user = {
-      id: user.id,
-      email: user.email,
-      agencyId: typedProfile.agency_id,
-      isAdmin: typedProfile.is_admin,
-      agencyName: typedProfile.agencies?.name || null,
-      customCta: typedProfile.agencies?.custom_cta || null,
-      logoUrl: typedProfile.agencies?.logo_url || null,
-      primaryColor: typedProfile.agencies?.primary_color || null,
-      accentColor: typedProfile.agencies?.accent_color || null,
-      clientLimit: typedProfile.agencies?.client_limit || 5
-    };
-
-    next();
+    return res.status(401).json({ error: "Unauthorized: Invalid credentials or missing X-Agency-Slug header." });
   } catch (err: any) {
     console.error("Auth middleware error:", err.message);
     res.status(401).json({ error: "Unauthorized: Auth check failed." });
@@ -120,6 +234,188 @@ app.get("/api/agencies", requireAuth, async (req, res) => {
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: "Failed to fetch agencies: " + err.message });
+  }
+});
+
+// API: One-click agency onboarding (Admin only)
+app.post("/api/admin/agencies/onboard", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  if (!user.isAdmin) {
+    return res.status(403).json({ error: "Access Denied: Admin role required." });
+  }
+
+  const { name, slug, logoUrl, primaryColor, accentColor, clientLimit, clients } = req.body;
+
+  if (!name || !slug) {
+    return res.status(400).json({ error: "Agency name and slug are required." });
+  }
+
+  try {
+    // 1. Insert Agency
+    const { data: agency, error: agencyError } = await supabase
+      .from("agencies")
+      .insert({
+        name: name.trim(),
+        slug: slug.trim().toLowerCase(),
+        logo_url: logoUrl ? logoUrl.trim() : null,
+        primary_color: primaryColor ? primaryColor.trim() : null,
+        accent_color: accentColor ? accentColor.trim() : null,
+        client_limit: typeof clientLimit === "number" ? clientLimit : 5
+      })
+      .select()
+      .single();
+
+    if (agencyError) throw agencyError;
+
+    // 2. Insert Clients if any
+    const clientsInserted = [];
+    if (Array.isArray(clients) && clients.length > 0) {
+      for (const client of clients) {
+        if (!client.name || !client.domain) continue;
+        const clientId = `c_${Math.random().toString(36).substr(2, 9)}`;
+        const { data: newClient, error: clientError } = await supabase
+          .from("clients")
+          .insert({
+            id: clientId,
+            name: client.name.trim(),
+            domain: client.domain.trim().toLowerCase(),
+            platform: client.platform || "All Platforms",
+            monthly_budget: Number(client.monthlyBudget) || 1000,
+            status: "Active",
+            agency_id: agency.id,
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (clientError) {
+          console.error(`Failed to create onboarded client ${client.name}:`, clientError.message);
+        } else {
+          clientsInserted.push(newClient);
+        }
+      }
+    }
+
+    // 3. Log Audit
+    const logId = `log-${Date.now()}`;
+    await supabase.from("audit_logs").insert({
+      id: logId,
+      timestamp: new Date().toISOString(),
+      action: "CREATE",
+      entity: "Agency",
+      details: `Onboarded new agency ${name.trim()} with slug ${slug.trim()} and ${clientsInserted.length} clients`,
+      user: user.email || "admin",
+      agency_id: agency.id
+    });
+
+    res.status(201).json({
+      success: true,
+      agency,
+      clients: clientsInserted
+    });
+  } catch (err: any) {
+    console.error("Error onboarding agency:", err.message);
+    res.status(500).json({ error: "Failed to onboard agency: " + err.message });
+  }
+});
+
+// API: List all agencies with clients count (Admin only)
+app.get("/api/admin/agencies", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  if (!user.isAdmin) {
+    return res.status(403).json({ error: "Access Denied: Admin role required." });
+  }
+
+  try {
+    const { data: agencies, error: agencyError } = await supabase
+      .from("agencies")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (agencyError) throw agencyError;
+
+    // Get client count for each agency
+    const { data: clients, error: clientsError } = await supabase
+      .from("clients")
+      .select("agency_id");
+
+    if (clientsError) throw clientsError;
+
+    const mappedAgencies = agencies.map((a: any) => {
+      const agencyClientsCount = clients?.filter((c: any) => c.agency_id === a.id).length || 0;
+      return {
+        ...a,
+        clientsCount: agencyClientsCount
+      };
+    });
+
+    res.json(mappedAgencies);
+  } catch (err: any) {
+    console.error("Error listing agencies:", err.message);
+    res.status(500).json({ error: "Failed to list agencies: " + err.message });
+  }
+});
+
+// API: Update agency settings (Admin only)
+app.put("/api/admin/agencies/:id", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  if (!user.isAdmin) {
+    return res.status(403).json({ error: "Access Denied: Admin role required." });
+  }
+
+  const { id } = req.params;
+  const { name, slug, logoUrl, primaryColor, accentColor, clientLimit } = req.body;
+
+  try {
+    const updates: any = {};
+    if (name) updates.name = name.trim();
+    if (slug) updates.slug = slug.trim().toLowerCase();
+    if (logoUrl !== undefined) updates.logo_url = logoUrl ? logoUrl.trim() : null;
+    if (primaryColor !== undefined) updates.primary_color = primaryColor ? primaryColor.trim() : null;
+    if (accentColor !== undefined) updates.accent_color = accentColor ? accentColor.trim() : null;
+    if (clientLimit !== undefined) updates.client_limit = Number(clientLimit);
+
+    const { data: updatedAgency, error } = await supabase
+      .from("agencies")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json(updatedAgency);
+  } catch (err: any) {
+    console.error("Error updating agency:", err.message);
+    res.status(500).json({ error: "Failed to update agency: " + err.message });
+  }
+});
+
+// API: Delete agency (Admin only)
+app.delete("/api/admin/agencies/:id", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  if (!user.isAdmin) {
+    return res.status(403).json({ error: "Access Denied: Admin role required." });
+  }
+
+  const { id } = req.params;
+
+  try {
+    // Delete clients associated with agency first to prevent FK violation
+    await supabase.from("clients").delete().eq("agency_id", id);
+    
+    // Delete agency
+    const { error } = await supabase
+      .from("agencies")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("Error deleting agency:", err.message);
+    res.status(500).json({ error: "Failed to delete agency: " + err.message });
   }
 });
 
@@ -266,7 +562,7 @@ app.post("/api/clients", requireAuth, async (req, res) => {
       
       if (countError) throw countError;
       if (count !== null && count >= user.clientLimit) {
-        return res.status(403).json({ error: `You have reached your client limit of ${user.clientLimit} clients. Contact us to add more.` });
+        return res.status(403).json({ error: `You have reached your client limit of ${user.clientLimit} clients. Contact your Lumen Analytics account manager.` });
       }
     }
 

@@ -5,7 +5,6 @@ import {
   Sparkles, 
   FileTerminal, 
   LogOut, 
-  ChevronRight, 
   Layers,
   Settings
 } from "lucide-react";
@@ -24,7 +23,7 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout }: 
     { id: "summary" as ActiveTab, name: "AI Daily Summary", icon: Sparkles },
   ];
 
-  const managementNavigation = [
+  let managementNavigation = [
     { id: "clients" as ActiveTab, name: "Connected Clients", icon: Users },
     { id: "logs" as ActiveTab, name: "Security Audit Logs", icon: FileTerminal },
   ];
@@ -33,30 +32,60 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout }: 
     managementNavigation.push({ id: "settings" as ActiveTab, name: "Agency Settings", icon: Settings });
   }
 
+  // If public anonymous agency URL visitor, restrict all management tabs
+  const isPublicReader = profile?.id === "public-reader";
+  if (isPublicReader) {
+    managementNavigation = [];
+  }
+
   const userInitial = profile?.email ? profile.email.charAt(0).toUpperCase() : "U";
 
   return (
-    <aside className="w-64 bg-slate-950 border-r border-slate-900/80 flex flex-col justify-between select-none h-screen shrink-0 font-sans">
+    <aside className="w-64 bg-slate-950 border-r border-slate-900/80 flex flex-col justify-between select-none h-screen shrink-0 font-sans text-left">
       {/* Brand Header */}
       <div>
         <div className="p-5 flex items-center gap-2.5 border-b border-slate-900/40 text-left">
-          <div className="w-8 h-8 rounded-lg border border-slate-800 bg-slate-900/30 flex items-center justify-center font-bold text-xs">
-            {profile?.logoUrl ? (
-              <span style={{ color: profile.primaryColor || '#ea580c' }}>
-                {profile.logoUrl === "IGNITE_PPC" ? "IP" : profile.agencyName?.substring(0, 2).toUpperCase()}
-              </span>
-            ) : (
-              <Layers className="w-4 h-4 text-slate-400" />
-            )}
-          </div>
-          <div>
-            <h1 className="text-sm font-semibold tracking-tight text-slate-200">
-              {profile?.agencyName || "Lumen Analytics"}
-            </h1>
-            <span className="text-[9px] text-slate-600 tracking-wider font-mono uppercase block">
-              {profile?.logoUrl ? "Agency Portal" : "Insights Platform"}
-            </span>
-          </div>
+          {profile?.logoUrl ? (
+            <div className="flex flex-col gap-1">
+              {profile.logoUrl.startsWith("http") || profile.logoUrl.startsWith("data:") || profile.logoUrl.includes("/") ? (
+                <img 
+                  src={profile.logoUrl} 
+                  alt={profile.agencyName || "Agency Logo"} 
+                  className="max-h-8 max-w-[180px] object-contain" 
+                />
+              ) : (
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg border border-slate-800 bg-slate-900/30 flex items-center justify-center font-bold text-xs" style={{ borderColor: profile.primaryColor || '#ea580c' }}>
+                    <span style={{ color: profile.primaryColor || '#ea580c' }}>
+                      {profile.logoUrl === "IGNITE_PPC" ? "IP" : profile.agencyName?.substring(0, 2).toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <h1 className="text-sm font-semibold tracking-tight text-slate-200">
+                      {profile.agencyName}
+                    </h1>
+                    <span className="text-[9px] text-slate-600 tracking-wider font-mono uppercase block">
+                      Agency Portal
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="w-8 h-8 rounded-lg border border-slate-800 bg-slate-900/30 flex items-center justify-center font-bold text-xs">
+                <Layers className="w-4 h-4 text-slate-400" />
+              </div>
+              <div>
+                <h1 className="text-sm font-semibold tracking-tight text-slate-200">
+                  Lumen Analytics
+                </h1>
+                <span className="text-[9px] text-slate-600 tracking-wider font-mono uppercase block">
+                  Insights Platform
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Navigation Groups */}
@@ -90,66 +119,68 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout }: 
           </div>
 
           {/* Management Group */}
-          <div>
-            <span className="text-[9px] font-mono tracking-wider text-slate-600 uppercase px-3 block mb-1.5">
-              Management
-            </span>
-            <ul className="space-y-0.5">
-              {managementNavigation.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <li key={item.id}>
-                    <button
-                      onClick={() => setActiveTab(item.id)}
-                      className={`w-full flex items-center px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                        isActive
-                          ? "bg-slate-900/85 text-slate-100"
-                          : "text-slate-400 hover:bg-slate-900/40 hover:text-slate-200"
-                      }`}
-                    >
-                      <Icon className={`w-3.5 h-3.5 mr-2.5 ${isActive ? "text-violet-400/90" : "text-slate-500"}`} />
-                      <span>{item.name}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+          {managementNavigation.length > 0 && (
+            <div>
+              <span className="text-[9px] font-mono tracking-wider text-slate-600 uppercase px-3 block mb-1.5">
+                Management
+              </span>
+              <ul className="space-y-0.5">
+                {managementNavigation.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <li key={item.id}>
+                      <button
+                        onClick={() => setActiveTab(item.id)}
+                        className={`w-full flex items-center px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                          isActive
+                            ? "bg-slate-900/85 text-slate-100"
+                            : "text-slate-400 hover:bg-slate-900/40 hover:text-slate-200"
+                        }`}
+                      >
+                        <Icon className={`w-3.5 h-3.5 mr-2.5 ${isActive ? "text-violet-400/90" : "text-slate-500"}`} />
+                        <span>{item.name}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Sidebar Footer (Clean User Profile + Footnote) */}
+      {/* Sidebar Footer */}
       <div className="p-3 space-y-3">
-        {/* Subtle Footnote instead of bulky card */}
         <div className="px-3 py-1 flex justify-between text-[9px] text-slate-600 font-mono pt-2 border-t border-slate-900/30">
-          <span>{profile?.isAdmin ? "Admin Console" : "Agency Portal"}</span>
+          <span>{isPublicReader ? "Client Portal" : profile?.isAdmin ? "Admin Console" : "Agency Portal"}</span>
           <span>v4.1.2</span>
         </div>
 
-        {/* User Profile Info */}
-        <div className="flex items-center justify-between p-2 border-t border-slate-900/50 pt-3">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <div className="w-7 h-7 rounded-full bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center font-medium text-xs shrink-0 select-none">
-              {userInitial}
+        {!isPublicReader && (
+          <div className="flex items-center justify-between p-2 border-t border-slate-900/50 pt-3">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <div className="w-7 h-7 rounded-full bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center font-medium text-xs shrink-0 select-none">
+                {userInitial}
+              </div>
+              <div className="flex flex-col text-left overflow-hidden">
+                <span className="text-xs font-bold text-slate-300 truncate" title={profile?.agencyName || "Lumen Admin"}>
+                  {profile?.agencyName || "Lumen Admin"}
+                </span>
+                <span className="text-[9px] text-slate-500 truncate" title={profile?.email}>
+                  {profile?.email}
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col text-left overflow-hidden">
-              <span className="text-xs font-bold text-slate-300 truncate" title={profile?.agencyName || "Lumen Admin"}>
-                {profile?.agencyName || "Lumen Admin"}
-              </span>
-              <span className="text-[9px] text-slate-500 truncate" title={profile?.email}>
-                {profile?.email}
-              </span>
-            </div>
+            <button
+              onClick={onLogout}
+              className="text-slate-600 hover:text-rose-400 transition-colors p-1 rounded hover:bg-slate-900/40 cursor-pointer"
+              title="Log Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <button
-            onClick={onLogout}
-            className="text-slate-600 hover:text-rose-400 transition-colors p-1 rounded hover:bg-slate-900/40 cursor-pointer"
-            title="Log Out"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        )}
       </div>
     </aside>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Users, 
   Plus, 
@@ -20,7 +20,7 @@ import { authFetch } from "../lib/supabaseClient";
 
 interface ClientsManagerProps {
   clients: ClientAccount[];
-  onAddClient: (client: Omit<ClientAccount, "id" | "createdAt" | "status">) => Promise<void>;
+  onAddClient: (client: Omit<ClientAccount, "id" | "createdAt" | "status"> & { agencyId?: string }) => Promise<void>;
   onUpdateClient: (id: string, updates: Partial<ClientAccount>, silent?: boolean) => Promise<void>;
   onDeleteClient: (id: string) => Promise<void>;
   addToast: (title: string, description?: string, type?: "success" | "error" | "warning" | "info") => void;
@@ -58,8 +58,25 @@ export default function ClientsManager({
   const [formDomain, setFormDomain] = useState("");
   const [formPlatform, setFormPlatform] = useState<"Google Ads" | "Meta Ads" | "TikTok Ads" | "All Platforms">("All Platforms");
   const [formBudget, setFormBudget] = useState("");
+  const [formAgencyId, setFormAgencyId] = useState("");
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [agenciesList, setAgenciesList] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      authFetch("/api/agencies")
+        .then(res => res.json())
+        .then(data => {
+          setAgenciesList(data);
+          if (data.length > 0) {
+            setFormAgencyId(data[0].id);
+          }
+        })
+        .catch(err => console.error("Failed to load agencies in ClientsManager:", err));
+    }
+  }, [isAdmin]);
 
   // Filter clients list
   const filteredClients = clients.filter((client) => {
@@ -76,6 +93,9 @@ export default function ClientsManager({
     setFormDomain("");
     setFormPlatform("All Platforms");
     setFormBudget("");
+    if (agenciesList.length > 0) {
+      setFormAgencyId(agenciesList[0].id);
+    }
     setFormErrors({});
     setIsModalOpen(true);
   };
@@ -86,6 +106,7 @@ export default function ClientsManager({
     setFormDomain(client.domain);
     setFormPlatform(client.platform);
     setFormBudget(client.monthlyBudget.toString());
+    setFormAgencyId((client as any).agencyId || "");
     setFormErrors({});
     setIsModalOpen(true);
   };
@@ -234,7 +255,6 @@ export default function ClientsManager({
     }
   };
 
-  // Safe client validation on submit (OWASP Top 10 client validation sandbox logic)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormErrors({});
@@ -261,7 +281,6 @@ export default function ClientsManager({
 
     try {
       if (editingClient) {
-        // Run update client mutation
         await onUpdateClient(editingClient.id, {
           name: formName.trim(),
           domain: formDomain.trim().toLowerCase(),
@@ -269,12 +288,12 @@ export default function ClientsManager({
           monthlyBudget: budgetNum
         });
       } else {
-        // Run add client mutation
         await onAddClient({
           name: formName.trim(),
           domain: formDomain.trim().toLowerCase(),
           platform: formPlatform,
-          monthlyBudget: budgetNum
+          monthlyBudget: budgetNum,
+          agencyId: formAgencyId
         });
       }
       setIsModalOpen(false);
@@ -323,42 +342,29 @@ export default function ClientsManager({
           </p>
         </div>
 
-        {(!isAdmin && clients.length >= clientLimit) ? (
-          <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-col items-end gap-1">
+          {isAdmin ? (
             <button
-              disabled
-              className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-500 font-semibold rounded-lg text-xs cursor-not-allowed flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
-              title={`You've reached your limit of ${clientLimit} clients.`}
+              onClick={handleOpenCreateModal}
+              className="px-4 py-2 bg-violet-600 hover:bg-violet-750 text-white font-semibold rounded-lg text-xs cursor-pointer flex items-center gap-1.5 shrink-0 transition-colors"
             >
-              <Plus className="w-4 h-4 text-slate-600" /> Connect New Client
+              <Plus className="w-4 h-4" /> Connect New Client
             </button>
-            <p className="text-[10px] text-amber-500/90 font-medium font-mono text-right mt-0.5">
-              ⚠️ You've reached your client limit — contact us to add more
-            </p>
-          </div>
-        ) : (
-          <button
-            onClick={handleOpenCreateModal}
-            className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-lg text-xs cursor-pointer flex items-center gap-1.5 transition-colors shadow-lg shadow-violet-500/10 shrink-0 self-start sm:self-auto"
-            style={profile?.primaryColor ? {
-              backgroundColor: profile.primaryColor,
-              borderColor: profile.primaryColor,
-              color: "#ffffff"
-            } : {}}
-            onMouseEnter={(e) => {
-              if (profile?.primaryColor) {
-                e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (profile?.primaryColor) {
-                e.currentTarget.style.backgroundColor = profile.primaryColor;
-              }
-            }}
-          >
-            <Plus className="w-4 h-4" /> Connect New Client
-          </button>
-        )}
+          ) : (
+            <>
+              <button
+                disabled
+                className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-500 font-semibold rounded-lg text-xs cursor-not-allowed flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+                title="Adding new clients is disabled. Contact your Lumen Analytics account manager."
+              >
+                <Plus className="w-4 h-4 text-slate-600" /> Connect New Client
+              </button>
+              <p className="text-[10px] text-amber-500/90 font-medium font-mono text-right mt-0.5">
+                ⚠️ Contact your Lumen Analytics account manager to increase client limits.
+              </p>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Grid Filter Actions */}
@@ -401,13 +407,13 @@ export default function ClientsManager({
                 <th className="p-4">Monthly Budget</th>
                 <th className="p-4">Status</th>
                 <th className="p-4">Date Connected</th>
-                <th className="p-4 text-right">Actions</th>
+                {isAdmin && <th className="p-4 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-900 bg-slate-950/10">
               {filteredClients.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-500">
+                  <td colSpan={isAdmin ? 6 : 5} className="p-8 text-center text-slate-500">
                     No active client accounts found matching filter constraints.
                   </td>
                 </tr>
@@ -437,47 +443,57 @@ export default function ClientsManager({
                       ${client.monthlyBudget.toLocaleString()}
                     </td>
                     <td className="p-4">
-                      <button
-                        onClick={() => toggleStatus(client)}
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-colors border ${
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold border select-none ${
                           client.status === "Active"
-                            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20"
+                            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                             : client.status === "Paused"
-                            ? "bg-slate-800/40 border-slate-700/50 text-slate-500 hover:bg-slate-800"
-                            : "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/20"
+                            ? "bg-slate-800/40 border-slate-700/50 text-slate-500"
+                            : "bg-amber-500/10 border-amber-500/20 text-amber-400"
                         }`}
                       >
                         {client.status}
-                      </button>
+                      </span>
                     </td>
                     <td className="p-4 text-slate-500 font-mono">
                       {new Date(client.createdAt).toLocaleDateString()}
                     </td>
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    {isAdmin && (
+                      <td className="p-4 text-right flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => toggleStatus(client)}
+                          className={`p-1.5 rounded border border-slate-850 transition-colors ${
+                            client.status === "Active" 
+                              ? "bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-amber-500" 
+                              : "bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-emerald-500"
+                          }`}
+                          title={client.status === "Active" ? "Pause Client" : "Activate Client"}
+                        >
+                          <Loader2 className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={() => handleOpenImportModal(client)}
-                          className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-900/50 rounded transition-all cursor-pointer"
-                          title="Import Campaign Data (CSV)"
+                          className="p-1.5 bg-slate-900 hover:bg-slate-850 rounded border border-slate-800 text-slate-400 hover:text-emerald-400 transition-colors"
+                          title="Import CSV Metrics"
                         >
                           <FileSpreadsheet className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleOpenEditModal(client)}
-                          className="p-1.5 text-slate-400 hover:text-violet-400 hover:bg-slate-900/50 rounded transition-all cursor-pointer"
-                          title="Modify Account Settings"
+                          className="p-1.5 bg-slate-900 hover:bg-slate-850 rounded border border-slate-800 text-slate-400 hover:text-violet-400 transition-colors"
+                          title="Edit Client"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDelete(client.id, client.name)}
-                          className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-900/50 rounded transition-all cursor-pointer"
-                          title="Disconnect Integration"
+                          className="p-1.5 bg-slate-900 hover:bg-slate-850 rounded border border-slate-800 text-slate-400 hover:text-rose-400 transition-colors"
+                          title="Delete Client"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </div>
-                    </td>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -585,19 +601,39 @@ export default function ClientsManager({
                 )}
               </div>
 
+              {/* Associated Agency dropdown (Admin Only) */}
+              {isAdmin && !editingClient && (
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">
+                    Associate Agency Portal
+                  </label>
+                  <select
+                    value={formAgencyId}
+                    onChange={(e) => setFormAgencyId(e.target.value)}
+                    className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
+                  >
+                    {agenciesList.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Submit Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-900">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold rounded-lg text-xs cursor-pointer transition-colors"
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 font-semibold rounded-lg text-xs cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-800 text-white font-semibold rounded-lg text-xs cursor-pointer transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 bg-violet-600 hover:bg-violet-750 disabled:bg-violet-800 text-white font-semibold rounded-lg text-xs cursor-pointer transition-colors flex items-center gap-1.5"
                 >
                   {isSubmitting ? (
                     <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
@@ -609,6 +645,7 @@ export default function ClientsManager({
           </div>
         </div>
       )}
+      
       {/* CSV IMPORT DIALOG MODAL */}
       {isImportModalOpen && importingClient && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -682,7 +719,7 @@ export default function ClientsManager({
                 <button
                   type="button"
                   onClick={() => setIsImportModalOpen(false)}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold rounded-lg text-xs cursor-pointer transition-colors"
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 font-semibold rounded-lg text-xs cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>

@@ -1,34 +1,115 @@
 import React, { useEffect, useState } from "react";
 import DashboardShell from "./components/DashboardShell";
 import Login from "./components/Login";
+import AdminPanel from "./components/AdminPanel";
 import { supabase, setGlobalSession } from "./lib/supabaseClient";
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdminRoute, setIsAdminRoute] = useState(false);
+  const [agencySlug, setAgencySlug] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session: initSession } }) => {
-      setSession(initSession);
-      setGlobalSession(initSession);
-      setLoading(false);
-    });
+    const initApp = async () => {
+      const path = window.location.pathname;
+      
+      if (path.startsWith("/agency/")) {
+        const slug = path.split("/")[2];
+        if (slug) {
+          setAgencySlug(slug);
+          setIsAdminRoute(false);
+          const publicSession = {
+            access_token: null,
+            user: null,
+            agencySlug: slug
+          };
+          setSession(publicSession);
+          setGlobalSession(publicSession);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Otherwise, default to Admin route
+      setIsAdminRoute(true);
+      try {
+        const { data: { session: activeSession } } = await supabase.auth.getSession();
+        if (activeSession) {
+          setGlobalSession(activeSession);
+          const res = await fetch("/api/profile", {
+            headers: {
+              Authorization: `Bearer ${activeSession.access_token}`
+            }
+          });
+          if (res.ok) {
+            const profile = await res.json();
+            if (profile.isAdmin) {
+              setIsAdmin(true);
+              setSession(activeSession);
+            } else {
+              await supabase.auth.signOut();
+              setGlobalSession(null);
+              setSession(null);
+              alert("Access Denied: Admin role required.");
+            }
+          } else {
+            await supabase.auth.signOut();
+            setGlobalSession(null);
+            setSession(null);
+          }
+        }
+      } catch (err) {
+        console.error("Session initialization failed:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-      setGlobalSession(newSession);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    initApp();
   }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setSession(null);
     setGlobalSession(null);
+    setIsAdmin(false);
+    window.location.href = "/admin";
+  };
+
+  const handleLoginSuccess = async (newSession: any) => {
+    setLoading(true);
+    setGlobalSession(newSession);
+    try {
+      const res = await fetch("/api/profile", {
+        headers: {
+          Authorization: `Bearer ${newSession.access_token}`
+        }
+      });
+      if (res.ok) {
+        const profile = await res.json();
+        if (profile.isAdmin) {
+          setIsAdmin(true);
+          setSession(newSession);
+        } else {
+          await supabase.auth.signOut();
+          setGlobalSession(null);
+          setSession(null);
+          alert("Access Denied: Admin role required.");
+        }
+      } else {
+        await supabase.auth.signOut();
+        setGlobalSession(null);
+        setSession(null);
+        alert("Access Denied: Admin role required.");
+      }
+    } catch (err) {
+      console.error("Login verification failed:", err);
+      alert("Login verification failed.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
@@ -41,13 +122,14 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-slate-950">
-      {session ? (
-        <DashboardShell session={session} onLogout={handleLogout} />
+      {isAdminRoute ? (
+        session && isAdmin ? (
+          <AdminPanel session={session} onLogout={handleLogout} />
+        ) : (
+          <Login onLoginSuccess={handleLoginSuccess} />
+        )
       ) : (
-        <Login onLoginSuccess={(newSession) => {
-          setSession(newSession);
-          setGlobalSession(newSession);
-        }} />
+        <DashboardShell session={session} onLogout={handleLogout} />
       )}
     </div>
   );
