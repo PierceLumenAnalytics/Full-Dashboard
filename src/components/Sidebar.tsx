@@ -30,7 +30,7 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout }: 
 
   const isPublicReader = profile?.id === "public-reader";
 
-  if (profile && !profile.isAdmin && !isPublicReader) {
+  if (profile && !profile.isAdmin) {
     managementNavigation.push({ id: "settings" as ActiveTab, name: "Agency Settings", icon: Settings });
   }
 
