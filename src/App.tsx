@@ -30,6 +30,21 @@ export default function App() {
         setLoading(false);
         return;
       }
+
+      if (path === "/" || path === "") {
+        const slug = "ignite-ppc";
+        setAgencySlug(slug);
+        setIsAdminRoute(false);
+        const publicSession = {
+          access_token: null,
+          user: null,
+          agencySlug: slug
+        };
+        setSession(publicSession);
+        setGlobalSession(publicSession);
+        setLoading(false);
+        return;
+      }
       
       // Otherwise, default to Admin route
       setIsAdminRoute(true);
