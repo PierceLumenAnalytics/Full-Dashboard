@@ -15,21 +15,20 @@ export default function App() {
     const initApp = async () => {
       const path = window.location.pathname;
       
-      if (path.startsWith("/agency/")) {
-        const slug = path.split("/")[2];
-        if (slug) {
-          setAgencySlug(slug);
-          setIsAdminRoute(false);
-          const publicSession = {
-            access_token: null,
-            user: null,
-            agencySlug: slug
-          };
-          setSession(publicSession);
-          setGlobalSession(publicSession);
-          setLoading(false);
-          return;
-        }
+      const agencyMatch = path.match(/^\/agency\/([^/]+)/i);
+      if (agencyMatch && agencyMatch[1]) {
+        const slug = agencyMatch[1];
+        setAgencySlug(slug);
+        setIsAdminRoute(false);
+        const publicSession = {
+          access_token: null,
+          user: null,
+          agencySlug: slug
+        };
+        setSession(publicSession);
+        setGlobalSession(publicSession);
+        setLoading(false);
+        return;
       }
       
       // Otherwise, default to Admin route
