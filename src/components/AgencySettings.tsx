@@ -114,3 +114,4 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
     </div>
   );
 }
+// Restored agency settings tab customization
