@@ -93,8 +93,10 @@ export default function ClientsManager({
     setFormDomain("");
     setFormPlatform("All Platforms");
     setFormBudget("");
-    if (agenciesList.length > 0) {
+    if (isAdmin && agenciesList.length > 0) {
       setFormAgencyId(agenciesList[0].id);
+    } else {
+      setFormAgencyId(profile?.agencyId || "");
     }
     setFormErrors({});
     setIsModalOpen(true);
@@ -106,7 +108,7 @@ export default function ClientsManager({
     setFormDomain(client.domain);
     setFormPlatform(client.platform);
     setFormBudget(client.monthlyBudget.toString());
-    setFormAgencyId((client as any).agencyId || "");
+    setFormAgencyId((client as any).agencyId || profile?.agencyId || "");
     setFormErrors({});
     setIsModalOpen(true);
   };
@@ -293,7 +295,7 @@ export default function ClientsManager({
           domain: formDomain.trim().toLowerCase(),
           platform: formPlatform,
           monthlyBudget: budgetNum,
-          agencyId: formAgencyId
+          agencyId: formAgencyId || profile?.agencyId
         });
       }
       setIsModalOpen(false);
@@ -343,27 +345,12 @@ export default function ClientsManager({
         </div>
 
         <div className="flex flex-col items-end gap-1">
-          {isAdmin ? (
-            <button
-              onClick={handleOpenCreateModal}
-              className="px-4 py-2 bg-violet-600 hover:bg-violet-750 text-white font-semibold rounded-lg text-xs cursor-pointer flex items-center gap-1.5 shrink-0 transition-colors"
-            >
-              <Plus className="w-4 h-4" /> Connect New Client
-            </button>
-          ) : (
-            <>
-              <button
-                disabled
-                className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-500 font-semibold rounded-lg text-xs cursor-not-allowed flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
-                title="Adding new clients is disabled. Contact your Lumen Analytics account manager."
-              >
-                <Plus className="w-4 h-4 text-slate-600" /> Connect New Client
-              </button>
-              <p className="text-[10px] text-amber-500/90 font-medium font-mono text-right mt-0.5">
-                ⚠️ Contact your Lumen Analytics account manager to increase client limits.
-              </p>
-            </>
-          )}
+          <button
+            onClick={handleOpenCreateModal}
+            className="px-4 py-2 bg-violet-600 hover:bg-violet-750 text-white font-semibold rounded-lg text-xs cursor-pointer flex items-center gap-1.5 shrink-0 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Connect New Client
+          </button>
         </div>
       </div>
 
@@ -407,13 +394,13 @@ export default function ClientsManager({
                 <th className="p-4">Monthly Budget</th>
                 <th className="p-4">Status</th>
                 <th className="p-4">Date Connected</th>
-                {isAdmin && <th className="p-4 text-right">Actions</th>}
+                <th className="p-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-900 bg-slate-950/10">
               {filteredClients.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 6 : 5} className="p-8 text-center text-slate-500">
+                  <td colSpan={6} className="p-8 text-center text-slate-500">
                     No active client accounts found matching filter constraints.
                   </td>
                 </tr>
@@ -458,42 +445,40 @@ export default function ClientsManager({
                     <td className="p-4 text-slate-500 font-mono">
                       {new Date(client.createdAt).toLocaleDateString()}
                     </td>
-                    {isAdmin && (
-                      <td className="p-4 text-right flex items-center justify-end gap-1.5">
-                        <button
-                          onClick={() => toggleStatus(client)}
-                          className={`p-1.5 rounded border border-slate-850 transition-colors ${
-                            client.status === "Active" 
-                              ? "bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-amber-500" 
-                              : "bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-emerald-500"
-                          }`}
-                          title={client.status === "Active" ? "Pause Client" : "Activate Client"}
-                        >
-                          <Loader2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenImportModal(client)}
-                          className="p-1.5 bg-slate-900 hover:bg-slate-850 rounded border border-slate-800 text-slate-400 hover:text-emerald-400 transition-colors"
-                          title="Import CSV Metrics"
-                        >
-                          <FileSpreadsheet className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleOpenEditModal(client)}
-                          className="p-1.5 bg-slate-900 hover:bg-slate-850 rounded border border-slate-800 text-slate-400 hover:text-violet-400 transition-colors"
-                          title="Edit Client"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(client.id, client.name)}
-                          className="p-1.5 bg-slate-900 hover:bg-slate-850 rounded border border-slate-800 text-slate-400 hover:text-rose-400 transition-colors"
-                          title="Delete Client"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    )}
+                    <td className="p-4 text-right flex items-center justify-end gap-1.5">
+                      <button
+                        onClick={() => toggleStatus(client)}
+                        className={`p-1.5 rounded border border-slate-850 transition-colors ${
+                          client.status === "Active" 
+                            ? "bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-amber-500" 
+                            : "bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-emerald-500"
+                        }`}
+                        title={client.status === "Active" ? "Pause Client" : "Activate Client"}
+                      >
+                        <Loader2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenImportModal(client)}
+                        className="p-1.5 bg-slate-900 hover:bg-slate-850 rounded border border-slate-800 text-slate-400 hover:text-emerald-400 transition-colors"
+                        title="Import CSV Metrics"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenEditModal(client)}
+                        className="p-1.5 bg-slate-900 hover:bg-slate-850 rounded border border-slate-800 text-slate-400 hover:text-violet-400 transition-colors"
+                        title="Edit Client"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(client.id, client.name)}
+                        className="p-1.5 bg-slate-900 hover:bg-slate-850 rounded border border-slate-800 text-slate-400 hover:text-rose-400 transition-colors"
+                        title="Delete Client"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}

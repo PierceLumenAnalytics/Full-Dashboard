@@ -32,6 +32,19 @@ app.use(async (req, res, next) => {
         return next();
       }
     }
+
+    // 3. Check if has valid X-Agency-Slug (since agency dashboards at /agency/:slug are public and have no passwords)
+    const agencySlug = req.headers["x-agency-slug"];
+    if (agencySlug && typeof agencySlug === "string") {
+      const { data: agency } = await supabase
+        .from("agencies")
+        .select("id")
+        .eq("slug", agencySlug)
+        .single();
+      if (agency) {
+        return next();
+      }
+    }
     
     return res.status(403).json({ error: "This is a read-only public demonstration. Modifications are disabled." });
   }

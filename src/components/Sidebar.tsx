@@ -28,14 +28,10 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout }: 
     { id: "logs" as ActiveTab, name: "Security Audit Logs", icon: FileTerminal },
   ];
 
-  if (profile && !profile.isAdmin) {
-    managementNavigation.push({ id: "settings" as ActiveTab, name: "Agency Settings", icon: Settings });
-  }
-
-  // If public anonymous agency URL visitor, restrict all management tabs
   const isPublicReader = profile?.id === "public-reader";
-  if (isPublicReader) {
-    managementNavigation = [];
+
+  if (profile && !profile.isAdmin && !isPublicReader) {
+    managementNavigation.push({ id: "settings" as ActiveTab, name: "Agency Settings", icon: Settings });
   }
 
   const userInitial = profile?.email ? profile.email.charAt(0).toUpperCase() : "U";
