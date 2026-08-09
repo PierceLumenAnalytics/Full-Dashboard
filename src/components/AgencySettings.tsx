@@ -65,23 +65,26 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
             </p>
             
             <textarea
-              disabled
               rows={4}
               value={ctaText}
               onChange={(e) => setCtaText(e.target.value)}
               placeholder="e.g., Ready to scale? Ask us about our new SEO & Content packages to double organic traffic!"
-              className="w-full bg-slate-950/40 border border-slate-900 rounded-lg p-4 text-xs text-slate-400 focus:outline-none placeholder:text-slate-700 transition-all font-sans leading-relaxed cursor-not-allowed opacity-60"
+              className="w-full bg-slate-950/40 border border-slate-800 focus:border-violet-500/50 rounded-lg p-4 text-xs text-slate-300 focus:outline-none placeholder:text-slate-700 transition-all font-sans leading-relaxed"
             />
           </div>
  
           <div className="flex justify-end pt-2 border-t border-slate-900">
             <button
               type="submit"
-              disabled
-              className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-500 font-semibold text-xs rounded-lg cursor-not-allowed flex items-center gap-1.5"
+              disabled={loading}
+              className="px-4 py-2 bg-violet-600 hover:bg-violet-750 disabled:bg-violet-850 text-white font-semibold text-xs rounded-lg cursor-pointer flex items-center gap-1.5 transition-colors"
             >
-              <Save className="w-3.5 h-3.5" />
-              <span>Read-Only Demo Mode</span>
+              {loading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5" />
+              )}
+              <span>{loading ? "Saving..." : "Save Settings"}</span>
             </button>
           </div>
         </form>

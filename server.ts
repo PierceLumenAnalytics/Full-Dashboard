@@ -232,6 +232,39 @@ app.get("/api/profile", requireAuth, (req, res) => {
   res.json((req as any).user);
 });
 
+// API: Update agency custom CTA settings
+app.put("/api/agency/cta", requireAuth, async (req, res) => {
+  const { customCta } = req.body;
+  const user = (req as any).user;
+  
+  if (!user.agencyId) {
+    return res.status(403).json({ error: "Access Denied: No agency context associated with user." });
+  }
+
+  try {
+    const { error: updateError } = await supabase
+      .from("agencies")
+      .update({ custom_cta: customCta || null })
+      .eq("id", user.agencyId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    await supabase.from("audit_logs").insert({
+      agency_id: user.agencyId,
+      action: "Update Custom CTA Message",
+      actor_email: user.email,
+      details: `Custom CTA message updated to: "${customCta || '(disabled)'}"`
+    });
+
+    res.json({ success: true, customCta });
+  } catch (err: any) {
+    console.error("Failed to update custom CTA settings:", err.message);
+    res.status(500).json({ error: "Failed to update agency custom CTA message in database." });
+  }
+});
+
 // API: List all agencies (Admin only)
 app.get("/api/agencies", requireAuth, async (req, res) => {
   try {
