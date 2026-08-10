@@ -149,6 +149,41 @@ export default function Overview({
   profile 
 }: OverviewProps) {
   const [metrics, setMetrics] = useState<PerformanceMetric[]>([]);
+  const [allClientsMetrics, setAllClientsMetrics] = useState<{[clientId: string]: PerformanceMetric[]}>({});
+
+  // Background fetch metrics for all clients to support health dashboard
+  useEffect(() => {
+    if (!clients || clients.length === 0) return;
+
+    let isMounted = true;
+    const fetchAll = async () => {
+      const results: {[clientId: string]: PerformanceMetric[]} = {};
+      await Promise.all(
+        clients.map(async (c) => {
+          try {
+            const res = await authFetch(`/api/analytics/${c.id}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (isMounted) {
+                results[c.id] = data.metrics || [];
+              }
+            }
+          } catch (err) {
+            console.error(`Failed to fetch health metrics for client ${c.name}:`, err);
+          }
+        })
+      );
+      if (isMounted) {
+        setAllClientsMetrics(results);
+      }
+    };
+
+    fetchAll();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [clients]);
 
   // Filter metrics based on selected date range
   const filteredMetrics = useMemo(() => {
@@ -449,6 +484,90 @@ export default function Overview({
              camp.platform.toLowerCase().includes(tableSearch.toLowerCase());
     });
   }, [campaignsList, tableSearch]);
+
+  const actionItems = useMemo(() => {
+    if (filteredMetrics.length === 0) return [];
+    
+    // Sort metrics by date descending
+    const sorted = [...filteredMetrics].sort((a, b) => b.date.localeCompare(a.date));
+    
+    // Last 7 days
+    const thisWeek = sorted.slice(0, 7);
+    // Previous 7 days
+    const lastWeek = sorted.slice(7, 14);
+    
+    const items = [];
+    
+    if (thisWeek.length > 0 && lastWeek.length > 0) {
+      // Calculate CPL
+      const thisSpend = thisWeek.reduce((acc, m) => acc + m.spend, 0);
+      const thisConvs = thisWeek.reduce((acc, m) => acc + m.conversions, 0);
+      const thisCPL = thisConvs > 0 ? thisSpend / thisConvs : 0;
+      
+      const lastSpend = lastWeek.reduce((acc, m) => acc + m.spend, 0);
+      const lastConvs = lastWeek.reduce((acc, m) => acc + m.conversions, 0);
+      const lastCPL = lastConvs > 0 ? lastSpend / lastConvs : 0;
+      
+      if (lastCPL > 0) {
+        const cplPct = ((thisCPL - lastCPL) / lastCPL) * 100;
+        if (cplPct > 15) {
+          items.push({
+            priority: "High Priority",
+            text: `Google Search CPL ↑ ${Math.round(cplPct)}% this week`,
+            color: "text-[#F87171]",
+            dotColor: "bg-[#F87171]"
+          });
+        }
+      }
+      
+      // Calculate ROAS
+      const thisROAS = thisSpend > 0 ? (thisConvs * 150) / thisSpend : 0;
+      const lastROAS = lastSpend > 0 ? (lastConvs * 150) / lastSpend : 0;
+      
+      if (lastROAS > 0) {
+        const roasPct = ((thisROAS - lastROAS) / lastROAS) * 100;
+        if (roasPct < -10) {
+          items.push({
+            priority: "Watch",
+            text: `ROAS dropped ${Math.abs(Math.round(roasPct))}% WoW`,
+            color: "text-[#FCD34D]",
+            dotColor: "bg-[#FCD34D]"
+          });
+        }
+      }
+    }
+    
+    // Campaign budget check
+    const totalSpend = filteredCampaigns.reduce((acc, c) => acc + c.spend, 0);
+    const totalConvs = filteredCampaigns.reduce((acc, c) => acc + c.conversions, 0);
+    
+    filteredCampaigns.forEach(c => {
+      const spendShare = totalSpend > 0 ? (c.spend / totalSpend) * 100 : 0;
+      const convShare = totalConvs > 0 ? (c.conversions / totalConvs) * 100 : 0;
+      
+      if (spendShare > 30 && convShare < 10) {
+        items.push({
+          priority: "Review",
+          text: `${c.name} has spend > 30% of budget but conversions < 10% of total`,
+          color: "text-[#FCD34D]",
+          dotColor: "bg-[#FCD34D]"
+        });
+      }
+      
+      // A campaign has ROAS > 2x the account average
+      const avgROAS = totalSpend > 0 ? (totalConvs * 150) / totalSpend : 0;
+      if (avgROAS > 0 && c.roas > 2 * avgROAS) {
+        items.push({
+          priority: "Opportunity: Scale",
+          text: `${c.name} ROAS ${c.roas.toFixed(1)}x is 2x above account average`,
+          color: "text-[#4ADE80]",
+          dotColor: "bg-[#4ADE80]"
+        });
+      }
+    });
+    
+    return items;
+  }, [filteredMetrics, filteredCampaigns]);
 
   // Bulk Row Selection Handlers (Regions)
   const handleSelectRow = (countryName: string) => {
@@ -1145,6 +1264,138 @@ export default function Overview({
             </div>
           </div>
 
+          {/* Client Health & Action Center */}
+          {!isClientView && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+              
+              {/* Client Health */}
+              <div className="lg:col-span-2 p-6 rounded-lg bg-[#101010] border border-white/5 space-y-4 text-left">
+                <div>
+                  <h3 className="text-sm font-bold text-[#F5F3EE] font-display uppercase tracking-wider">
+                    Client Health
+                  </h3>
+                  <p className="text-xs text-[#8A8680] mt-0.5">
+                    Live account status and pacing computed from aggregate performance data.
+                  </p>
+                </div>
+                
+                <div className="divide-y divide-white/5 max-h-[320px] overflow-y-auto pr-1">
+                  {clients.map((client) => {
+                    const metricsList = allClientsMetrics[client.id] || [];
+                    const statsList = metricsList.filter(m => m.date >= dateRange.startDate && m.date <= dateRange.endDate);
+                    const spend = statsList.reduce((acc, m) => acc + m.spend, 0);
+                    const convs = statsList.reduce((acc, m) => acc + m.conversions, 0);
+                    const cpl = convs > 0 ? spend / convs : 0;
+                    const roas = spend > 0 ? (convs * 150) / spend : 0;
+                    
+                    let health: "Excellent" | "Strong" | "Watch" | "Attention" = "Watch";
+                    let healthColor = "text-[#FCD34D] border-[#FCD34D]/20 bg-[#FCD34D]/5";
+                    if (roas >= 4.5) {
+                      health = "Excellent";
+                      healthColor = "text-[#4ADE80] border-[#4ADE80]/20 bg-[#4ADE80]/5";
+                    } else if (roas >= 3.0) {
+                      health = "Strong";
+                      healthColor = "text-[#4ADE80] border-[#4ADE80]/20 bg-[#4ADE80]/5";
+                    } else if (roas >= 2.0) {
+                      health = "Watch";
+                      healthColor = "text-[#FCD34D] border-[#FCD34D]/20 bg-[#FCD34D]/5";
+                    } else {
+                      health = "Attention";
+                      healthColor = "text-[#F87171] border-[#F87171]/20 bg-[#F87171]/5";
+                    }
+                    
+                    let trendIcon = "↑";
+                    let trendColor = "text-[#4ADE80]";
+                    if (compareRange) {
+                      const compareStatsList = metricsList.filter(m => m.date >= compareRange.startDate && m.date <= compareRange.endDate);
+                      const compSpend = compareStatsList.reduce((acc, m) => acc + m.spend, 0);
+                      const compConvs = compareStatsList.reduce((acc, m) => acc + m.conversions, 0);
+                      const compROAS = compSpend > 0 ? (compConvs * 150) / compSpend : 0;
+                      if (roas < compROAS) {
+                        trendIcon = "↓";
+                        trendColor = "text-[#F87171]";
+                      }
+                    }
+
+                    return (
+                      <div key={client.id} className="py-3.5 flex items-center justify-between gap-4 first:pt-0 last:pb-0">
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-semibold text-[#F5F3EE] truncate">{client.name}</span>
+                          <span className="text-[10px] text-[#8A8680] font-mono truncate">{client.domain}</span>
+                        </div>
+                        <div className="flex items-center gap-6 shrink-0">
+                          <div className="flex flex-col text-right">
+                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold border uppercase font-mono ${healthColor}`}>
+                              {health}
+                            </span>
+                          </div>
+                          <div className="flex flex-col text-right min-w-[50px]">
+                            <span className="text-xs font-mono font-semibold text-[#F5F3EE]">{roas > 0 ? `${roas.toFixed(2)}x` : "—"}</span>
+                            <span className="text-[9px] text-[#8A8680] font-mono uppercase">ROAS</span>
+                          </div>
+                          <div className="flex flex-col text-right min-w-[60px]">
+                            <span className="text-xs font-mono font-semibold text-[#F5F3EE]">{cpl > 0 ? `$${cpl.toFixed(2)}` : "—"}</span>
+                            <span className="text-[9px] text-[#8A8680] font-mono uppercase">CPL</span>
+                          </div>
+                          <span className={`text-sm font-mono font-bold ${trendColor} w-4 text-center`}>
+                            {roas > 0 ? trendIcon : ""}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Action Center / Needs Attention */}
+              <div className="lg:col-span-1 p-6 rounded-lg bg-[#101010] border border-white/5 flex flex-col justify-between text-left space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-[#F5F3EE] font-display uppercase tracking-wider">
+                    Needs Your Attention
+                  </h3>
+                  <p className="text-xs text-[#8A8680]">
+                    Automated alerts generated from current metric anomalies.
+                  </p>
+                </div>
+                
+                <div className="flex-1 space-y-3.5 my-2 max-h-[220px] overflow-y-auto pr-1">
+                  {actionItems.length === 0 ? (
+                    <p className="text-xs text-[#8A8680] italic py-4">
+                      All campaigns healthy. No action needed.
+                    </p>
+                  ) : (
+                    actionItems.map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-2 text-xs">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${item.dotColor}`}></span>
+                        <div className="flex flex-col">
+                          <span className={`font-bold ${item.color} text-[9px] uppercase font-mono tracking-wider`}>
+                            {item.priority}
+                          </span>
+                          <span className="text-[#F5F3EE] leading-normal mt-0.5">{item.text}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-white/5">
+                  <button 
+                    onClick={() => {
+                      const tableSection = document.getElementById("campaigns-table-section");
+                      if (tableSection) {
+                        tableSection.scrollIntoView({ behavior: "smooth" });
+                      }
+                    }}
+                    className="text-xs font-bold text-[#D6B77A] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    Review all →
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          )}
+
           {/* Section 2: Interactive Trend Graph & Channel Breakdown (Side-by-Side Grid) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
@@ -1447,7 +1698,7 @@ export default function Overview({
           </div>
 
           {/* Section 4: Campaigns Performance Table vs Regional Traffic Table tabbed container */}
-          <div className="p-6 rounded-lg bg-[#101010] border border-white/5 space-y-4">
+          <div id="campaigns-table-section" className="p-6 rounded-lg bg-[#101010] border border-white/5 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               
               {/* Tab Selector */}

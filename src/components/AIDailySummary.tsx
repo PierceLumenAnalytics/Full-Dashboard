@@ -24,8 +24,15 @@ interface AIDailySummaryProps {
 
 export default function AIDailySummary({ selectedClient, dateRange, addToast, profile }: AIDailySummaryProps) {
   const [summary, setSummary] = useState<string>("");
+  const [insights, setInsights] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const serializeInsightsToText = (insightsList: any[]) => {
+    return insightsList.map(ins => {
+      return `${ins.number} — ${ins.label}\nWhat: ${ins.what}\nWhy: ${ins.why}\nRecommendation: ${ins.action}\n`;
+    }).join("\n");
+  };
 
   const fetchAISummary = async () => {
     if (!selectedClient) return;
@@ -48,6 +55,7 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
       // Handle empty metrics gracefully
       if (metrics.length === 0) {
         setSummary("### No campaign metrics found for this selected date range.\n\nPlease select another date range or verify your connected ad accounts.");
+        setInsights(null);
         setLoading(false);
         return;
       }
@@ -83,7 +91,16 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
       }
 
       const data = await response.json();
-      setSummary(data.summary);
+      if (data.insights && Array.isArray(data.insights)) {
+        setInsights(data.insights);
+        setSummary(serializeInsightsToText(data.insights));
+      } else if (typeof data.summary === "string") {
+        setSummary(data.summary);
+        setInsights(null);
+      } else {
+        setSummary(data.summary || "");
+        setInsights(null);
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to generate AI executive insights.");
@@ -337,51 +354,87 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6">
-          {/* Main summary outcome pane */}
-          <div className="p-6 rounded-lg bg-[#101010] border border-white/5 space-y-4 relative min-h-[350px]">
-            {/* Copy report button */}
-            <div className="absolute top-4 right-4 z-10">
-              <button
-                onClick={handleCopy}
-                className="p-2 bg-[#151515] hover:bg-white/5 border border-white/5 hover:border-[#D6B77A] rounded-md text-[#8A8680] hover:text-[#F5F3EE] transition-colors cursor-pointer flex items-center gap-1 text-xs font-sans"
-                title="Copy formatted markdown report"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline font-semibold">Copy Report</span>
-              </button>
-            </div>
+          {insights && insights.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {insights.map((ins, idx) => {
+                const colors = {
+                  scale: { border: "border-[#D6B77A]/30", bg: "bg-[#D6B77A]/5", text: "text-[#D6B77A]" },
+                  watch: { border: "border-[#FCD34D]/30", bg: "bg-[#FCD34D]/5", text: "text-[#FCD34D]" },
+                  opportunity: { border: "border-[#4ADE80]/30", bg: "bg-[#4ADE80]/5", text: "text-[#4ADE80]" },
+                  alert: { border: "border-[#F87171]/30", bg: "bg-[#F87171]/5", text: "text-[#F87171]" }
+                }[ins.type as 'scale'|'watch'|'opportunity'|'alert'] || { border: "border-white/5", bg: "bg-[#151515]", text: "text-[#F5F3EE]" };
 
-            {/* Document layout header */}
-            <div className="flex items-center gap-2 border-b border-white/5 pb-4 mb-4 text-left">
-              <FileText className="w-4 h-4 text-[#D6B77A]" />
-              <span className="text-[10px] font-mono tracking-widest text-[#8A8680] uppercase">
-                Performance Summary
-              </span>
+                return (
+                  <div key={idx} className={`p-5 rounded-lg border ${colors.border} ${colors.bg} flex flex-col justify-between space-y-4 text-left animate-fade-in`}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[10px] font-mono tracking-widest uppercase font-bold ${colors.text}`}>
+                        {ins.number} — {ins.label}
+                      </span>
+                    </div>
+                    <div className="space-y-2 flex-1">
+                      <p className="text-xs text-[#F5F3EE] font-semibold leading-relaxed">
+                        {ins.what}
+                      </p>
+                      <p className="text-[11px] text-[#8A8680] leading-relaxed">
+                        {ins.why}
+                      </p>
+                    </div>
+                    <div className="pt-3 border-t border-white/5">
+                      <p className="text-[11px] text-[#F5F3EE]">
+                        <span className="font-semibold text-[#D6B77A]">Recommendation:</span> {ins.action}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          ) : (
+            /* Main summary outcome pane */
+            <div className="p-6 rounded-lg bg-[#101010] border border-white/5 space-y-4 relative min-h-[350px]">
+              {/* Copy report button */}
+              <div className="absolute top-4 right-4 z-10">
+                <button
+                  onClick={handleCopy}
+                  className="p-2 bg-[#151515] hover:bg-white/5 border border-white/5 hover:border-[#D6B77A] rounded-md text-[#8A8680] hover:text-[#F5F3EE] transition-colors cursor-pointer flex items-center gap-1 text-xs font-sans"
+                  title="Copy formatted markdown report"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline font-semibold">Copy Report</span>
+                </button>
+              </div>
 
-            {/* Formatted Text Box */}
-            <div className="markdown-body text-[#8A8680] text-xs text-left leading-relaxed space-y-4">
-              <Markdown
-                components={{
-                  h1: ({ children }) => <h1 className="text-lg font-bold text-[#F5F3EE] mt-6 mb-3 font-display border-b border-white/5 pb-2 text-left">{children}</h1>,
-                  h2: ({ children }) => <h2 className="text-base font-bold text-[#D6B77A] mt-5 mb-2 font-display text-left">{children}</h2>,
-                  h3: ({ children }) => <h3 className="text-sm font-bold text-[#D6B77A] mt-4 mb-2 uppercase tracking-wider font-display text-left">{children}</h3>,
-                  p: ({ children }) => <p className="text-xs text-[#8A8680] leading-relaxed mt-2 mb-2 text-left">{children}</p>,
-                  ul: ({ children }) => <ul className="space-y-2.5 my-3 pl-1 text-left">{children}</ul>,
-                  ol: ({ children }) => <ol className="space-y-2.5 my-3 pl-1 list-decimal text-left">{children}</ol>,
-                  li: ({ children }) => (
-                    <li className="flex gap-2 text-xs text-[#8A8680] py-1 pl-1 leading-relaxed items-start text-left">
-                      <span className="text-[#D6B77A] font-semibold shrink-0 mt-1">●</span>
-                      <span>{children}</span>
-                    </li>
-                  ),
-                  strong: ({ children }) => <strong className="text-[#F5F3EE] font-bold">{children}</strong>,
-                }}
-              >
-                {summary}
-              </Markdown>
+              {/* Document layout header */}
+              <div className="flex items-center gap-2 border-b border-white/5 pb-4 mb-4 text-left">
+                <FileText className="w-4 h-4 text-[#D6B77A]" />
+                <span className="text-[10px] font-mono tracking-widest text-[#8A8680] uppercase">
+                  Performance Summary
+                </span>
+              </div>
+
+              {/* Formatted Text Box */}
+              <div className="markdown-body text-[#8A8680] text-xs text-left leading-relaxed space-y-4">
+                <Markdown
+                  components={{
+                    h1: ({ children }) => <h1 className="text-lg font-bold text-[#F5F3EE] mt-6 mb-3 font-display border-b border-white/5 pb-2 text-left">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-base font-bold text-[#D6B77A] mt-5 mb-2 font-display text-left">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-sm font-bold text-[#D6B77A] mt-4 mb-2 uppercase tracking-wider font-display text-left">{children}</h3>,
+                    p: ({ children }) => <p className="text-xs text-[#8A8680] leading-relaxed mt-2 mb-2 text-left">{children}</p>,
+                    ul: ({ children }) => <ul className="space-y-2.5 my-3 pl-1 text-left">{children}</ul>,
+                    ol: ({ children }) => <ol className="space-y-2.5 my-3 pl-1 list-decimal text-left">{children}</ol>,
+                    li: ({ children }) => (
+                      <li className="flex gap-2 text-xs text-[#8A8680] py-1 pl-1 leading-relaxed items-start text-left">
+                        <span className="text-[#D6B77A] font-semibold shrink-0 mt-1">●</span>
+                        <span>{children}</span>
+                      </li>
+                    ),
+                    strong: ({ children }) => <strong className="text-[#F5F3EE] font-bold">{children}</strong>,
+                  }}
+                >
+                  {summary}
+                </Markdown>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>

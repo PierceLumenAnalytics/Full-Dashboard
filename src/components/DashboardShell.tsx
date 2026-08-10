@@ -9,6 +9,7 @@ import ToastContainer, { ToastMessage } from "./Toast";
 import { ClientAccount, AuditLog, ActiveTab } from "../types";
 import { RefreshCw, Calendar, ChevronDown } from "lucide-react";
 import { DateRange, getPresetRange, formatDisplayDate, getCompareRange } from "../utils/dateHelpers";
+import ReportsPage from "./ReportsPage";
 import { authFetch } from "../lib/supabaseClient";
 
 interface DashboardShellProps {
@@ -37,6 +38,13 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
   });
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isClientView, setIsClientView] = useState(false);
+
+  // Redirect back to overview if active tab becomes unavailable in client view
+  useEffect(() => {
+    if (isClientView && !["overview", "summary"].includes(activeTab)) {
+      setActiveTab("overview");
+    }
+  }, [isClientView, activeTab]);
   const [compareMode, setCompareMode] = useState<"previous_period" | "previous_year" | "custom">("previous_period");
   const [customCompareRange, setCustomCompareRange] = useState<DateRange>({
     preset: "custom",
@@ -761,6 +769,14 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
               dateRange={dateRange}
               addToast={addToast}
               profile={profile}
+            />
+          )}
+
+          {activeTab === "reports" && (
+            <ReportsPage 
+              clients={clients}
+              dateRange={dateRange}
+              addToast={addToast}
             />
           )}
 

@@ -1043,7 +1043,7 @@ app.get("/api/logs", requireAuth, async (req, res) => {
 
 // API: Generate AI summary report using Claude API (secured on server)
 app.post("/api/summary", requireAuth, async (req, res) => {
-  const { clientId, clientName, metricsSummary } = req.body;
+  const { clientId, clientName, metricsSummary, tone = "Executive" } = req.body;
   const user = (req as any).user;
   
   if (!clientId || !clientName || !metricsSummary) {
@@ -1070,7 +1070,7 @@ app.post("/api/summary", requireAuth, async (req, res) => {
   }
 
   // Graceful fallback generator using actual client performance metrics
-  const generateDynamicFallbackSummary = (name: string, summary: any) => {
+  const generateDynamicFallbackInsights = (name: string, summary: any) => {
     const totalSpend = summary.totalSpend || 0;
     const totalConversions = summary.totalConversions || 0;
     const avgConvRate = summary.avgConvRate || 0;
@@ -1078,16 +1078,57 @@ app.post("/api/summary", requireAuth, async (req, res) => {
     const avgCtr = summary.avgCtr || 0;
     const costPerConversion = summary.costPerConversion || 0;
 
-    return `### AI Campaign Insights for ${name}
-* **Trend Analysis**: Over the last 30 days, paid ad spend was highly efficient. Total ad spend reached **$${totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**, generating **${totalClicks.toLocaleString()}** clicks with an average click-through rate of **${avgCtr.toFixed(2)}%**.
-* **Highlight**: Conversion volume settled at **${totalConversions.toLocaleString()}** conversions, with an average conversion rate of **${avgConvRate.toFixed(2)}%**. The cost per acquisition (CPA) was managed exceptionally well at **$${costPerConversion.toFixed(2)}** per conversion.
-* **Opportunities for ${name}**:
-  1. **Optimize Underperforming Budgets**: Shift 15% budget from underperforming ad variations to the high-converting campaigns.
-  2. **Frequency Cap Warning**: Creative fatigue detected in display assets. Refresh display assets to sustain click rate levels.`;
+    const toneText = tone.toLowerCase();
+    const greetings = {
+      casual: `Hey, quick update on ${name}. things look solid.`,
+      "data-driven": `Analyzing key performative indicators for ${name}. Variance metrics follow.`,
+      executive: `Executive overview for ${name}. High-level indicators show sound efficiency.`
+    }[toneText] || `Executive performance highlights for ${name}.`;
+
+    return [
+      {
+        type: "scale",
+        label: "SCALE",
+        number: "01",
+        what: `${greetings} Meta Ads generated efficient conversion volume.`,
+        why: `Total spend reached $${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })} producing ${totalConversions.toLocaleString()} conversions.`,
+        action: "Increase daily budget by 10-15% on best performing asset."
+      },
+      {
+        type: "watch",
+        label: "WATCH",
+        number: "02",
+        what: `Average conversion rate settled at ${avgConvRate.toFixed(2)}%.`,
+        why: `Low conversion rate on specific ad variations is increasing overall CPL.`,
+        action: "Review search query match and exclude low-intent variations."
+      },
+      {
+        type: "opportunity",
+        label: "OPPORTUNITY",
+        number: "03",
+        what: `Overall click-through rate of ${avgCtr.toFixed(2)}% shows strong engagement.`,
+        why: `Creative styling aligns well with target audience demographics.`,
+        action: "Deploy new creative variations of current top-performing copy."
+      }
+    ];
   };
 
   const systemPrompt = `You are an elite digital marketing performance analyst and executive reporting expert.
-You translate complex paid advertising performance metrics into clear, calm, extremely actionable executive bullet points for marketing agencies and their clients.
+You translate complex paid advertising performance metrics into a structured JSON object containing three strategic marketing insights.
+IMPORTANT: You MUST return ONLY a valid JSON object matching the following TypeScript interface. Do NOT write any conversational prose, markdown blocks (other than wrapping the JSON in a json block if required), or extra characters.
+
+Interface:
+interface Response {
+  insights: Array<{
+    type: "scale" | "watch" | "opportunity" | "alert";
+    label: "SCALE" | "WATCH" | "OPPORTUNITY" | "ALERT";
+    number: string; // e.g. "01", "02", "03"
+    what: string;   // a clear summary of what happened
+    why: string;    // the underlying cause or reason
+    action: string; // recommended action
+  }>;
+}
+
 IMPORTANT: Only reference ad channels and platforms that have data in the metrics provided to you. Never mention Google Ads, Meta Ads, TikTok Ads, or any specific platform unless that platform's data is explicitly included in the metrics summary.`;
 
   const prompt = `Please analyze the performance metrics over the last 30 days for our client "${clientName}":
@@ -1099,20 +1140,15 @@ Metrics summary:
 - Avg Click-Through Rate: ${metricsSummary.avgCtr.toFixed(2)}%
 - Cost per Conversion: $${metricsSummary.costPerConversion.toFixed(2)}
 
-Please write an executive daily/weekly insight report. Keep it concise.
-Include three short sections:
-1. What went up (Highlights)
-2. What went down (Issues to monitor)
-3. Action Plan (Exactly what to fix or optimize)
-
-Address this to our agency dashboard and write directly, clearly, with beautiful typography format using markdown bullet points. Make it feel highly strategic, calm, and tailored.`;
+Please write three structured insights matching the JSON schema. Use tone: ${tone}.
+Make the insights feel highly strategic, calm, and tailored to "${clientName}".`;
 
   const claudeApiKey = process.env.ANTHROPIC_API_KEY;
 
   try {
     if (claudeApiKey) {
       try {
-        console.log("Attempting to compile summary with Claude (claude-sonnet-5)...");
+        console.log("Attempting to compile structured insights with Claude...");
         const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -1135,12 +1171,30 @@ Address this to our agency dashboard and write directly, clearly, with beautiful
 
         if (response.ok) {
           const data: any = await response.json();
-          const summaryText = data.content?.[0]?.text;
+          let summaryText = data.content?.[0]?.text;
           if (summaryText) {
-            return res.json({
-              summary: summaryText,
-              provider: "Claude"
-            });
+            summaryText = summaryText.trim();
+            if (summaryText.startsWith("```json")) {
+              summaryText = summaryText.substring(7);
+            } else if (summaryText.startsWith("```")) {
+              summaryText = summaryText.substring(3);
+            }
+            if (summaryText.endsWith("```")) {
+              summaryText = summaryText.substring(0, summaryText.length - 3);
+            }
+            summaryText = summaryText.trim();
+
+            try {
+              const parsed = JSON.parse(summaryText);
+              if (parsed.insights && Array.isArray(parsed.insights)) {
+                return res.json({
+                  insights: parsed.insights,
+                  provider: "Claude"
+                });
+              }
+            } catch (err) {
+              console.warn("Failed to parse Claude output as JSON:", err);
+            }
           }
         } else {
           const errText = await response.text();
@@ -1153,19 +1207,19 @@ Address this to our agency dashboard and write directly, clearly, with beautiful
       console.warn("Warning: ANTHROPIC_API_KEY environment variable is not defined.");
     }
 
-    // Fallback to high-fidelity dynamic sandbox summary
-    const mockSummary = generateDynamicFallbackSummary(clientName, metricsSummary);
+    // Fallback to structured insights sandbox
+    const mockInsights = generateDynamicFallbackInsights(clientName, metricsSummary);
     return res.json({
-      summary: mockSummary,
-      warning: "Demonstration Sandbox Active: This demo simulates and aggregates dynamic campaign stats in real-time. The production version connects live to your actual Google Ads, Meta Ads, and TikTok Ads accounts via secure OAuth integrations."
+      insights: mockInsights,
+      warning: "Demonstration Sandbox Active: Structured insights computed from metrics."
     });
 
   } catch (error: any) {
     console.error("General error in server summary endpoint:", error);
-    const mockSummary = generateDynamicFallbackSummary(clientName, metricsSummary);
-    res.json({
-      summary: mockSummary,
-      warning: "Demonstration Sandbox Active: This demo simulates and aggregates dynamic campaign stats in real-time. The production version connects live to your actual Google Ads, Meta Ads, and TikTok Ads accounts via secure OAuth integrations."
+    const mockInsights = generateDynamicFallbackInsights(clientName, metricsSummary);
+    return res.json({
+      insights: mockInsights,
+      warning: "Demonstration Sandbox Active: Structured insights computed from metrics."
     });
   }
 });

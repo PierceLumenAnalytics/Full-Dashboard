@@ -6,7 +6,8 @@ import {
   FileTerminal, 
   LogOut, 
   Layers,
-  Settings
+  Settings,
+  FileText
 } from "lucide-react";
 import { ActiveTab } from "../types";
 
@@ -23,6 +24,10 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
     { id: "overview" as ActiveTab, name: "Overview", icon: LayoutDashboard },
     { id: "summary" as ActiveTab, name: "Intelligence", icon: Sparkles },
   ];
+
+  if (!isClientView) {
+    mainNavigation.push({ id: "reports" as ActiveTab, name: "Reports", icon: FileText });
+  }
 
   let managementNavigation: any[] = [];
   if (!isClientView) {
