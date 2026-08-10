@@ -25,21 +25,21 @@ export default function LogsViewer({ logs, onRefresh, isRefreshing }: LogsViewer
       case "CREATE":
         return "bg-emerald-500/10 border-emerald-500/20 text-emerald-400";
       case "UPDATE":
-        return "bg-violet-500/10 border-violet-500/20 text-violet-400";
+        return "bg-[#D6B77A]/10 border-[#D6B77A]/20 text-[#D6B77A]";
       case "DELETE":
         return "bg-rose-500/10 border-rose-500/20 text-rose-400";
       default:
-        return "bg-sky-500/10 border-sky-500/20 text-sky-400";
+        return "bg-white/5 border-white/5 text-slate-400";
     }
   };
 
   return (
     <div className="space-y-6 font-sans text-left">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in">
         <div>
           <h2 className="text-xl font-bold font-display text-slate-100 flex items-center gap-2">
-            <FileTerminal className="w-5 h-5 text-violet-400" />
+            <FileTerminal className="w-5 h-5 text-[#D6B77A]" />
             Security Audit Logs
           </h2>
           <p className="text-xs text-slate-400 mt-1">
@@ -50,9 +50,9 @@ export default function LogsViewer({ logs, onRefresh, isRefreshing }: LogsViewer
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
-          className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5 self-start sm:self-auto shrink-0"
+          className="btn-secondary flex items-center gap-1.5 self-start sm:self-auto shrink-0"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-violet-400" : ""}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-[#D6B77A]" : ""}`} />
           <span>Refresh Logs</span>
         </button>
       </div>

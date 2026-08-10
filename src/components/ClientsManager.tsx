@@ -347,7 +347,7 @@ export default function ClientsManager({
         <div className="flex flex-col items-end gap-1">
           <button
             onClick={handleOpenCreateModal}
-            className="px-4 py-2 bg-violet-600 hover:bg-violet-750 text-white font-semibold rounded-lg text-xs cursor-pointer flex items-center gap-1.5 shrink-0 transition-colors"
+            className="btn-primary flex items-center gap-1.5"
           >
             <Plus className="w-4 h-4" /> Connect New Client
           </button>
@@ -357,22 +357,22 @@ export default function ClientsManager({
       {/* Grid Filter Actions */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
+          <Search className="absolute left-3 top-3.5 w-4 h-4 text-slate-500" />
           <input
             type="text"
             placeholder="Search by client name or domain..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="bg-slate-900/40 border border-slate-900 text-slate-300 text-xs rounded-lg pl-9 pr-4 py-2.5 w-full focus:ring-1 focus:ring-violet-500 outline-none placeholder:text-slate-600"
+            className="form-input pl-9 w-full h-10"
           />
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-900/20 border border-slate-900 px-3 py-1.5 rounded-lg shrink-0">
+        <div className="flex items-center gap-2 bg-[#101010] border border-white/5 px-3 py-1.5 rounded-lg shrink-0 h-10">
           <Filter className="w-3.5 h-3.5 text-violet-400" />
           <select
             value={platformFilter}
             onChange={(e) => setPlatformFilter(e.target.value)}
-            className="bg-slate-950 text-slate-300 text-xs outline-none cursor-pointer pr-4 font-medium border border-transparent focus:border-slate-800 rounded px-1"
+            className="bg-transparent text-slate-300 text-xs outline-none cursor-pointer pr-4 font-medium border border-transparent focus:border-transparent rounded"
           >
             <option value="All" className="bg-slate-950 text-slate-200">All Ad Networks</option>
             <option value="Google Ads" className="bg-slate-950 text-slate-200">Google Ads</option>
@@ -607,21 +607,21 @@ export default function ClientsManager({
               )}
 
               {/* Submit Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-900">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/5">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 font-semibold rounded-lg text-xs cursor-pointer transition-colors"
+                  className="btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-violet-600 hover:bg-violet-750 disabled:bg-violet-800 text-white font-semibold rounded-lg text-xs cursor-pointer transition-colors flex items-center gap-1.5"
+                  className="btn-primary flex items-center gap-1.5"
                 >
                   {isSubmitting ? (
-                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin"></span>
                   ) : null}
                   <span>{editingClient ? "Save Updates" : "Activate Integration"}</span>
                 </button>
@@ -699,19 +699,18 @@ export default function ClientsManager({
                 </div>
               </div>
 
-              {/* Submit Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-900">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/5">
                 <button
                   type="button"
                   onClick={() => setIsImportModalOpen(false)}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 font-semibold rounded-lg text-xs cursor-pointer transition-colors"
+                  className="btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={importing || !importFile}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 disabled:text-slate-500 text-white font-semibold rounded-lg text-xs cursor-pointer transition-colors flex items-center gap-1.5"
+                  className="btn-primary flex items-center gap-1.5"
                 >
                   {importing ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />

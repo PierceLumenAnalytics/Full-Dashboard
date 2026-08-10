@@ -707,11 +707,11 @@ export default function Overview({
 
     // Executive Header
     const headerHtml = `
-      <div style="border-bottom: 2px solid ${profile?.primaryColor || '#6d28d9'}; padding-bottom: 16px; margin-bottom: 24px;">
+      <div style="border-bottom: 2px solid ${profile?.primaryColor || '#D6B77A'}; padding-bottom: 16px; margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: flex-end;">
           <div>
             <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">${profile?.agencyName || 'Lumen Analytics'} Report</div>
-            <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: ${profile?.primaryColor || '#6d28d9'}; margin-top: 3px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE DASHBOARD</div>
+            <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: ${profile?.primaryColor || '#D6B77A'}; margin-top: 3px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE DASHBOARD</div>
           </div>
           <div style="font-size: 10px; color: #64748b; font-weight: 600; text-align: right;">
             Generated: ${new Date().toLocaleDateString()}
@@ -798,14 +798,14 @@ export default function Overview({
         text.style.fontFamily = "sans-serif";
       });
       clonedSvg.querySelectorAll("polyline").forEach((polyline) => {
-        polyline.setAttribute("stroke", profile?.primaryColor || "#6d28d9");
+        polyline.setAttribute("stroke", profile?.primaryColor || "#D6B77A");
       });
       clonedSvg.querySelectorAll("circle").forEach((circle) => {
-        circle.setAttribute("stroke", profile?.primaryColor || "#6d28d9");
+        circle.setAttribute("stroke", profile?.primaryColor || "#D6B77A");
         circle.setAttribute("fill", "#ffffff");
       });
       clonedSvg.querySelectorAll("rect").forEach((rect) => {
-        rect.setAttribute("fill", profile?.primaryColor || "#a78bfa");
+        rect.setAttribute("fill", profile?.primaryColor || "#D6B77A");
         rect.setAttribute("fill-opacity", "0.2");
       });
       
@@ -860,8 +860,8 @@ export default function Overview({
 
     // Custom CTA Block for PDF report
     const ctaHtml = (customCta && customCta.trim() !== "") ? `
-      <div style="padding: 12px 16px; border: 1px solid ${(profile?.primaryColor || '#6d28d9')}33; border-radius: 8px; background-color: #f8fafc; margin-bottom: 20px;">
-        <div style="font-size: 8px; font-weight: 700; color: ${profile?.primaryColor || '#6d28d9'}; text-transform: uppercase; letter-spacing: 0.5px;">Agency Message</div>
+      <div style="padding: 12px 16px; border: 1px solid ${(profile?.primaryColor || '#D6B77A')}33; border-radius: 8px; background-color: #f8fafc; margin-bottom: 20px;">
+        <div style="font-size: 8px; font-weight: 700; color: ${profile?.primaryColor || '#D6B77A'}; text-transform: uppercase; letter-spacing: 0.5px;">Agency Message</div>
         <div style="font-size: 11px; font-weight: 500; color: #1e293b; margin-top: 4px; line-height: 1.45;">${customCta}</div>
       </div>
     ` : "";
@@ -1059,21 +1059,6 @@ export default function Overview({
           onClick={handleExportPDF}
           disabled={isLoading || filteredMetrics.length === 0}
           className="px-3.5 py-2 bg-[#D6B77A] hover:bg-[#bfa063] border border-[#D6B77A] text-[#080808] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 shrink-0"
-          style={profile?.primaryColor ? {
-            backgroundColor: profile.primaryColor,
-            borderColor: profile.primaryColor,
-            color: "#ffffff"
-          } : {}}
-          onMouseEnter={(e) => {
-            if (profile?.primaryColor) {
-              e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (profile?.primaryColor) {
-              e.currentTarget.style.backgroundColor = profile.primaryColor;
-            }
-          }}
           title="Download full dashboard PDF report"
         >
           <Download className="w-3.5 h-3.5" />
@@ -1140,7 +1125,7 @@ export default function Overview({
                     return delta ? (
                       <span className={`font-bold ${delta.color}`}>{delta.text}</span>
                     ) : (
-                      <span className="text-[#8A8680]">--</span>
+                      <span className="text-[#8A8680]">Awaiting comparison</span>
                     );
                   })()}
                   <span className="text-[#8A8680] font-mono">Goal: ${goalsData.spend.goal.toLocaleString()}</span>
@@ -1169,7 +1154,7 @@ export default function Overview({
                     return delta ? (
                       <span className={`font-bold ${delta.color}`}>{delta.text}</span>
                     ) : (
-                      <span className="text-[#8A8680]">--</span>
+                      <span className="text-[#8A8680]">Awaiting comparison</span>
                     );
                   })()}
                   <span className="text-[#8A8680] font-mono">Goal: {goalsData.conversions.goal.toLocaleString()}</span>
@@ -1199,7 +1184,7 @@ export default function Overview({
                     return delta ? (
                       <span className={`font-bold ${delta.color}`}>{delta.text}</span>
                     ) : (
-                      <span className="text-[#8A8680]">--</span>
+                      <span className="text-[#8A8680]">Awaiting comparison</span>
                     );
                   })()}
                   <span className="text-[#8A8680] font-mono">Target: $40.00</span>
@@ -1231,7 +1216,7 @@ export default function Overview({
                     return delta ? (
                       <span className={`font-bold ${delta.color}`}>{delta.text}</span>
                     ) : (
-                      <span className="text-[#8A8680]">--</span>
+                      <span className="text-[#8A8680]">Awaiting comparison</span>
                     );
                   })()}
                   <span className="text-[#8A8680] font-mono">Target: 3.00x</span>
@@ -1414,11 +1399,11 @@ export default function Overview({
                 {/* Legend Indicator */}
                 <div className="flex items-center gap-4 text-xs font-mono">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-0.5 bg-[#D6B77A] rounded-full inline-block" style={profile?.primaryColor ? { backgroundColor: profile.primaryColor } : {}}></span>
+                    <span className="w-3 h-0.5 bg-[#D6B77A] rounded-full inline-block"></span>
                     <span className="text-[#8A8680]">Daily Spend ($)</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 bg-[#D6B77A]/20 rounded inline-block" style={profile?.primaryColor ? { backgroundColor: profile.primaryColor + '33' } : {}}></span>
+                    <span className="w-3 h-3 bg-[#D6B77A]/20 rounded inline-block"></span>
                     <span className="text-[#8A8680]">Conversions</span>
                   </div>
                 </div>
@@ -1431,8 +1416,8 @@ export default function Overview({
                     {/* Gradient Defs */}
                     <defs>
                       <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={profile?.primaryColor || "#D6B77A"} stopOpacity="0.2" />
-                        <stop offset="100%" stopColor={profile?.primaryColor || "#D6B77A"} stopOpacity="0.0" />
+                        <stop offset="0%" stopColor="#D6B77A" stopOpacity="0.1" />
+                        <stop offset="100%" stopColor="#D6B77A" stopOpacity="0.0" />
                       </linearGradient>
                     </defs>
 
@@ -1455,7 +1440,7 @@ export default function Overview({
                         y={bar.y}
                         width={bar.width}
                         height={bar.height}
-                        fill={profile?.primaryColor || "#D6B77A"}
+                        fill="#D6B77A"
                         fillOpacity="0.15"
                         className="hover:fill-opacity-40 transition-all cursor-pointer duration-200"
                         onMouseEnter={(e) => {
@@ -1474,7 +1459,7 @@ export default function Overview({
                     {/* Line Path (Spend Chart) */}
                     <polyline
                       fill="none"
-                      stroke={profile?.primaryColor || "#D6B77A"}
+                      stroke="#D6B77A"
                       strokeWidth="2.5"
                       strokeLinecap="round"
                       points={chartCoordinates.linePoints}
@@ -1488,7 +1473,7 @@ export default function Overview({
                         cy={p.y}
                         r="3.5"
                         fill="#080808"
-                        stroke={profile?.primaryColor || "#D6B77A"}
+                        stroke="#D6B77A"
                         strokeWidth="2"
                         className="hover:r-5 hover:fill-[#D6B77A] transition-all cursor-pointer duration-150"
                         onMouseEnter={(e) => {
@@ -1567,7 +1552,6 @@ export default function Overview({
                         <div className="flex items-center gap-2">
                           <span 
                             className={`w-2 h-2 rounded-full ${chan.active ? "bg-[#4ADE80] animate-pulse" : "bg-white/10"}`}
-                            style={chan.active && profile?.primaryColor ? { backgroundColor: profile.primaryColor } : {}}
                           ></span>
                           <span className="text-xs font-bold text-[#F5F3EE]">{chan.label}</span>
                         </div>
@@ -1613,13 +1597,8 @@ export default function Overview({
                         <div className="mt-3.5">
                           <div className="w-full h-1 bg-[#101010] rounded-full overflow-hidden">
                             <div 
-                              className={`h-full ${profile?.primaryColor ? "" : "bg-[#D6B77A]"}`} 
-                              style={profile?.primaryColor ? { 
-                                width: `${chan.share}%`, 
-                                backgroundColor: profile.primaryColor
-                              } : { 
-                                width: `${chan.share}%` 
-                              }}
+                              className="h-full bg-[#D6B77A]" 
+                              style={{ width: `${chan.share}%` }}
                             ></div>
                           </div>
                         </div>

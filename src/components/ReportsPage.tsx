@@ -241,7 +241,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
                       report.status === "Delivered" 
                         ? "bg-[#4ADE80]/5 text-[#4ADE80] border-[#4ADE80]/20"
                         : report.status === "Scheduled"
-                        ? "bg-blue-500/5 text-blue-400 border-blue-500/20"
+                        ? "bg-[#D6B77A]/5 text-[#D6B77A] border-[#D6B77A]/20"
                         : "bg-white/5 text-[#8A8680] border-white/5"
                     }`}>
                       {report.status}

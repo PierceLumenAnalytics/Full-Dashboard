@@ -114,37 +114,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
 
   // Apply dynamic agency branding colors
   useEffect(() => {
-    const styleId = "dynamic-brand-styles";
-    let styleElement = document.getElementById(styleId);
-
-    if (profile?.primaryColor) {
-      const cssRules = `
-        :root {
-          --color-violet-300: ${profile.primaryColor} !important;
-          --color-violet-400: ${profile.primaryColor} !important;
-          --color-violet-500: ${profile.primaryColor} !important;
-          --color-violet-600: ${profile.accentColor || profile.primaryColor} !important;
-          --color-violet-700: ${profile.accentColor || profile.primaryColor} !important;
-          --color-violet-800: ${profile.accentColor || profile.primaryColor} !important;
-          --color-violet-900: ${profile.accentColor || profile.primaryColor} !important;
-        }
-      `;
-      if (!styleElement) {
-        styleElement = document.createElement("style");
-        styleElement.id = styleId;
-        document.head.appendChild(styleElement);
-      }
-      styleElement.textContent = cssRules;
-    } else {
-      if (styleElement) {
-        styleElement.remove();
-      }
-    }
-
-    return () => {
-      const el = document.getElementById(styleId);
-      if (el) el.remove();
-    };
+    // Disabled to preserve unified Lumen champagne gold brand design system globally
   }, [profile]);
 
   // Fetch list of all agencies if admin

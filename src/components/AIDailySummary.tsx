@@ -144,9 +144,9 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
 
     // Printable Executive Header
     element.innerHTML = `
-      <div style="border-bottom: 2px solid ${profile?.primaryColor || '#6d28d9'}; padding-bottom: 16px; margin-bottom: 24px;">
+      <div style="border-bottom: 2px solid ${profile?.primaryColor || '#D6B77A'}; padding-bottom: 16px; margin-bottom: 24px;">
         <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">${profile?.agencyName || 'Lumen Analytics'} Summary</div>
-        <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: ${profile?.primaryColor || '#6d28d9'}; margin-top: 4px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE REPORT</div>
+        <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: ${profile?.primaryColor || '#D6B77A'}; margin-top: 4px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE REPORT</div>
         <div style="margin-top: 12px; font-size: 11px; color: #334155; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
           <div><strong>Client Name:</strong> ${selectedClient.name} (${selectedClient.domain})</div>
           <div><strong>Date Range:</strong> ${dateRange.startDate} to ${dateRange.endDate}</div>
@@ -358,11 +358,11 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {insights.map((ins, idx) => {
                 const colors = {
-                  scale: { border: "border-[#D6B77A]/30", bg: "bg-[#D6B77A]/5", text: "text-[#D6B77A]" },
-                  watch: { border: "border-[#FCD34D]/30", bg: "bg-[#FCD34D]/5", text: "text-[#FCD34D]" },
-                  opportunity: { border: "border-[#4ADE80]/30", bg: "bg-[#4ADE80]/5", text: "text-[#4ADE80]" },
-                  alert: { border: "border-[#F87171]/30", bg: "bg-[#F87171]/5", text: "text-[#F87171]" }
-                }[ins.type as 'scale'|'watch'|'opportunity'|'alert'] || { border: "border-white/5", bg: "bg-[#151515]", text: "text-[#F5F3EE]" };
+                  scale: { border: "border-[#D6B77A]/20", bg: "bg-[#101010]", text: "text-[#D6B77A]" },
+                  watch: { border: "border-amber-500/20", bg: "bg-[#101010]", text: "text-amber-400" },
+                  opportunity: { border: "border-emerald-500/20", bg: "bg-[#101010]", text: "text-emerald-400" },
+                  alert: { border: "border-rose-500/20", bg: "bg-[#101010]", text: "text-rose-400" }
+                }[ins.type as 'scale'|'watch'|'opportunity'|'alert'] || { border: "border-white/5", bg: "bg-[#101010]", text: "text-[#F5F3EE]" };
 
                 return (
                   <div key={idx} className={`p-5 rounded-lg border ${colors.border} ${colors.bg} flex flex-col justify-between space-y-4 text-left animate-fade-in`}>

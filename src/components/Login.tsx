@@ -38,12 +38,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   return (
     <div className="w-screen h-screen flex items-center justify-center bg-slate-950 text-slate-100 font-sans p-4 relative overflow-hidden">
       {/* Background soft glow elements */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-violet-900/10 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-900/10 rounded-full blur-3xl"></div>
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#D6B77A]/5 rounded-full blur-3xl"></div>
 
-      <div className="w-full max-w-md bg-slate-900/60 border border-slate-900 backdrop-blur-xl rounded-2xl p-8 relative shadow-2xl">
+      <div className="w-full max-w-md bg-[#101010]/80 border border-white/5 backdrop-blur-xl rounded-2xl p-8 relative shadow-2xl">
         <div className="flex flex-col items-center mb-8">
-          <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl mb-4 text-violet-400">
+          <div className="p-3 bg-[#101010] border border-white/5 rounded-xl mb-4 text-[#D6B77A]">
             <Sparkles className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-bold font-display tracking-tight text-slate-100">
@@ -66,14 +65,14 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               EMAIL ADDRESS
             </label>
             <div className="relative">
-              <Mail className="absolute left-3 top-3 w-4 h-4 text-slate-600" />
+              <Mail className="absolute left-3 top-3.5 w-4 h-4 text-slate-600" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="agency@lumen.co"
-                className="w-full bg-slate-950 border border-slate-900 rounded-lg pl-10 pr-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-500 placeholder:text-slate-700 transition-all"
+                className="w-full form-input pl-10 h-11"
               />
             </div>
           </div>
@@ -83,14 +82,14 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               PASSWORD
             </label>
             <div className="relative">
-              <Lock className="absolute left-3 top-3 w-4 h-4 text-slate-600" />
+              <Lock className="absolute left-3 top-3.5 w-4 h-4 text-slate-600" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-slate-950 border border-slate-900 rounded-lg pl-10 pr-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-500 placeholder:text-slate-700 transition-all"
+                className="w-full form-input pl-10 h-11"
               />
             </div>
           </div>
@@ -98,11 +97,11 @@ export default function Login({ onLoginSuccess }: LoginProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 bg-slate-900 border border-slate-800 text-slate-200 hover:text-slate-100 hover:bg-slate-800/80 rounded-lg text-xs font-semibold transition-all duration-200 cursor-pointer flex items-center justify-center gap-2"
+            className="w-full btn-primary h-11 flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-400" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
                 <span>Authenticating...</span>
               </>
             ) : (

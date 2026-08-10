@@ -43,10 +43,10 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
   };
 
   return (
-    <div className="space-y-6 font-sans text-left">
+    <div className="space-y-6 font-sans text-left animate-fade-in">
       <div>
         <h2 className="text-xl font-bold font-display text-slate-100 flex items-center gap-2">
-          <Sliders className="w-5 h-5 text-violet-400" />
+          <Sliders className="w-5 h-5 text-[#D6B77A]" />
           Agency Control Panel
         </h2>
         <p className="text-xs text-slate-400 mt-1">
@@ -55,7 +55,7 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <form onSubmit={handleSave} className="lg:col-span-2 p-6 rounded-xl bg-slate-900/10 border border-slate-900 space-y-6">
+        <form onSubmit={handleSave} className="lg:col-span-2 p-6 rounded-xl bg-[#101010] border border-white/5 space-y-6">
           <div>
             <h3 className="text-sm font-bold text-slate-200 font-display uppercase tracking-wider mb-2">
               Custom Client CTA Message
@@ -69,18 +69,18 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
               value={ctaText}
               onChange={(e) => setCtaText(e.target.value)}
               placeholder="e.g., Ready to scale? Ask us about our new SEO & Content packages to double organic traffic!"
-              className="w-full bg-slate-950/40 border border-slate-800 focus:border-violet-500/50 rounded-lg p-4 text-xs text-slate-300 focus:outline-none placeholder:text-slate-700 transition-all font-sans leading-relaxed"
+              className="w-full form-input h-auto leading-relaxed focus:border-[#D6B77A]/50 p-4"
             />
           </div>
  
-          <div className="flex justify-end pt-2 border-t border-slate-900">
+          <div className="flex justify-end pt-4 border-t border-white/5">
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-violet-600 hover:bg-violet-750 disabled:bg-violet-850 text-white font-semibold text-xs rounded-lg cursor-pointer flex items-center gap-1.5 transition-colors"
+              className="btn-primary flex items-center gap-1.5"
             >
               {loading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
               ) : (
                 <Save className="w-3.5 h-3.5" />
               )}
@@ -89,8 +89,8 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
           </div>
         </form>
 
-        <div className="p-5 rounded-xl bg-slate-900/25 border border-slate-900 space-y-4 h-fit">
-          <div className="flex items-center gap-2 text-violet-400">
+        <div className="p-5 rounded-xl bg-[#101010] border border-white/5 space-y-4 h-fit">
+          <div className="flex items-center gap-2 text-[#D6B77A]">
             <Sparkles className="w-4 h-4" />
             <h4 className="text-xs font-bold text-slate-200 font-display uppercase tracking-wider">
               Preview Mode
@@ -101,11 +101,11 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
           </p>
 
           {ctaText ? (
-            <div className="p-3.5 rounded-lg bg-violet-950/20 border border-violet-500/30 text-xs text-violet-300 font-medium leading-relaxed">
+            <div className="p-3.5 rounded-lg bg-[#D6B77A]/5 border border-[#D6B77A]/20 text-xs text-[#D6B77A] font-medium leading-relaxed">
               {ctaText}
             </div>
           ) : (
-            <div className="p-3.5 rounded-lg bg-slate-950/40 border border-slate-900 text-xs text-slate-600 italic text-center">
+            <div className="p-3.5 rounded-lg bg-[#080808]/40 border border-white/5 text-xs text-slate-600 italic text-center">
               No message active (hidden from clients)
             </div>
           )}
