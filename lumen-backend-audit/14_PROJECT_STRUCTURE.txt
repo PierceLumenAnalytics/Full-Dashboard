@@ -1,0 +1,30 @@
+Lumen Analytics Project Directory Structure:
+
+.
+├── api/
+│   └── index.ts                 # Serverless function entry point
+├── scripts/                     # Seed and verification tools
+│   ├── reset-passwords.ts
+│   ├── seed-ignite-agency.ts
+│   ├── seed-tenant.ts
+│   ├── verify-auth.ts
+│   ├── verify-branding.ts
+│   ├── verify-client-limit.ts
+│   ├── verify-cta-pdf.ts
+│   └── verify-features.ts
+├── src/                         # Client React application
+│   ├── components/              # React views and layouts
+│   ├── lib/
+│   │   └── supabaseClient.ts    # Client-side Supabase client
+│   ├── utils/
+│   │   └── dateHelpers.ts
+│   ├── App.tsx
+│   ├── index.css
+│   ├── main.tsx
+│   └── types.ts
+├── .env.example                 # Environment variables reference template
+├── index.html
+├── package.json
+├── server.ts                    # Main backend API server & middleware
+├── tsconfig.json
+└── vite.config.ts

@@ -1,0 +1,27 @@
+# ============================================================================
+-- LUMEN ANALYTICS - ENVIRONMENT VARIABLES (NAMES ONLY - REDACTED)
+# ============================================================================
+
+# Network & Runtime Environment
+PORT=[REDACTED]
+NODE_ENV=[REDACTED]
+VERCEL=[REDACTED]
+APP_URL=[REDACTED]
+
+# Vercel Deployment Keys
+VERCEL_OIDC_TOKEN=[REDACTED]
+
+# Supabase Configurations
+SUPABASE_URL=[REDACTED]
+SUPABASE_SERVICE_ROLE_KEY=[REDACTED]
+SUPABASE_ANON_KEY=[REDACTED]
+
+# Data Ingestion APIs
+WINDSOR_API_KEY=[REDACTED]
+
+# AI Summaries (Claude API)
+ANTHROPIC_API_KEY=[REDACTED]
+CLAUDE_API_KEY=[REDACTED]
+
+# AI Summaries (Google Gemini API)
+GEMINI_API_KEY=[REDACTED]

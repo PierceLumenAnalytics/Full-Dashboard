@@ -2,69 +2,24 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import crypto from "crypto";
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-// Security Headers and CORS Middleware
-app.use((req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://wrbgbkmwusbeankitwex.supabase.co https://api.anthropic.com;");
-  
-  const origin = req.headers.origin;
-  const allowedOrigins = [process.env.APP_URL || "http://localhost:3000", "http://localhost:5173"];
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Agency-Slug, X-Public-Dashboard-Token");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
-
-// Simple In-Memory Rate Limiter
-const rateLimits = new Map<string, { count: number; resetAt: number }>();
-const rateLimiter = (limit: number, windowMs: number) => {
-  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const ip = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "anonymous";
-    const key = `${req.path}-${ip}`;
-    const now = Date.now();
-    const record = rateLimits.get(key);
-
-    if (!record || now > record.resetAt) {
-      rateLimits.set(key, { count: 1, resetAt: now + windowMs });
-      return next();
-    }
-
-    if (record.count >= limit) {
-      return res.status(429).json({ error: "Too many requests. Please try again later." });
-    }
-
-    record.count++;
-    next();
-  };
-};
-
 app.use(express.json());
 
 // Global read-only protection for public demo mode (bypassable for admin/windsor)
 app.use(async (req, res, next) => {
   const isWriteMethod = ["POST", "PUT", "DELETE", "PATCH"].includes(req.method);
-  const isMutation = isWriteMethod && !req.path.endsWith("/summary") && !req.path.endsWith("/config") && !req.path.includes("/dashboard-config");
+  const isMutation = isWriteMethod && !req.path.endsWith("/summary") && !req.path.endsWith("/config");
   
   if (isMutation) {
-    // 1. Check if authenticated as Windsor.ai (only if key is defined in env)
+    // 1. Check if authenticated as Windsor.ai
     const apiKey = req.query.apiKey || req.headers["x-api-key"];
-    const expectedApiKey = process.env.WINDSOR_API_KEY;
-    if (expectedApiKey && apiKey === expectedApiKey) {
+    const expectedApiKey = process.env.WINDSOR_API_KEY || "[REDACTED]";
+    if (apiKey && apiKey === expectedApiKey) {
       return next();
     }
 
@@ -72,12 +27,23 @@ app.use(async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.split(" ")[1];
-      try {
-        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
-        if (!authError && authUser) {
-          return next();
-        }
-      } catch (e) {}
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+      if (!authError && authUser) {
+        return next();
+      }
+    }
+
+    // 3. Check if has valid X-Agency-Slug (since agency dashboards at /agency/:slug are public and have no passwords)
+    const agencySlug = req.headers["x-agency-slug"];
+    if (agencySlug && typeof agencySlug === "string") {
+      const { data: agency } = await supabase
+        .from("agencies")
+        .select("id")
+        .eq("slug", agencySlug)
+        .single();
+      if (agency) {
+        return next();
+      }
     }
     
     return res.status(403).json({ error: "This is a read-only public demonstration. Modifications are disabled." });
@@ -121,7 +87,7 @@ testSupabaseConnection();
 app.get("/api/config", (req, res) => {
   res.json({
     supabaseUrl: process.env.SUPABASE_URL,
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyYmdia213dXNiZWFua2l0d2V4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDY5MzgsImV4cCI6MjA5OTg4MjkzOH0.3gY2dWwSu0uc3MGrcpIOz6mJXej1JJeueGQUdC_wrYg"
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || "[REDACTED]"
   });
 });
 
@@ -130,8 +96,8 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
   try {
     // 1. Check Windsor API key first (e.g. for server-to-server webhook syncing)
     const apiKey = req.query.apiKey || req.headers["x-api-key"];
-    const expectedApiKey = process.env.WINDSOR_API_KEY;
-    if (expectedApiKey && apiKey === expectedApiKey) {
+    const expectedApiKey = process.env.WINDSOR_API_KEY || "[REDACTED]";
+    if (apiKey && apiKey === expectedApiKey) {
       const clientId = req.params.id || req.body.clientId;
       let agencyId = null;
       if (clientId) {
@@ -203,7 +169,58 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
       }
     }
 
-    return res.status(401).json({ error: "Unauthorized: Invalid credentials." });
+    // 3. Check X-Agency-Slug header for public white-label dashboard requests (read-only)
+    const agencySlug = req.headers["x-agency-slug"];
+    if (agencySlug && typeof agencySlug === "string") {
+      const { data: agency, error: agencyError } = await supabase
+        .from("agencies")
+        .select("*")
+        .eq("slug", agencySlug)
+        .single();
+      
+      if (agencyError || !agency) {
+        return res.status(404).json({ error: `White-label agency dashboard not found for slug: ${agencySlug}` });
+      }
+
+      (req as any).user = {
+        id: "public-reader",
+        email: agency.contact_email || `agency@${agency.slug}.com`,
+        agencyId: agency.id,
+        isAdmin: false,
+        agencyName: agency.name,
+        customCta: agency.custom_cta || null,
+        logoUrl: agency.logo_url || null,
+        primaryColor: agency.primary_color || null,
+        accentColor: agency.accent_color || null,
+        clientLimit: agency.client_limit || 5
+      };
+      return next();
+    }
+
+    // 4. Default fallback lookup of Ignite PPC Group agency info for backward compatibility / public demo session
+    const { data: agency, error: agencyError } = await supabase
+      .from("agencies")
+      .select("*")
+      .eq("name", "Ignite PPC Group")
+      .single();
+
+    if (!agencyError && agency) {
+      (req as any).user = {
+        id: "public-demo-user-id",
+        email: "demo@igniteppc.com",
+        agencyId: agency.id,
+        isAdmin: false,
+        agencyName: agency.name,
+        customCta: agency.custom_cta || null,
+        logoUrl: agency.logo_url || null,
+        primaryColor: agency.primary_color || null,
+        accentColor: agency.accent_color || null,
+        clientLimit: agency.client_limit || 5
+      };
+      return next();
+    }
+
+    return res.status(401).json({ error: "Unauthorized: Invalid credentials or missing X-Agency-Slug header." });
   } catch (err: any) {
     console.error("Auth middleware error:", err.message);
     res.status(401).json({ error: "Unauthorized: Auth check failed." });
@@ -823,7 +840,6 @@ app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
       .order("date", { ascending: true });
 
     let metrics: PerformanceMetric[] = [];
-    let status = "OK";
     if (!metricsError && dbMetrics && dbMetrics.length > 0) {
       // Group and aggregate metrics by date to handle multiple campaigns/platforms per day
       const dailyGroup: { [date: string]: PerformanceMetric } = {};
@@ -846,19 +862,12 @@ app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
       metrics = Object.values(dailyGroup).sort((a, b) => a.date.localeCompare(b.date));
       console.log(`GET /api/analytics/${clientId}: Loaded and aggregated ${dbMetrics.length} campaign metrics into ${metrics.length} daily entries.`);
     } else {
-      // Only allow mock data if the agency context is a demo context
-      const isDemo = user.agencyName === "Demo Agency" || user.agencyName === "Ignite PPC Group" || user.id === "public-demo-user-id" || user.id === "public-reader";
-      if (isDemo) {
-        metrics = generateMockMetrics(clientId, mappedClient.monthlyBudget);
-      } else {
-        status = "NO_DATA";
-      }
+      metrics = generateMockMetrics(clientId, mappedClient.monthlyBudget);
     }
 
     res.json({
       client: mappedClient,
-      metrics,
-      status
+      metrics
     });
   } catch (err: any) {
     console.error("Error fetching analytics:", err.message);
@@ -936,11 +945,18 @@ app.post("/api/clients/:id/import", requireAuth, async (req, res) => {
       });
     }
 
-    // Idempotent upsert of campaign metrics (unique constraint on client_id, date, platform handles duplicates)
-    const { error: upsertError } = await supabase
+    // Clear existing campaign metrics for this client
+    const { error: deleteError } = await supabase
       .from("campaign_metrics")
-      .upsert(validatedRows, { onConflict: "client_id,date,platform" });
-    if (upsertError) throw upsertError;
+      .delete()
+      .eq("client_id", id);
+    if (deleteError) throw deleteError;
+
+    // Insert new metrics
+    const { error: insertError } = await supabase
+      .from("campaign_metrics")
+      .insert(validatedRows);
+    if (insertError) throw insertError;
 
     // Audit log
     const details = `Imported ${validatedRows.length} campaign metrics from CSV for client ${client.name}`;
@@ -1026,7 +1042,7 @@ app.get("/api/logs", requireAuth, async (req, res) => {
 
 
 // API: Generate AI summary report using Claude API (secured on server)
-app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) => {
+app.post("/api/summary", requireAuth, async (req, res) => {
   const { clientId, clientName, metricsSummary, tone = "Executive" } = req.body;
   const user = (req as any).user;
   
@@ -1034,7 +1050,6 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
     return res.status(400).json({ error: "clientId, clientName, and metricsSummary are required." });
   }
 
-  let clientData: any;
   try {
     // Verify client access
     const { data: client, error: clientError } = await supabase
@@ -1050,32 +1065,8 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
     if (!user.isAdmin && client.agency_id !== user.agencyId) {
       return res.status(403).json({ error: "Access Denied: You do not own this client account." });
     }
-    clientData = client;
   } catch (err: any) {
     return res.status(500).json({ error: "Failed to verify client access: " + err.message });
-  }
-
-  const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-  const dateRangeKey = `30days-${todayStr}`;
-
-  try {
-    // Check Cache first
-    const { data: cachedSummary } = await supabase
-      .from("ai_summaries")
-      .select("summary_data")
-      .eq("client_id", clientId)
-      .eq("date_range", dateRangeKey)
-      .single();
-
-    if (cachedSummary) {
-      console.log(`Cache Hit: Serving stored AI summary for client ${clientId} on date ${todayStr}`);
-      return res.json({
-        insights: (cachedSummary as any).summary_data,
-        provider: "Cached"
-      });
-    }
-  } catch (cacheErr: any) {
-    console.warn("Summary cache check skipped/empty:", cacheErr.message);
   }
 
   // Graceful fallback generator using actual client performance metrics
@@ -1085,6 +1076,7 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
     const avgConvRate = summary.avgConvRate || 0;
     const totalClicks = summary.totalClicks || 0;
     const avgCtr = summary.avgCtr || 0;
+    const costPerConversion = summary.costPerConversion || 0;
 
     const toneText = tone.toLowerCase();
     const greetings = {
@@ -1195,15 +1187,6 @@ Make the insights feel highly strategic, calm, and tailored to "${clientName}".`
             try {
               const parsed = JSON.parse(summaryText);
               if (parsed.insights && Array.isArray(parsed.insights)) {
-                // Delete old summaries and cache the new summary
-                await supabase.from("ai_summaries").delete().eq("client_id", clientId);
-                await supabase.from("ai_summaries").insert({
-                  client_id: clientId,
-                  agency_id: clientData.agency_id,
-                  date_range: dateRangeKey,
-                  summary_data: parsed.insights
-                });
-
                 return res.json({
                   insights: parsed.insights,
                   provider: "Claude"
@@ -1226,18 +1209,6 @@ Make the insights feel highly strategic, calm, and tailored to "${clientName}".`
 
     // Fallback to structured insights sandbox
     const mockInsights = generateDynamicFallbackInsights(clientName, metricsSummary);
-    try {
-      await supabase.from("ai_summaries").delete().eq("client_id", clientId);
-      await supabase.from("ai_summaries").insert({
-        client_id: clientId,
-        agency_id: clientData.agency_id,
-        date_range: dateRangeKey,
-        summary_data: mockInsights
-      });
-    } catch (saveErr: any) {
-      console.warn("Failed to cache fallback insights:", saveErr.message);
-    }
-
     return res.json({
       insights: mockInsights,
       warning: "Demonstration Sandbox Active: Structured insights computed from metrics."
@@ -1246,369 +1217,10 @@ Make the insights feel highly strategic, calm, and tailored to "${clientName}".`
   } catch (error: any) {
     console.error("General error in server summary endpoint:", error);
     const mockInsights = generateDynamicFallbackInsights(clientName, metricsSummary);
-    try {
-      await supabase.from("ai_summaries").delete().eq("client_id", clientId);
-      await supabase.from("ai_summaries").insert({
-        client_id: clientId,
-        agency_id: clientData.agency_id,
-        date_range: dateRangeKey,
-        summary_data: mockInsights
-      });
-    } catch (saveErr: any) {
-      console.warn("Failed to cache fallback insights:", saveErr.message);
-    }
     return res.json({
       insights: mockInsights,
       warning: "Demonstration Sandbox Active: Structured insights computed from metrics."
     });
-  }
-});
-
-// ============================================================================
-// PUBLIC DASHBOARD ACCESS & CONFIGURATION ENDPOINTS
-// ============================================================================
-
-// 1. GET Dashboard Config: checks if public dashboard is enabled and if token exists
-app.get("/api/agency/dashboard-config", requireAuth, async (req, res) => {
-  const user = (req as any).user;
-  if (!user.agencyId) {
-    return res.status(403).json({ error: "Access Denied: Agency context required." });
-  }
-
-  try {
-    const { data: config, error } = await supabase
-      .from("public_dashboards")
-      .select("enabled")
-      .eq("agency_id", user.agencyId)
-      .single();
-
-    if (error && error.code !== "PGRST116") { // Ignore 'no rows returned' error
-      throw error;
-    }
-
-    res.json({
-      enabled: config ? config.enabled : false,
-      hasToken: !!config
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: "Failed to load dashboard configuration: " + err.message });
-  }
-});
-
-// 2. POST Toggle Dashboard: Enables or disables public dashboard access
-app.post("/api/agency/dashboard-config/toggle", requireAuth, async (req, res) => {
-  const { enabled } = req.body;
-  const user = (req as any).user;
-
-  if (!user.agencyId) {
-    return res.status(403).json({ error: "Access Denied: Agency context required." });
-  }
-
-  try {
-    const { data: config } = await supabase
-      .from("public_dashboards")
-      .select("id")
-      .eq("agency_id", user.agencyId)
-      .single();
-
-    if (!config) {
-      return res.status(400).json({ error: "No token exists. Please generate/rotate public dashboard token first." });
-    }
-
-    const { error } = await supabase
-      .from("public_dashboards")
-      .update({ enabled: !!enabled, updated_at: new Date().toISOString() })
-      .eq("agency_id", user.agencyId);
-
-    if (error) throw error;
-
-    await supabase.from("audit_logs").insert({
-      agency_id: user.agencyId,
-      action: "UPDATE",
-      entity: "Dashboard Config",
-      details: `Public dashboard access ${!!enabled ? "ENABLED" : "DISABLED"}`,
-      user: user.email || "system"
-    });
-
-    res.json({ success: true, enabled: !!enabled });
-  } catch (err: any) {
-    res.status(500).json({ error: "Failed to toggle dashboard: " + err.message });
-  }
-});
-
-// 3. POST Rotate Token: Generates a new random token, hashes it, and returns the plain token once
-app.post("/api/agency/dashboard-config/rotate", requireAuth, rateLimiter(5, 60000), async (req, res) => {
-  const user = (req as any).user;
-  if (!user.agencyId) {
-    return res.status(403).json({ error: "Access Denied: Agency context required." });
-  }
-
-  try {
-    const plainToken = "lumen_dash_" + crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto.createHash("sha256").update(plainToken).update("salt_value_lumen_2026").digest("hex");
-
-    const { data: existing } = await supabase
-      .from("public_dashboards")
-      .select("id")
-      .eq("agency_id", user.agencyId)
-      .single();
-
-    let error;
-    if (existing) {
-      ({ error } = await supabase
-        .from("public_dashboards")
-        .update({
-          token_hash: tokenHash,
-          enabled: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq("agency_id", user.agencyId));
-    } else {
-      ({ error } = await supabase
-        .from("public_dashboards")
-        .insert({
-          agency_id: user.agencyId,
-          token_hash: tokenHash,
-          enabled: true
-        }));
-    }
-
-    if (error) throw error;
-
-    await supabase.from("audit_logs").insert({
-      agency_id: user.agencyId,
-      action: "UPDATE",
-      entity: "Dashboard Token",
-      details: "Public dashboard authorization token rotated / generated",
-      user: user.email || "system"
-    });
-
-    res.json({ success: true, token: plainToken });
-  } catch (err: any) {
-    res.status(500).json({ error: "Failed to rotate dashboard token: " + err.message });
-  }
-});
-
-// 4. PUT Client Publish: Publishes a client to the public dashboard
-app.put("/api/clients/:id/public-dashboard", requireAuth, async (req, res) => {
-  const { id } = req.params;
-  const { enabled } = req.body;
-  const user = (req as any).user;
-
-  try {
-    const { data: client, error: fetchError } = await supabase
-      .from("clients")
-      .select("agency_id, name")
-      .eq("id", id)
-      .single();
-
-    if (fetchError || !client) {
-      return res.status(404).json({ error: "Client account not found." });
-    }
-
-    if (!user.isAdmin && client.agency_id !== user.agencyId) {
-      return res.status(403).json({ error: "Access Denied: You do not own this client account." });
-    }
-
-    const { error: updateError } = await supabase
-      .from("clients")
-      .update({ public_dashboard_enabled: !!enabled })
-      .eq("id", id);
-
-    if (updateError) throw updateError;
-
-    await supabase.from("audit_logs").insert({
-      agency_id: client.agency_id,
-      action: "UPDATE",
-      entity: "Client Dashboard Publish",
-      details: `Client ${client.name} public dashboard status set to: ${!!enabled ? "PUBLISHED" : "UNPUBLISHED"}`,
-      user: user.email || "system"
-    });
-
-    res.json({ success: true, clientId: id, publicDashboardEnabled: !!enabled });
-  } catch (err: any) {
-    res.status(500).json({ error: "Failed to publish client: " + err.message });
-  }
-});
-
-// Helper: Verifies a public token and returns the corresponding agency_id
-async function verifyPublicToken(token: string): Promise<string | null> {
-  if (!token || typeof token !== "string") return null;
-  try {
-    const tokenHash = crypto.createHash("sha256").update(token).update("salt_value_lumen_2026").digest("hex");
-    const { data, error } = await supabase
-      .from("public_dashboards")
-      .select("agency_id, enabled")
-      .eq("token_hash", tokenHash)
-      .single();
-
-    if (error || !data || !data.enabled) return null;
-    return data.agency_id;
-  } catch (err) {
-    return null;
-  }
-}
-
-// 5. PUBLIC GET: Dashboard Config & Client list
-app.get("/api/public/dashboard/:token", rateLimiter(20, 60000), async (req, res) => {
-  const { token } = req.params;
-  const agencyId = await verifyPublicToken(token);
-
-  if (!agencyId) {
-    return res.status(401).json({ error: "Unauthorized: Invalid or revoked public dashboard token." });
-  }
-
-  try {
-    const { data: agency, error: agencyError } = await supabase
-      .from("agencies")
-      .select("name, logo_url, primary_color, accent_color, custom_cta, slug")
-      .eq("id", agencyId)
-      .single();
-
-    if (agencyError || !agency) throw agencyError || new Error("Agency not found");
-
-    const { data: clients, error: clientsError } = await supabase
-      .from("clients")
-      .select("id, name, domain, platform, monthly_budget, status")
-      .eq("agency_id", agencyId)
-      .eq("public_dashboard_enabled", true);
-
-    if (clientsError) throw clientsError;
-
-    res.json({
-      agency,
-      clients: (clients || []).map((c: any) => ({
-        id: c.id,
-        name: c.name,
-        domain: c.domain,
-        platform: c.platform,
-        monthlyBudget: Number(c.monthly_budget),
-        status: c.status
-      }))
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: "Failed to load public dashboard: " + err.message });
-  }
-});
-
-// 6. PUBLIC GET: Client metrics
-app.get("/api/public/analytics/:clientId", rateLimiter(30, 60000), async (req, res) => {
-  const { clientId } = req.params;
-  const token = (req.query.token as string) || (req.headers["x-public-dashboard-token"] as string);
-  const agencyId = await verifyPublicToken(token);
-
-  if (!agencyId) {
-    return res.status(401).json({ error: "Unauthorized: Invalid token." });
-  }
-
-  try {
-    const { data: client, error: clientErr } = await supabase
-      .from("clients")
-      .select("id, name, domain, platform, monthly_budget, status, agency_id, public_dashboard_enabled")
-      .eq("id", clientId)
-      .single();
-
-    if (clientErr || !client || client.agency_id !== agencyId || !client.public_dashboard_enabled) {
-      return res.status(404).json({ error: "Client dashboard not found or unpublished." });
-    }
-
-    const mappedClient = {
-      id: client.id,
-      name: client.name,
-      domain: client.domain,
-      platform: client.platform,
-      monthlyBudget: Number(client.monthly_budget),
-      status: client.status,
-      agencyId: client.agency_id
-    };
-
-    const { data: dbMetrics, error: metricsError } = await supabase
-      .from("campaign_metrics")
-      .select("date, spend, impressions, clicks, conversions, platform")
-      .eq("client_id", clientId)
-      .order("date", { ascending: true });
-
-    let metrics: PerformanceMetric[] = [];
-    let status = "OK";
-
-    if (!metricsError && dbMetrics && dbMetrics.length > 0) {
-      const dailyGroup: { [date: string]: PerformanceMetric } = {};
-      for (const m of dbMetrics) {
-        const dateStr = m.date;
-        if (!dailyGroup[dateStr]) {
-          dailyGroup[dateStr] = {
-            date: dateStr,
-            spend: 0,
-            clicks: 0,
-            impressions: 0,
-            conversions: 0
-          };
-        }
-        dailyGroup[dateStr].spend += Number(m.spend);
-        dailyGroup[dateStr].clicks += Number(m.clicks);
-        dailyGroup[dateStr].impressions += Number(m.impressions);
-        dailyGroup[dateStr].conversions += Number(m.conversions);
-      }
-      metrics = Object.values(dailyGroup).sort((a, b) => a.date.localeCompare(b.date));
-    } else {
-      const { data: agency } = await supabase.from("agencies").select("name").eq("id", agencyId).single();
-      const isDemo = agency?.name === "Demo Agency" || agency?.name === "Ignite PPC Group";
-      if (isDemo) {
-        metrics = generateMockMetrics(clientId, mappedClient.monthlyBudget);
-      } else {
-        status = "NO_DATA";
-      }
-    }
-
-    res.json({
-      client: mappedClient,
-      metrics,
-      status
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: "Failed to load public analytics: " + err.message });
-  }
-});
-
-// 7. PUBLIC GET: Client AI summary insights (pre-generated only!)
-app.get("/api/public/summary/:clientId", rateLimiter(20, 60000), async (req, res) => {
-  const { clientId } = req.params;
-  const token = (req.query.token as string) || (req.headers["x-public-dashboard-token"] as string);
-  const agencyId = await verifyPublicToken(token);
-
-  if (!agencyId) {
-    return res.status(401).json({ error: "Unauthorized: Invalid token." });
-  }
-
-  try {
-    const { data: client, error: clientErr } = await supabase
-      .from("clients")
-      .select("agency_id, public_dashboard_enabled")
-      .eq("id", clientId)
-      .single();
-
-    if (clientErr || !client || client.agency_id !== agencyId || !client.public_dashboard_enabled) {
-      return res.status(404).json({ error: "Client not found or unpublished." });
-    }
-
-    const { data: summary, error: summaryErr } = await supabase
-      .from("ai_summaries")
-      .select("summary_data, created_at")
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    if (summaryErr || !summary || summary.length === 0) {
-      return res.json({ insights: [], status: "NO_DATA" });
-    }
-
-    res.json({
-      insights: summary[0].summary_data,
-      createdAt: summary[0].created_at,
-      provider: "Cached"
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: "Failed to load public summary: " + err.message });
   }
 });
 
