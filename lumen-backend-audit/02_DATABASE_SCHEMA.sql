@@ -80,6 +80,7 @@ CREATE TABLE public.campaign_metrics (
     impressions bigint NOT NULL,
     clicks bigint NOT NULL,
     conversions bigint NOT NULL,
+    conversion_value numeric NOT NULL DEFAULT 0.0,
     created_at timestamp with time zone NULL DEFAULT now(),
     
     CONSTRAINT campaign_metrics_pkey PRIMARY KEY (id),

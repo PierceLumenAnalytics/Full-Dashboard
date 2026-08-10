@@ -828,16 +828,16 @@ app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
     // Check if there are any imported metrics in DB
     const { data: dbMetrics, error: metricsError } = await supabase
       .from("campaign_metrics")
-      .select("date, spend, impressions, clicks, conversions, platform, campaign_name, revenue")
+      .select("date, spend, impressions, clicks, conversions, platform, campaign_name, conversion_value")
       .eq("client_id", clientId)
       .order("date", { ascending: true });
 
-    let metrics: PerformanceMetric[] = [];
+    let metrics: any[] = [];
     let campaignsList: any[] = [];
     let status = "OK";
     if (!metricsError && dbMetrics && dbMetrics.length > 0) {
       // Group and aggregate metrics by date to handle multiple campaigns/platforms per day
-      const dailyGroup: { [date: string]: PerformanceMetric } = {};
+      const dailyGroup: { [date: string]: any } = {};
       const campaignsGroup: { [name: string]: any } = {};
 
       for (const m of dbMetrics) {
@@ -848,13 +848,15 @@ app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
             spend: 0,
             clicks: 0,
             impressions: 0,
-            conversions: 0
+            conversions: 0,
+            conversionValue: 0
           };
         }
         dailyGroup[dateStr].spend += Number(m.spend);
         dailyGroup[dateStr].clicks += Number(m.clicks);
         dailyGroup[dateStr].impressions += Number(m.impressions);
         dailyGroup[dateStr].conversions += Number(m.conversions);
+        dailyGroup[dateStr].conversionValue += Number(m.conversion_value || 0);
 
         // Group campaign-level aggregates
         if (m.campaign_name && m.campaign_name !== "General") {
@@ -869,21 +871,21 @@ app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
               impressions: 0,
               clicks: 0,
               conversions: 0,
-              revenue: 0
+              conversionValue: 0
             };
           }
           campaignsGroup[cName].spend += Number(m.spend);
           campaignsGroup[cName].impressions += Number(m.impressions);
           campaignsGroup[cName].clicks += Number(m.clicks);
           campaignsGroup[cName].conversions += Number(m.conversions);
-          campaignsGroup[cName].revenue += Number(m.revenue || 0);
+          campaignsGroup[cName].conversionValue += Number(m.conversion_value || 0);
         }
       }
       metrics = Object.values(dailyGroup).sort((a, b) => a.date.localeCompare(b.date));
 
       campaignsList = Object.values(campaignsGroup).map((c: any) => {
         const cpl = c.conversions > 0 ? c.spend / c.conversions : 0;
-        const roas = c.spend > 0 ? c.revenue / c.spend : 0;
+        const roas = c.spend > 0 ? c.conversionValue / c.spend : 0;
         return {
           id: c.id,
           name: c.name,
@@ -1139,7 +1141,9 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
     if (clientId === "agency-overview") {
       const totalSpend = summary.totalSpend || 0;
       const totalConversions = summary.totalConversions || 0;
+      const totalConversionValue = summary.totalConversionValue || 0;
       const avgCpl = totalConversions > 0 ? totalSpend / totalConversions : 0;
+      const roas = totalSpend > 0 ? totalConversionValue / totalSpend : 0;
 
       return [
         {
@@ -1155,7 +1159,7 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
           label: "OPPORTUNITY",
           number: "02",
           what: "Overall agency performance improved, driven primarily by Apex Roofing and Summit Fitness.",
-          why: "Apex Roofing and Summit Fitness accounts generated high ROAS and efficient conversion volume, boosting average ROAS to 4.1x.",
+          why: `Apex Roofing and Summit Fitness accounts generated high ROAS and efficient conversion volume, boosting average ROAS to ${roas.toFixed(2)}x.`,
           action: "Shift budget allocations from under-performing accounts to scale high-performing campaigns on these two clients."
         },
         {

@@ -79,13 +79,15 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
                 spend: 0,
                 clicks: 0,
                 impressions: 0,
-                conversions: 0
+                conversions: 0,
+                conversionValue: 0
               };
             }
             dailyGroup[dateStr].spend += m.spend;
             dailyGroup[dateStr].clicks += m.clicks;
             dailyGroup[dateStr].impressions += m.impressions;
             dailyGroup[dateStr].conversions += m.conversions;
+            dailyGroup[dateStr].conversionValue += m.conversionValue || 0;
           }
         }
         metrics = Object.values(dailyGroup);
@@ -109,6 +111,7 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
       const totalConversions = metrics.reduce((acc, m) => acc + m.conversions, 0);
       const totalClicks = metrics.reduce((acc, m) => acc + m.clicks, 0);
       const totalImpressions = metrics.reduce((acc, m) => acc + m.impressions, 0);
+      const totalConversionValue = metrics.reduce((acc, m) => acc + (m.conversionValue || 0), 0);
       
       const metricsSummary = {
         totalSpend,
@@ -116,7 +119,8 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
         totalClicks,
         avgConvRate: (totalConversions / totalClicks) * 100 || 0,
         avgCtr: (totalClicks / totalImpressions) * 100 || 0,
-        costPerConversion: totalSpend / totalConversions || 0
+        costPerConversion: totalSpend / totalConversions || 0,
+        totalConversionValue
       };
 
       // Query Claude AI Secure Server-Side Endpoint

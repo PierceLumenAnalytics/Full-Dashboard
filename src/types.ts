@@ -15,6 +15,7 @@ export interface PerformanceMetric {
   clicks: number;
   impressions: number;
   conversions: number;
+  conversionValue: number;
 }
 
 export interface AuditLog {

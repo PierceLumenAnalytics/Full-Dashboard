@@ -155,18 +155,15 @@ export default function Overview({
               spend: 0,
               clicks: 0,
               impressions: 0,
-              conversions: 0
+              conversions: 0,
+              conversionValue: 0
             };
           }
           dailyGroup[dateStr].spend += m.spend;
           dailyGroup[dateStr].clicks += m.clicks;
           dailyGroup[dateStr].impressions += m.impressions;
           dailyGroup[dateStr].conversions += m.conversions;
-
-          if ((m as any).revenue !== undefined) {
-            if (!(dailyGroup[dateStr] as any).revenue) (dailyGroup[dateStr] as any).revenue = 0;
-            (dailyGroup[dateStr] as any).revenue += Number((m as any).revenue || 0);
-          }
+          dailyGroup[dateStr].conversionValue = (dailyGroup[dateStr].conversionValue || 0) + (m.conversionValue || 0);
         }
       }
     }
@@ -191,18 +188,15 @@ export default function Overview({
               spend: 0,
               clicks: 0,
               impressions: 0,
-              conversions: 0
+              conversions: 0,
+              conversionValue: 0
             };
           }
           dailyGroup[dateStr].spend += m.spend;
           dailyGroup[dateStr].clicks += m.clicks;
           dailyGroup[dateStr].impressions += m.impressions;
           dailyGroup[dateStr].conversions += m.conversions;
-
-          if ((m as any).revenue !== undefined) {
-            if (!(dailyGroup[dateStr] as any).revenue) (dailyGroup[dateStr] as any).revenue = 0;
-            (dailyGroup[dateStr] as any).revenue += Number((m as any).revenue || 0);
-          }
+          dailyGroup[dateStr].conversionValue = (dailyGroup[dateStr].conversionValue || 0) + (m.conversionValue || 0);
         }
       }
     }
@@ -283,9 +277,10 @@ export default function Overview({
     const clicks = compareFilteredMetrics.reduce((acc, m) => acc + m.clicks, 0);
     const conversions = compareFilteredMetrics.reduce((acc, m) => acc + m.conversions, 0);
     const impressions = compareFilteredMetrics.reduce((acc, m) => acc + m.impressions, 0);
+    const conversionValue = compareFilteredMetrics.reduce((acc, m) => acc + (m.conversionValue || 0), 0);
     
     const cpl = conversions > 0 ? spend / conversions : 0;
-    const roas = spend > 0 ? (conversions * 150) / spend : 0;
+    const roas = spend > 0 ? conversionValue / spend : 0;
 
     return {
       spend,
@@ -335,15 +330,13 @@ export default function Overview({
     const clicks = filteredMetrics.reduce((acc, m) => acc + m.clicks, 0);
     const conversions = filteredMetrics.reduce((acc, m) => acc + m.conversions, 0);
     const impressions = filteredMetrics.reduce((acc, m) => acc + m.impressions, 0);
+    const conversionValue = filteredMetrics.reduce((acc, m) => acc + (m.conversionValue || 0), 0);
     
     const budgetFactor = (selectedClient?.monthlyBudget || 10000) / 10000;
     const savedHours = Math.round(15 * budgetFactor * (daysInRange / 30) * 10) / 10;
 
     const cpl = conversions > 0 ? spend / conversions : 0;
-    
-    // Sum actual revenue from campaign_metrics if present (e.g. for Summit or Westline)
-    const revenue = filteredMetrics.reduce((acc, m) => acc + Number((m as any).revenue || 0), 0);
-    const roas = revenue > 0 && spend > 0 ? revenue / spend : (spend > 0 ? (conversions * 150) / spend : 0);
+    const roas = spend > 0 ? conversionValue / spend : 0;
 
     return {
       spend,
@@ -379,10 +372,9 @@ export default function Overview({
       
       const spend = rangeMetrics.reduce((sum, m) => sum + m.spend, 0);
       const conversions = rangeMetrics.reduce((sum, m) => sum + m.conversions, 0);
+      const conversionValue = rangeMetrics.reduce((sum, m) => sum + (m.conversionValue || 0), 0);
       const cpl = conversions > 0 ? spend / conversions : 0;
-      
-      const totalRevenue = rangeMetrics.reduce((sum, m) => sum + Number((m as any).revenue || 0), 0);
-      const roas = spend > 0 && totalRevenue > 0 ? totalRevenue / spend : (spend > 0 ? (conversions * 150) / spend : 0);
+      const roas = spend > 0 ? conversionValue / spend : 0;
 
       let status: "Healthy" | "Watch" | "Needs Attention" = "Healthy";
       let reason = "";

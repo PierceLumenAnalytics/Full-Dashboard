@@ -290,16 +290,24 @@ async function main() {
           const avgCtr = camp.baseCtr * rand.range(0.90, 1.10);
           const impressions = clicks + Math.round(clicks / avgCtr);
 
-          // Revenue (Applicable for Summit Fitness and Westline Auto)
-          let revenue = 0.0;
+          // Conversion Value / Revenue (Deterministic and tied to conversions/spend)
+          let conversion_value = 0.0;
           if (c.id === "c_summit_fit") {
             // Target ROAS ~ 2.8x to 3.8x
             const targetRoas = rand.range(2.8, 3.8);
-            revenue = Math.round(spend * targetRoas * 100) / 100;
+            conversion_value = Math.round(spend * targetRoas * 100) / 100;
           } else if (c.id === "c_westline_auto") {
             // Target ROAS ~ 4.0x to 5.5x
             const targetRoas = rand.range(4.0, 5.5);
-            revenue = Math.round(spend * targetRoas * 100) / 100;
+            conversion_value = Math.round(spend * targetRoas * 100) / 100;
+          } else {
+            // For lead gen clients, compute value as conversions multiplied by deterministic base value
+            const baseValue = {
+              c_apex_roof: 180.0,
+              c_verde_dental: 120.0,
+              c_canyon_home: 160.0
+            }[c.id as string] || 150.0;
+            conversion_value = conversions * baseValue;
           }
 
           // D. Final bounds integrity check
@@ -317,7 +325,7 @@ async function main() {
             clicks,
             conversions,
             campaign_name: camp.name,
-            revenue
+            conversion_value
           });
         }
       }
