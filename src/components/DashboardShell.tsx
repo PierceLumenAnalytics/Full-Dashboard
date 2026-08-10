@@ -147,8 +147,9 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
       setClients(data);
       
       // Auto select first client if none selected
+      // Auto select Agency Overview if none selected
       if (data.length > 0 && !selectedClientId) {
-        setSelectedClientId(data[0].id);
+        setSelectedClientId("agency-overview");
       }
     } catch (err: any) {
       addToast("Network Error", err.message || "Failed to retrieve connected clients from database.", "error");
@@ -441,7 +442,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                       onClick={() => setIsClientDropdownOpen(!isClientDropdownOpen)}
                       className="flex items-center justify-between w-48 bg-[#151515] border border-white/10 text-[#F5F3EE] text-xs font-semibold rounded-lg px-3 py-1.5 focus:border-[#D6B77A]/40 outline-none cursor-pointer text-left font-display"
                     >
-                      <span className="truncate">{activeClientEntity ? activeClientEntity.name : "Select Client"}</span>
+                      <span className="truncate">{selectedClientId === "agency-overview" ? "Agency Overview" : activeClientEntity ? activeClientEntity.name : "Select Client"}</span>
                       <ChevronDown className="w-3.5 h-3.5 text-[#8A8680] shrink-0 ml-1" />
                     </button>
 
@@ -465,6 +466,31 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                             onClick={(e) => e.stopPropagation()}
                           />
                           <div className="max-h-48 overflow-y-auto space-y-0.5 font-sans">
+                            {(!clientSearch || "agency overview".includes(clientSearch.toLowerCase())) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedClientId("agency-overview");
+                                  setIsClientDropdownOpen(false);
+                                  setClientSearch("");
+                                  addToast(
+                                    "Context Switched", 
+                                    "Showing aggregated agency overview", 
+                                    "info"
+                                  );
+                                }}
+                                className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors cursor-pointer block truncate ${
+                                  selectedClientId === "agency-overview"
+                                    ? "bg-[#D6B77A]/10 text-[#D6B77A] font-bold"
+                                    : "text-[#8A8680] hover:bg-white/5 hover:text-[#F5F3EE]"
+                                }`}
+                              >
+                                🏢 Agency Overview
+                                <span className="text-[9px] block text-[#8A8680] font-mono font-normal">
+                                  All clients aggregated
+                                </span>
+                              </button>
+                            )}
                             {visibleClients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.domain.toLowerCase().includes(clientSearch.toLowerCase())).map((client) => (
                               <button
                                 key={client.id}
@@ -717,6 +743,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
               addToast={addToast}
               customCta={profile?.customCta}
               profile={profile}
+              onSelectClient={setSelectedClientId}
             />
           )}
 

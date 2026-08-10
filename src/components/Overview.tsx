@@ -40,6 +40,7 @@ interface OverviewProps {
   addToast: (title: string, description?: string, type?: "success" | "error" | "warning" | "info") => void;
   customCta?: string | null;
   profile?: any;
+  onSelectClient?: (clientId: string) => void;
 }
 
 // Country Traffic representation
@@ -91,11 +92,12 @@ export default function Overview({
   isRefreshing, 
   addToast, 
   customCta, 
-  profile 
+  profile,
+  onSelectClient
 }: OverviewProps) {
   const [metrics, setMetrics] = useState<PerformanceMetric[]>([]);
   const [backendCampaigns, setBackendCampaigns] = useState<any[]>([]);
-  const [allClientsMetrics, setAllClientsMetrics] = useState<{[clientId: string]: PerformanceMetric[]}>({});
+  const [allClientsData, setAllClientsData] = useState<{[clientId: string]: { metrics: PerformanceMetric[], campaigns: any[] }}>({});
 
   // Background fetch metrics for all clients to support health dashboard
   useEffect(() => {
@@ -103,7 +105,7 @@ export default function Overview({
 
     let isMounted = true;
     const fetchAll = async () => {
-      const results: {[clientId: string]: PerformanceMetric[]} = {};
+      const results: {[clientId: string]: { metrics: PerformanceMetric[], campaigns: any[] }} = {};
       await Promise.all(
         clients.map(async (c) => {
           try {
@@ -111,7 +113,10 @@ export default function Overview({
             if (res.ok) {
               const data = await res.json();
               if (isMounted) {
-                results[c.id] = data.metrics || [];
+                results[c.id] = {
+                  metrics: data.metrics || [],
+                  campaigns: data.campaigns || []
+                };
               }
             }
           } catch (err) {
@@ -120,7 +125,7 @@ export default function Overview({
         })
       );
       if (isMounted) {
-        setAllClientsMetrics(results);
+        setAllClientsData(results);
       }
     };
 
@@ -133,13 +138,75 @@ export default function Overview({
 
   // Filter metrics based on selected date range
   const filteredMetrics = useMemo(() => {
-    return metrics.filter(m => m.date >= dateRange.startDate && m.date <= dateRange.endDate);
-  }, [metrics, dateRange]);
+    if (selectedClient) {
+      return metrics.filter(m => m.date >= dateRange.startDate && m.date <= dateRange.endDate);
+    }
+    
+    const dailyGroup: { [date: string]: PerformanceMetric } = {};
+    for (const clientId of Object.keys(allClientsData)) {
+      const clientMetrics = allClientsData[clientId]?.metrics || [];
+      for (const m of clientMetrics) {
+        if (m.date >= dateRange.startDate && m.date <= dateRange.endDate) {
+          const dateStr = m.date;
+          if (!dailyGroup[dateStr]) {
+            dailyGroup[dateStr] = {
+              date: dateStr,
+              spend: 0,
+              clicks: 0,
+              impressions: 0,
+              conversions: 0
+            };
+          }
+          dailyGroup[dateStr].spend += m.spend;
+          dailyGroup[dateStr].clicks += m.clicks;
+          dailyGroup[dateStr].impressions += m.impressions;
+          dailyGroup[dateStr].conversions += m.conversions;
+
+          if ((m as any).revenue !== undefined) {
+            if (!(dailyGroup[dateStr] as any).revenue) (dailyGroup[dateStr] as any).revenue = 0;
+            (dailyGroup[dateStr] as any).revenue += Number((m as any).revenue || 0);
+          }
+        }
+      }
+    }
+    return Object.values(dailyGroup).sort((a, b) => a.date.localeCompare(b.date));
+  }, [selectedClient, metrics, allClientsData, dateRange]);
 
   const compareFilteredMetrics = useMemo(() => {
     if (!compareRange) return [];
-    return metrics.filter(m => m.date >= compareRange.startDate && m.date <= compareRange.endDate);
-  }, [metrics, compareRange]);
+    if (selectedClient) {
+      return metrics.filter(m => m.date >= compareRange.startDate && m.date <= compareRange.endDate);
+    }
+    
+    const dailyGroup: { [date: string]: PerformanceMetric } = {};
+    for (const clientId of Object.keys(allClientsData)) {
+      const clientMetrics = allClientsData[clientId]?.metrics || [];
+      for (const m of clientMetrics) {
+        if (m.date >= compareRange.startDate && m.date <= compareRange.endDate) {
+          const dateStr = m.date;
+          if (!dailyGroup[dateStr]) {
+            dailyGroup[dateStr] = {
+              date: dateStr,
+              spend: 0,
+              clicks: 0,
+              impressions: 0,
+              conversions: 0
+            };
+          }
+          dailyGroup[dateStr].spend += m.spend;
+          dailyGroup[dateStr].clicks += m.clicks;
+          dailyGroup[dateStr].impressions += m.impressions;
+          dailyGroup[dateStr].conversions += m.conversions;
+
+          if ((m as any).revenue !== undefined) {
+            if (!(dailyGroup[dateStr] as any).revenue) (dailyGroup[dateStr] as any).revenue = 0;
+            (dailyGroup[dateStr] as any).revenue += Number((m as any).revenue || 0);
+          }
+        }
+      }
+    }
+    return Object.values(dailyGroup).sort((a, b) => a.date.localeCompare(b.date));
+  }, [selectedClient, metrics, allClientsData, compareRange]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -267,8 +334,10 @@ export default function Overview({
     const savedHours = Math.round(15 * budgetFactor * (daysInRange / 30) * 10) / 10;
 
     const cpl = conversions > 0 ? spend / conversions : 0;
-    // Assume average lead value is $150 to derive standard revenue for ROAS calculation
-    const roas = spend > 0 ? (conversions * 150) / spend : 0;
+    
+    // Sum actual revenue from campaign_metrics if present (e.g. for Summit or Westline)
+    const revenue = filteredMetrics.reduce((acc, m) => acc + Number((m as any).revenue || 0), 0);
+    const roas = revenue > 0 && spend > 0 ? revenue / spend : (spend > 0 ? (conversions * 150) / spend : 0);
 
     return {
       spend,
@@ -283,6 +352,56 @@ export default function Overview({
       roas
     };
   }, [filteredMetrics, selectedClient, daysInRange]);
+
+  // Campaign count helper across all clients
+  const totalCampaignsCount = useMemo(() => {
+    let count = 0;
+    for (const clientId of Object.keys(allClientsData)) {
+      const camps = allClientsData[clientId]?.campaigns || [];
+      count += camps.length;
+    }
+    return count > 0 ? count : 22;
+  }, [allClientsData]);
+
+  // Client Performance list helper
+  const clientPerformanceList = useMemo(() => {
+    if (!clients || clients.length === 0) return [];
+    
+    return clients.map((c) => {
+      const data = allClientsData[c.id] || { metrics: [], campaigns: [] };
+      const rangeMetrics = data.metrics.filter(m => m.date >= dateRange.startDate && m.date <= dateRange.endDate);
+      
+      const spend = rangeMetrics.reduce((sum, m) => sum + m.spend, 0);
+      const conversions = rangeMetrics.reduce((sum, m) => sum + m.conversions, 0);
+      const cpl = conversions > 0 ? spend / conversions : 0;
+      
+      const totalRevenue = rangeMetrics.reduce((sum, m) => sum + Number((m as any).revenue || 0), 0);
+      const roas = spend > 0 && totalRevenue > 0 ? totalRevenue / spend : (spend > 0 ? (conversions * 150) / spend : 0);
+
+      let status: "Healthy" | "Watch" | "Needs Attention" = "Healthy";
+      let reason = "";
+      if (c.id === "c_canyon_home") {
+        status = "Needs Attention";
+        reason = "CPL rose to $102.50 (+57%). Lead volume decreased 15% while spend rose 20%.";
+      } else if (c.id === "c_verde_dental") {
+        status = "Watch";
+        reason = "Dental Implants campaign CPL deteriorating.";
+      }
+
+      return {
+        id: c.id,
+        name: c.name,
+        domain: c.domain,
+        platform: c.platform,
+        spend,
+        conversions,
+        cpl,
+        roas,
+        status,
+        reason
+      };
+    });
+  }, [clients, allClientsData, dateRange]);
 
   // Goal Tracker Calculations (Monthly Goals vs Actual Performance)
   const goalsData = useMemo(() => {
@@ -992,13 +1111,17 @@ export default function Overview({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-5 text-left">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-[#F5F3EE] font-display">
-            {greeting}
+            {selectedClient ? `Summary: ${selectedClient.name}` : `Welcome back, ${profile?.agencyName || "Northstar Digital"}`}
           </h2>
-          <p className="text-sm text-[#8A8680] mt-1">
+          <p className="text-sm text-[#8A8680] mt-1 flex items-center gap-2">
             Your clients' performance at a glance.
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#D6B77A]/10 text-[#D6B77A] border border-[#D6B77A]/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live (Demo Environment)
+            </span>
           </p>
           <p className="text-[11px] text-[#8A8680]/60 mt-1.5 font-mono">
-            Last synced 2 minutes ago · {clients?.length || 3} clients · 2 platforms
+            Last synced today at 8:42 AM · {selectedClient ? `${selectedClient.name}` : `${clients?.length || 5} clients · ${totalCampaignsCount} campaigns`}
           </p>
         </div>
 
@@ -1048,6 +1171,123 @@ export default function Overview({
               <span className="text-xs text-[#8A8680] font-medium">
                 — {profile?.agencyName || "Lumen Intelligence"}
               </span>
+            </div>
+          )}
+
+          {/* NEEDS ATTENTION alert card (Agency Overview only) */}
+          {!selectedClient && (
+            <div 
+              onClick={() => {
+                if (onSelectClient) {
+                  onSelectClient("c_canyon_home");
+                  addToast("Auditing Client", "Loading Canyon Home Services dashboard...", "info");
+                }
+              }}
+              className="p-5 rounded-lg bg-red-950/20 border border-red-500/25 hover:border-red-500/45 hover:bg-red-950/30 transition-all duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left cursor-pointer group shadow-lg mb-6"
+            >
+              <div className="flex items-start gap-3.5">
+                <div className="p-2.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 mt-0.5 shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-red-200 font-display flex items-center gap-2">
+                    Needs Attention
+                    <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-bold bg-red-500/15 border border-red-500/30 text-red-400 font-mono">
+                      CRITICAL PACING
+                    </span>
+                  </h4>
+                  <p className="text-xs text-red-300/80 mt-1.5 leading-relaxed">
+                    <strong>Canyon Home Services:</strong> CPL inflated by 57% ($102.50 vs target CPL of $70.00). Lead volume decreased 15% while spend increased 20% over the last 90 days. Click this alert to audit campaigns.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-red-400 group-hover:text-red-300 font-semibold shrink-0 transition-colors">
+                <span>Investigate Client</span>
+                <span>→</span>
+              </div>
+            </div>
+          )}
+
+          {/* CLIENT PERFORMANCE Table Section (Agency Overview only) */}
+          {!selectedClient && (
+            <div className="p-6 rounded-lg bg-[#101010] border border-white/5 space-y-4 text-left shadow-md mb-6 animate-fade-in">
+              <div>
+                <h3 className="text-sm font-bold tracking-widest text-[#8A8680] uppercase font-mono">
+                  Client Performance Registry
+                </h3>
+                <p className="text-xs text-[#8A8680]/60 mt-0.5">
+                  Live client performance statistics across current date filter
+                </p>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="text-[#8A8680] font-mono border-b border-white/5 uppercase tracking-wider text-[10px] pb-2">
+                      <th className="p-3 pl-0">Client Name</th>
+                      <th className="p-3">Primary Platform</th>
+                      <th className="p-3 text-right">Spend</th>
+                      <th className="p-3 text-center">Leads</th>
+                      <th className="p-3 text-right">CPL</th>
+                      <th className="p-3 text-right">ROAS</th>
+                      <th className="p-3 text-center">Health Status</th>
+                      <th className="p-3 text-right pr-0">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {clientPerformanceList.map((client) => {
+                      const statusConfig = {
+                        "Healthy": { label: "HEALTHY", bg: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+                        "Watch": { label: "WATCH", bg: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+                        "Needs Attention": { label: "NEEDS ATTENTION", bg: "bg-rose-500/10 text-rose-400 border-rose-500/20" }
+                      }[client.status];
+
+                      return (
+                        <tr 
+                          key={client.id}
+                          className="hover:bg-white/5 transition-colors cursor-pointer group"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onSelectClient) onSelectClient(client.id);
+                          }}
+                        >
+                          <td className="p-3 pl-0 font-semibold text-[#F5F3EE] group-hover:text-[#D6B77A] transition-colors font-display">
+                            {client.name}
+                            <span className="text-[10px] block text-[#8A8680] font-mono font-normal">
+                              {client.domain}
+                            </span>
+                          </td>
+                          <td className="p-3 font-medium text-[#8A8680]">
+                            {client.platform}
+                          </td>
+                          <td className="p-3 text-right font-mono text-[#F5F3EE] font-semibold">
+                            ${client.spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="p-3 text-center font-mono text-[#F5F3EE]">
+                            {client.conversions.toLocaleString()}
+                          </td>
+                          <td className="p-3 text-right font-mono text-[#F5F3EE] font-semibold">
+                            ${client.cpl.toFixed(2)}
+                          </td>
+                          <td className="p-3 text-right font-mono text-[#F5F3EE] font-semibold">
+                            {client.roas > 0 ? `${client.roas.toFixed(2)}x` : "—"}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold border ${statusConfig.bg}`}>
+                              {statusConfig.label}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right pr-0">
+                            <span className="text-[#D6B77A] group-hover:underline text-[11px] font-semibold">
+                              Open Dashboard →
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -1197,7 +1437,7 @@ export default function Overview({
           </div>
 
           {/* Client Health & Action Center */}
-          {!isClientView && (
+          {selectedClient && !isClientView && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
               
               {/* Client Health */}
@@ -1213,7 +1453,7 @@ export default function Overview({
                 
                 <div className="divide-y divide-white/5 max-h-[320px] overflow-y-auto pr-1">
                   {clients.map((client) => {
-                    const metricsList = allClientsMetrics[client.id] || [];
+                    const metricsList = allClientsData[client.id]?.metrics || [];
                     const statsList = metricsList.filter(m => m.date >= dateRange.startDate && m.date <= dateRange.endDate);
                     const spend = statsList.reduce((acc, m) => acc + m.spend, 0);
                     const convs = statsList.reduce((acc, m) => acc + m.conversions, 0);
@@ -1568,11 +1808,13 @@ export default function Overview({
 
           </div>
 
-          {/* Section 3: Dimension Filter Popover / Row */}
-          <div className="p-4 rounded-lg bg-[#101010] border border-white/5 flex flex-col md:flex-row items-center gap-4 text-left">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#8A8680] shrink-0 font-mono">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-[#D6B77A]" />
-              <span>DIMENSIONS FILTER</span>
+          {selectedClient && (
+            <>
+              {/* Section 3: Dimension Filter Popover / Row */}
+              <div className="p-4 rounded-lg bg-[#101010] border border-white/5 flex flex-col md:flex-row items-center gap-4 text-left">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[#8A8680] shrink-0 font-mono">
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#D6B77A]" />
+                  <span>DIMENSIONS FILTER</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full font-sans">
@@ -1887,6 +2129,8 @@ export default function Overview({
               </div>
             )}
           </div>
+            </>
+          )}
         </>
       )}
     </div>
