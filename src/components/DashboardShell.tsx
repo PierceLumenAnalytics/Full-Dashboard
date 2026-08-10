@@ -442,7 +442,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                       onClick={() => setIsClientDropdownOpen(!isClientDropdownOpen)}
                       className="flex items-center justify-between w-48 bg-[#151515] border border-white/10 text-[#F5F3EE] text-xs font-semibold rounded-lg px-3 py-1.5 focus:border-[#D6B77A]/40 outline-none cursor-pointer text-left font-display"
                     >
-                      <span className="truncate">{selectedClientId === "agency-overview" ? "Agency Overview" : activeClientEntity ? activeClientEntity.name : "Select Client"}</span>
+                      <span className="truncate">{selectedClientId === "agency-overview" ? "All Clients" : activeClientEntity ? activeClientEntity.name : "Select Client"}</span>
                       <ChevronDown className="w-3.5 h-3.5 text-[#8A8680] shrink-0 ml-1" />
                     </button>
 
@@ -466,7 +466,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                             onClick={(e) => e.stopPropagation()}
                           />
                           <div className="max-h-48 overflow-y-auto space-y-0.5 font-sans">
-                            {(!clientSearch || "agency overview".includes(clientSearch.toLowerCase())) && (
+                            {(!clientSearch || "all clients".includes(clientSearch.toLowerCase())) && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -475,7 +475,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                                   setClientSearch("");
                                   addToast(
                                     "Context Switched", 
-                                    "Showing aggregated agency overview", 
+                                    "Showing aggregated overview of all clients", 
                                     "info"
                                   );
                                 }}
@@ -485,7 +485,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                                     : "text-[#8A8680] hover:bg-white/5 hover:text-[#F5F3EE]"
                                 }`}
                               >
-                                🏢 Agency Overview
+                                🏢 All Clients
                                 <span className="text-[9px] block text-[#8A8680] font-mono font-normal">
                                   All clients aggregated
                                 </span>
@@ -763,6 +763,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
           {activeTab === "summary" && (
             <AIDailySummary 
               selectedClient={activeClientEntity}
+              clients={clients}
               dateRange={dateRange}
               addToast={addToast}
               profile={profile}

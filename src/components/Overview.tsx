@@ -126,6 +126,7 @@ export default function Overview({
       );
       if (isMounted) {
         setAllClientsData(results);
+        setIsLoading(false);
       }
     };
 
@@ -228,7 +229,12 @@ export default function Overview({
 
   // Load analytical data based on selectedClient
   useEffect(() => {
-    if (!selectedClient) return;
+    if (!selectedClient) {
+      if (Object.keys(allClientsData).length > 0) {
+        setIsLoading(false);
+      }
+      return;
+    }
     
     let isMounted = true;
     setIsLoading(true);
@@ -403,9 +409,10 @@ export default function Overview({
     });
   }, [clients, allClientsData, dateRange]);
 
-  // Goal Tracker Calculations (Monthly Goals vs Actual Performance)
   const goalsData = useMemo(() => {
-    const monthlyBudget = selectedClient?.monthlyBudget || 10000;
+    const monthlyBudget = selectedClient
+      ? (selectedClient.monthlyBudget || 10000)
+      : (clients || []).reduce((sum, c) => sum + (c.monthlyBudget || 0), 0) || 10000;
     const timeRatio = daysInRange / 30;
     
     // Total Spend Goal (scaled to range duration)
@@ -508,9 +515,22 @@ export default function Overview({
 
   // Campaigns list from database campaign_metrics
   const campaignsList = useMemo(() => {
-    if (!selectedClient) return [];
-    return backendCampaigns || [];
-  }, [selectedClient, backendCampaigns]);
+    if (selectedClient) {
+      return backendCampaigns || [];
+    }
+    const allCampaigns: any[] = [];
+    for (const clientId of Object.keys(allClientsData)) {
+      const clientCamps = allClientsData[clientId]?.campaigns || [];
+      const clientName = clients?.find(c => c.id === clientId)?.name || "Client";
+      for (const camp of clientCamps) {
+        allCampaigns.push({
+          ...camp,
+          name: `${clientName}: ${camp.name}`
+        });
+      }
+    }
+    return allCampaigns;
+  }, [selectedClient, backendCampaigns, allClientsData, clients]);
 
   // Reset Filters trigger
   const handleResetFilters = () => {
@@ -1094,13 +1114,13 @@ export default function Overview({
     }
   };
 
-  if (!selectedClient) {
+  if (!selectedClient && (!clients || clients.length === 0)) {
     return (
-      <div className="flex flex-col items-center justify-center h-[70vh] p-8 text-center bg-slate-950/20 rounded-2xl border border-slate-900/60 font-sans">
-        <SlidersHorizontal className="w-12 h-12 text-slate-700 animate-pulse mb-4" />
-        <h3 className="text-lg font-bold text-slate-300">No Connected Client Selected</h3>
-        <p className="text-sm text-slate-500 max-w-md mt-1.5">
-          Select an active client account from the global header selector to load analytics intelligence.
+      <div className="flex flex-col items-center justify-center h-[70vh] p-8 text-center bg-[#101010] rounded-lg border border-white/5 font-sans">
+        <SlidersHorizontal className="w-12 h-12 text-[#8A8680]/40 animate-pulse mb-4" />
+        <h3 className="text-lg font-bold text-[#F5F3EE]">No Connected Client Selected</h3>
+        <p className="text-sm text-[#8A8680] max-w-md mt-1.5 font-display">
+          Connect a client account in the client portal to load ad campaign analytics.
         </p>
       </div>
     );

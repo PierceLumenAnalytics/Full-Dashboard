@@ -17,12 +17,13 @@ import { DateRange } from "../utils/dateHelpers";
 
 interface AIDailySummaryProps {
   selectedClient: ClientAccount | null;
+  clients?: ClientAccount[] | null;
   dateRange: DateRange;
   addToast: (title: string, description?: string, type?: "success" | "error" | "warning" | "info") => void;
   profile?: any;
 }
 
-export default function AIDailySummary({ selectedClient, dateRange, addToast, profile }: AIDailySummaryProps) {
+export default function AIDailySummary({ selectedClient, clients = [], dateRange, addToast, profile }: AIDailySummaryProps) {
   const [summary, setSummary] = useState<string>("");
   const [insights, setInsights] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,17 +36,60 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
   };
 
   const fetchAISummary = async () => {
-    if (!selectedClient) return;
+    const cId = selectedClient ? selectedClient.id : "agency-overview";
+    const cName = selectedClient ? selectedClient.name : "All Clients";
 
     setLoading(true);
     setError(null);
 
     try {
-      // First, fetch some analytics metrics so we can pass current aggregates to Claude AI
-      const analyticsRes = await authFetch(`/api/analytics/${selectedClient.id}`);
-      if (!analyticsRes.ok) throw new Error("Failed to get latest client metrics.");
-      const analyticsData = await analyticsRes.json();
-      let metrics: PerformanceMetric[] = analyticsData.metrics || [];
+      let metrics: PerformanceMetric[] = [];
+
+      if (selectedClient) {
+        // First, fetch some analytics metrics so we can pass current aggregates to Claude AI
+        const analyticsRes = await authFetch(`/api/analytics/${selectedClient.id}`);
+        if (!analyticsRes.ok) throw new Error("Failed to get latest client metrics.");
+        const analyticsData = await analyticsRes.json();
+        metrics = analyticsData.metrics || [];
+      } else {
+        // Fetch all clients data to aggregate
+        const results = await Promise.all(
+          (clients || []).map(async (c) => {
+            try {
+              const res = await authFetch(`/api/analytics/${c.id}`);
+              if (res.ok) {
+                const data = await res.json();
+                return data.metrics || [];
+              }
+            } catch (err) {
+              console.error(err);
+            }
+            return [];
+          })
+        );
+        
+        // Group by date
+        const dailyGroup: { [date: string]: PerformanceMetric } = {};
+        for (const clientMetrics of results) {
+          for (const m of clientMetrics) {
+            const dateStr = m.date;
+            if (!dailyGroup[dateStr]) {
+              dailyGroup[dateStr] = {
+                date: dateStr,
+                spend: 0,
+                clicks: 0,
+                impressions: 0,
+                conversions: 0
+              };
+            }
+            dailyGroup[dateStr].spend += m.spend;
+            dailyGroup[dateStr].clicks += m.clicks;
+            dailyGroup[dateStr].impressions += m.impressions;
+            dailyGroup[dateStr].conversions += m.conversions;
+          }
+        }
+        metrics = Object.values(dailyGroup);
+      }
 
       // Filter by dynamic date range
       metrics = metrics.filter(
@@ -80,8 +124,8 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clientId: selectedClient.id,
-          clientName: selectedClient.name,
+          clientId: cId,
+          clientName: cName,
           metricsSummary
         })
       });
@@ -112,10 +156,10 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
 
   // Auto-generate AI summary on mount/client switch or date range change
   useEffect(() => {
-    if (selectedClient) {
+    if (selectedClient || (clients && clients.length > 0)) {
       fetchAISummary();
     }
-  }, [selectedClient, dateRange]);
+  }, [selectedClient, clients, dateRange]);
 
   // Using react-markdown for rich, validated formatted summaries
 
@@ -130,7 +174,7 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
   };
 
   const handleExportPDF = async () => {
-    if (!summary || !selectedClient) return;
+    if (!summary) return;
 
     // Create a temporary container with the styled report for jsPDF
     const element = document.createElement("div");
@@ -148,7 +192,7 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
         <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">${profile?.agencyName || 'Lumen Analytics'} Summary</div>
         <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: ${profile?.primaryColor || '#D6B77A'}; margin-top: 4px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE REPORT</div>
         <div style="margin-top: 12px; font-size: 11px; color: #334155; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-          <div><strong>Client Name:</strong> ${selectedClient.name} (${selectedClient.domain})</div>
+          <div><strong>Client Name:</strong> ${selectedClient ? `${selectedClient.name} (${selectedClient.domain})` : "All Clients"}</div>
           <div><strong>Date Range:</strong> ${dateRange.startDate} to ${dateRange.endDate}</div>
           <div><strong>Generated On:</strong> ${new Date().toLocaleDateString()}</div>
         </div>
@@ -166,7 +210,8 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
       }
     }
 
-    const fileName = `${selectedClient.name.replace(/\s+/g, '_')}_AI_Summary_${dateRange.startDate}_to_${dateRange.endDate}.pdf`;
+    const clientNameStr = selectedClient ? selectedClient.name : "All_Clients";
+    const fileName = `${clientNameStr.replace(/\s+/g, '_')}_AI_Summary_${dateRange.startDate}_to_${dateRange.endDate}.pdf`;
 
     let iframe: HTMLIFrameElement | null = null;
     try {
@@ -266,12 +311,12 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
 
 
 
-  if (!selectedClient) {
+  if (!selectedClient && (!clients || clients.length === 0)) {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] p-8 text-center bg-[#101010] rounded-lg border border-white/5 font-sans">
         <Sparkles className="w-12 h-12 text-[#8A8680]/40 animate-pulse mb-4" />
         <h3 className="text-lg font-bold text-[#F5F3EE]">No Connected Client Selected</h3>
-        <p className="text-sm text-[#8A8680] max-w-md mt-1.5">
+        <p className="text-sm text-[#8A8680] max-w-md mt-1.5 font-display">
           Select an active client account from the global header selector to compile instant AI insights.
         </p>
       </div>
