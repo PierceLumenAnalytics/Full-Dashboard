@@ -58,3 +58,41 @@ export const getPresetRange = (preset: DateRange["preset"]): { startDate: string
     endDate: formatDateToYYYYMMDD(end)
   };
 };
+
+export const getCompareRange = (
+  startDate: string,
+  endDate: string,
+  compareMode: "previous_period" | "previous_year" | "custom",
+  customCompareStart?: string,
+  customCompareEnd?: string
+): { startDate: string; endDate: string } => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffTime = Math.abs(end.getTime() - start.getTime());
+  const durationDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+  if (compareMode === "previous_period") {
+    const compareEnd = new Date(start.getTime());
+    compareEnd.setDate(start.getDate() - 1);
+    const compareStart = new Date(start.getTime());
+    compareStart.setDate(start.getDate() - durationDays);
+    return {
+      startDate: formatDateToYYYYMMDD(compareStart),
+      endDate: formatDateToYYYYMMDD(compareEnd),
+    };
+  } else if (compareMode === "previous_year") {
+    const compareStart = new Date(start.getTime());
+    compareStart.setFullYear(start.getFullYear() - 1);
+    const compareEnd = new Date(end.getTime());
+    compareEnd.setFullYear(end.getFullYear() - 1);
+    return {
+      startDate: formatDateToYYYYMMDD(compareStart),
+      endDate: formatDateToYYYYMMDD(compareEnd),
+    };
+  } else {
+    return {
+      startDate: customCompareStart || startDate,
+      endDate: customCompareEnd || endDate,
+    };
+  }
+};

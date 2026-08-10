@@ -251,10 +251,10 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
 
   if (!selectedClient) {
     return (
-      <div className="flex flex-col items-center justify-center h-[70vh] p-8 text-center bg-slate-950/20 rounded-2xl border border-slate-900/60 font-sans">
-        <Sparkles className="w-12 h-12 text-slate-700 animate-pulse mb-4" />
-        <h3 className="text-lg font-bold text-slate-300">No Connected Client Selected</h3>
-        <p className="text-sm text-slate-500 max-w-md mt-1.5">
+      <div className="flex flex-col items-center justify-center h-[70vh] p-8 text-center bg-[#101010] rounded-lg border border-white/5 font-sans">
+        <Sparkles className="w-12 h-12 text-[#8A8680]/40 animate-pulse mb-4" />
+        <h3 className="text-lg font-bold text-[#F5F3EE]">No Connected Client Selected</h3>
+        <p className="text-sm text-[#8A8680] max-w-md mt-1.5">
           Select an active client account from the global header selector to compile instant AI insights.
         </p>
       </div>
@@ -264,11 +264,11 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
   return (
     <div className="space-y-6 font-sans text-left">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-5">
         <div>
-          <h2 className="text-xl font-bold font-display text-slate-100 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-violet-400" />
-            AI Written Daily Summary
+          <h2 className="text-2xl font-bold tracking-tight text-[#F5F3EE] font-display flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-[#D6B77A]" />
+            Lumen Intelligence
           </h2>
         </div>
 
@@ -276,75 +276,30 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
           <button
             onClick={fetchAISummary}
             disabled={loading}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5"
-            style={profile?.primaryColor ? {
-              backgroundColor: profile.primaryColor,
-              borderColor: profile.primaryColor,
-              color: "#ffffff"
-            } : {}}
-            onMouseEnter={(e) => {
-              if (profile?.primaryColor) {
-                e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (profile?.primaryColor) {
-                e.currentTarget.style.backgroundColor = profile.primaryColor;
-              }
-            }}
+            className="px-3.5 py-2 bg-transparent hover:bg-white/5 border border-white/10 hover:border-[#D6B77A] text-[#8A8680] hover:text-[#F5F3EE] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 font-sans"
             title="Re-compile insights"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-violet-400" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-[#D6B77A]" : ""}`} />
             <span>Regenerate</span>
           </button>
 
           <button
             onClick={handleCopy}
             disabled={loading || !summary}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5"
-            style={profile?.primaryColor ? {
-              backgroundColor: profile.primaryColor,
-              borderColor: profile.primaryColor,
-              color: "#ffffff"
-            } : {}}
-            onMouseEnter={(e) => {
-              if (profile?.primaryColor) {
-                e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (profile?.primaryColor) {
-                e.currentTarget.style.backgroundColor = profile.primaryColor;
-              }
-            }}
+            className="px-3.5 py-2 bg-transparent hover:bg-white/5 border border-white/10 hover:border-[#D6B77A] text-[#8A8680] hover:text-[#F5F3EE] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 font-sans"
             title="Copy summary content"
           >
-            <Copy className="w-3.5 h-3.5 text-slate-400" />
+            <Copy className="w-3.5 h-3.5 text-[#8A8680]" />
             <span>Copy All</span>
           </button>
 
           <button
             onClick={handleExportPDF}
             disabled={loading || !summary}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5"
-            style={profile?.primaryColor ? {
-              backgroundColor: profile.primaryColor,
-              borderColor: profile.primaryColor,
-              color: "#ffffff"
-            } : {}}
-            onMouseEnter={(e) => {
-              if (profile?.primaryColor) {
-                e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (profile?.primaryColor) {
-                e.currentTarget.style.backgroundColor = profile.primaryColor;
-              }
-            }}
+            className="px-3.5 py-2 bg-[#D6B77A] hover:bg-[#bfa063] border border-[#D6B77A] text-[#080808] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 font-sans"
             title="Download executive PDF report"
           >
-            <Download className="w-3.5 h-3.5 text-violet-400" />
+            <Download className="w-3.5 h-3.5 text-[#080808]" />
             <span>Export as PDF</span>
           </button>
         </div>
@@ -352,30 +307,30 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
 
       {/* Main summary view content */}
       {loading ? (
-        <div className="p-8 rounded-xl bg-slate-900/15 border border-slate-900 min-h-[300px] flex flex-col items-center justify-center text-center space-y-4">
+        <div className="p-8 rounded-lg bg-[#101010] border border-white/5 min-h-[300px] flex flex-col items-center justify-center text-center space-y-4">
           <div className="relative flex items-center justify-center">
-            <div className="w-14 h-14 rounded-full border-2 border-violet-600/20 border-t-violet-500 animate-spin"></div>
-            <Sparkles className="w-5 h-5 text-violet-400 absolute animate-pulse" />
+            <div className="w-14 h-14 rounded-full border-2 border-white/10 border-t-[#D6B77A] animate-spin"></div>
+            <Sparkles className="w-5 h-5 text-[#D6B77A] absolute animate-pulse" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-slate-200">Compiling Ad Spend Insights...</h4>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm">
+            <h4 className="text-sm font-semibold text-[#F5F3EE]">Compiling Ad Spend Insights...</h4>
+            <p className="text-xs text-[#8A8680] mt-1 max-w-sm">
               Lumen is communicating with Claude to compile highlights, bottlenecks, and campaign optimizations.
             </p>
           </div>
         </div>
       ) : error ? (
-        <div className="p-8 rounded-xl bg-slate-900/30 border border-rose-950/40 text-center space-y-4">
-          <div className="inline-flex p-3 rounded-full bg-rose-500/10 text-rose-400">
+        <div className="p-8 rounded-lg bg-[#101010] border border-white/5 text-center space-y-4">
+          <div className="inline-flex p-3 rounded-full bg-red-500/10 text-red-400">
             <AlertTriangle className="w-6 h-6" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-slate-200">Could not compile AI Insights</h4>
-            <p className="text-xs text-rose-400 mt-1">{error}</p>
+            <h4 className="text-sm font-semibold text-[#F5F3EE]">Could not compile AI Insights</h4>
+            <p className="text-xs text-red-400 mt-1">{error}</p>
           </div>
           <button
             onClick={fetchAISummary}
-            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+            className="px-4 py-2 bg-[#D6B77A] hover:bg-[#bfa063] text-[#080808] text-xs font-semibold rounded-md transition-colors cursor-pointer animate-fade-in"
           >
             Retry Generation
           </button>
@@ -383,27 +338,12 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {/* Main summary outcome pane */}
-          <div className="p-6 rounded-xl bg-slate-900/10 border border-slate-900 space-y-4 relative min-h-[350px] border-t-2" style={{ borderTopColor: profile?.primaryColor || '#8b5cf6' }}>
+          <div className="p-6 rounded-lg bg-[#101010] border border-white/5 space-y-4 relative min-h-[350px]">
             {/* Copy report button */}
             <div className="absolute top-4 right-4 z-10">
               <button
                 onClick={handleCopy}
-                className="p-2 bg-slate-950 hover:bg-slate-900 border border-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-colors cursor-pointer flex items-center gap-1 text-xs"
-                style={profile?.primaryColor ? {
-                  backgroundColor: profile.primaryColor,
-                  borderColor: profile.primaryColor,
-                  color: "#ffffff"
-                } : {}}
-                onMouseEnter={(e) => {
-                  if (profile?.primaryColor) {
-                    e.currentTarget.style.backgroundColor = profile.accentColor || profile.primaryColor;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (profile?.primaryColor) {
-                    e.currentTarget.style.backgroundColor = profile.primaryColor;
-                  }
-                }}
+                className="p-2 bg-[#151515] hover:bg-white/5 border border-white/5 hover:border-[#D6B77A] rounded-md text-[#8A8680] hover:text-[#F5F3EE] transition-colors cursor-pointer flex items-center gap-1 text-xs font-sans"
                 title="Copy formatted markdown report"
               >
                 <Copy className="w-3.5 h-3.5" />
@@ -412,30 +352,30 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
             </div>
 
             {/* Document layout header */}
-            <div className="flex items-center gap-2 border-b border-slate-900 pb-4 mb-4">
-              <FileText className="w-4 h-4 text-violet-400" />
-              <span className="text-[10px] font-mono tracking-widest text-slate-500 uppercase">
+            <div className="flex items-center gap-2 border-b border-white/5 pb-4 mb-4 text-left">
+              <FileText className="w-4 h-4 text-[#D6B77A]" />
+              <span className="text-[10px] font-mono tracking-widest text-[#8A8680] uppercase">
                 Performance Summary
               </span>
             </div>
 
             {/* Formatted Text Box */}
-            <div className="markdown-body text-slate-300 text-xs text-left leading-relaxed space-y-4">
+            <div className="markdown-body text-[#8A8680] text-xs text-left leading-relaxed space-y-4">
               <Markdown
                 components={{
-                  h1: ({ children }) => <h1 className="text-lg font-bold text-slate-100 mt-6 mb-3 font-display border-b border-slate-900/40 pb-2">{children}</h1>,
-                  h2: ({ children }) => <h2 className="text-base font-bold text-violet-400 mt-5 mb-2 font-display" style={profile?.primaryColor ? { color: profile.primaryColor } : {}}>{children}</h2>,
-                  h3: ({ children }) => <h3 className="text-sm font-bold text-violet-300 mt-4 mb-2 uppercase tracking-wider font-display" style={profile?.primaryColor ? { color: profile.primaryColor } : {}}>{children}</h3>,
-                  p: ({ children }) => <p className="text-xs text-slate-300 leading-relaxed mt-2 mb-2">{children}</p>,
-                  ul: ({ children }) => <ul className="space-y-2.5 my-3 pl-1">{children}</ul>,
-                  ol: ({ children }) => <ol className="space-y-2.5 my-3 pl-1 list-decimal">{children}</ol>,
+                  h1: ({ children }) => <h1 className="text-lg font-bold text-[#F5F3EE] mt-6 mb-3 font-display border-b border-white/5 pb-2 text-left">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-base font-bold text-[#D6B77A] mt-5 mb-2 font-display text-left">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-sm font-bold text-[#D6B77A] mt-4 mb-2 uppercase tracking-wider font-display text-left">{children}</h3>,
+                  p: ({ children }) => <p className="text-xs text-[#8A8680] leading-relaxed mt-2 mb-2 text-left">{children}</p>,
+                  ul: ({ children }) => <ul className="space-y-2.5 my-3 pl-1 text-left">{children}</ul>,
+                  ol: ({ children }) => <ol className="space-y-2.5 my-3 pl-1 list-decimal text-left">{children}</ol>,
                   li: ({ children }) => (
-                    <li className="flex gap-2 text-xs text-slate-300 py-1 pl-1 leading-relaxed items-start">
-                      <span className="text-violet-400 font-semibold shrink-0 mt-1" style={profile?.primaryColor ? { color: profile.primaryColor } : {}}>●</span>
+                    <li className="flex gap-2 text-xs text-[#8A8680] py-1 pl-1 leading-relaxed items-start text-left">
+                      <span className="text-[#D6B77A] font-semibold shrink-0 mt-1">●</span>
                       <span>{children}</span>
                     </li>
                   ),
-                  strong: ({ children }) => <strong className="text-slate-100 font-bold">{children}</strong>,
+                  strong: ({ children }) => <strong className="text-[#F5F3EE] font-bold">{children}</strong>,
                 }}
               >
                 {summary}

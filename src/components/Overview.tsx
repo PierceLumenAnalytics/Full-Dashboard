@@ -31,7 +31,10 @@ import { DateRange, formatDisplayDate } from "../utils/dateHelpers";
 
 interface OverviewProps {
   selectedClient: ClientAccount | null;
+  clients?: ClientAccount[] | null;
   dateRange: DateRange;
+  compareRange?: { startDate: string; endDate: string } | null;
+  isClientView?: boolean;
   onRefresh: () => Promise<void>;
   isRefreshing: boolean;
   addToast: (title: string, description?: string, type?: "success" | "error" | "warning" | "info") => void;
@@ -133,13 +136,30 @@ const getMockCampaignsForClient = (
   });
 };
 
-export default function Overview({ selectedClient, dateRange, onRefresh, isRefreshing, addToast, customCta, profile }: OverviewProps) {
+export default function Overview({ 
+  selectedClient, 
+  clients = [],
+  dateRange, 
+  compareRange = null,
+  isClientView = false,
+  onRefresh, 
+  isRefreshing, 
+  addToast, 
+  customCta, 
+  profile 
+}: OverviewProps) {
   const [metrics, setMetrics] = useState<PerformanceMetric[]>([]);
 
   // Filter metrics based on selected date range
   const filteredMetrics = useMemo(() => {
     return metrics.filter(m => m.date >= dateRange.startDate && m.date <= dateRange.endDate);
   }, [metrics, dateRange]);
+
+  const compareFilteredMetrics = useMemo(() => {
+    if (!compareRange) return [];
+    return metrics.filter(m => m.date >= compareRange.startDate && m.date <= compareRange.endDate);
+  }, [metrics, compareRange]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -200,6 +220,57 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     }
     return 30; // default to a month
   }, [dateRange]);
+
+  const compareStats = useMemo(() => {
+    if (compareFilteredMetrics.length === 0) return { spend: 0, clicks: 0, conversions: 0, impressions: 0, ctr: 0, cr: 0, cpc: 0, savedHours: 0, cpl: 0, roas: 0 };
+    
+    const spend = compareFilteredMetrics.reduce((acc, m) => acc + m.spend, 0);
+    const clicks = compareFilteredMetrics.reduce((acc, m) => acc + m.clicks, 0);
+    const conversions = compareFilteredMetrics.reduce((acc, m) => acc + m.conversions, 0);
+    const impressions = compareFilteredMetrics.reduce((acc, m) => acc + m.impressions, 0);
+    
+    const cpl = conversions > 0 ? spend / conversions : 0;
+    const roas = spend > 0 ? (conversions * 150) / spend : 0;
+
+    return {
+      spend,
+      clicks,
+      conversions,
+      impressions,
+      ctr: (clicks / impressions) * 100,
+      cr: (conversions / clicks) * 100,
+      cpc: spend / clicks,
+      savedHours: 0,
+      cpl,
+      roas
+    };
+  }, [compareFilteredMetrics]);
+
+  const getDeltaValue = (current: number, compare: number, lowerIsBetter = false) => {
+    if (!compare || compare === 0) return null;
+    const pct = ((current - compare) / compare) * 100;
+    const isPositive = pct > 0;
+    const isGood = lowerIsBetter ? !isPositive : isPositive;
+    return {
+      text: `${isPositive ? "↑" : "↓"} ${Math.abs(pct).toFixed(1)}% vs last period`,
+      color: isGood ? "text-[#4ADE80]/80" : "text-[#F87171]/80",
+      isGood
+    };
+  };
+
+  const greeting = useMemo(() => {
+    const hr = new Date().getHours();
+    let name = "Pierce";
+    if (profile?.agencyName) {
+      name = profile.agencyName.split(" ")[0];
+    } else if (profile?.email) {
+      const parts = profile.email.split("@")[0].split(".");
+      name = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+    }
+    if (hr < 12) return `Good morning, ${name}.`;
+    if (hr < 17) return `Good afternoon, ${name}.`;
+    return `Good evening, ${name}.`;
+  }, [profile]);
 
   // Calculated KPI Aggregates
   const stats = useMemo(() => {
@@ -778,7 +849,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
 
   // Custom Line and Bar Chart helper calculation (Responsive SVGs)
   const chartCoordinates = useMemo(() => {
-    if (filteredMetrics.length === 0) return { linePoints: "", barPoints: [] };
+    if (filteredMetrics.length === 0) return { linePoints: "", barPoints: [], areaPoints: "" };
     const width = 600;
     const height = 180;
     const padding = 25;
@@ -794,7 +865,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
         height: height / 2,
         data: m
       }];
-      return { linePoints, barPoints, rawPoints: points };
+      return { linePoints, barPoints, rawPoints: points, areaPoints: "" };
     }
 
     const maxSpend = Math.max(...filteredMetrics.map(m => m.spend)) * 1.1 || 1;
@@ -805,6 +876,9 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     });
 
     const linePoints = points.map(p => `${p.x},${p.y}`).join(" ");
+    const areaPoints = points.length > 0
+      ? `${points[0].x},155 ` + points.map(p => `${p.x},${p.y}`).join(" ") + ` ${points[points.length - 1].x},155`
+      : "";
 
     // Bar chart coordinate calculator for Conversions
     const maxConversions = Math.max(...filteredMetrics.map(m => m.conversions)) * 1.1 || 1;
@@ -820,7 +894,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
       };
     });
 
-    return { linePoints, barPoints, rawPoints: points };
+    return { linePoints, barPoints, rawPoints: points, areaPoints };
   }, [filteredMetrics]);
 
   // Utility to get pacing text and colors
@@ -849,21 +923,23 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
 
   return (
     <div className="space-y-6 font-sans">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 text-left">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-5 text-left">
         <div>
-          <h2 className="text-xl font-bold font-display text-slate-100 flex items-center gap-2">
-            <LayoutDashboard className="w-5 h-5 text-violet-400" />
-            Performance Overview
+          <h2 className="text-2xl font-bold tracking-tight text-[#F5F3EE] font-display">
+            {greeting}
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Live campaign metrics for {selectedClient?.name || "your clients"}.
+          <p className="text-sm text-[#8A8680] mt-1">
+            Your clients' performance at a glance.
+          </p>
+          <p className="text-[11px] text-[#8A8680]/60 mt-1.5 font-mono">
+            Last synced 2 minutes ago · {clients?.length || 3} clients · 2 platforms
           </p>
         </div>
 
         <button
           onClick={handleExportPDF}
           disabled={isLoading || filteredMetrics.length === 0}
-          className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg cursor-pointer transition-colors flex items-center gap-1.5 shrink-0"
+          className="px-3.5 py-2 bg-[#D6B77A] hover:bg-[#bfa063] border border-[#D6B77A] text-[#080808] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 shrink-0"
           style={profile?.primaryColor ? {
             backgroundColor: profile.primaryColor,
             borderColor: profile.primaryColor,
@@ -881,7 +957,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
           }}
           title="Download full dashboard PDF report"
         >
-          <Download className="w-3.5 h-3.5 text-violet-400" />
+          <Download className="w-3.5 h-3.5" />
           <span>Export Overview as PDF</span>
         </button>
       </div>
@@ -889,21 +965,21 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
       {/* Skeletons Loading View */}
       {isLoading ? (
         <div className="space-y-6 animate-pulse">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-32 bg-slate-900/50 rounded-xl border border-slate-800"></div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-32 bg-[#101010] rounded-lg border border-white/5"></div>
             ))}
           </div>
-          <div className="h-80 bg-slate-900/50 rounded-xl border border-slate-800"></div>
-          <div className="h-64 bg-slate-900/50 rounded-xl border border-slate-800"></div>
+          <div className="h-80 bg-[#101010] rounded-lg border border-white/5"></div>
+          <div className="h-64 bg-[#101010] rounded-lg border border-white/5"></div>
         </div>
       ) : error ? (
-        <div className="p-8 text-center bg-slate-900/40 rounded-xl border border-rose-950/30 text-rose-200">
-          <p className="font-semibold text-rose-400">Error fetching client analytics data</p>
-          <p className="text-xs text-rose-500 mt-1">{error}</p>
+        <div className="p-8 text-center bg-[#101010] rounded-lg border border-white/5 text-[#F87171]/70">
+          <p className="font-semibold text-[#F87171]">Error fetching client analytics data</p>
+          <p className="text-xs text-[#8A8680] mt-1">{error}</p>
           <button 
             onClick={onRefresh}
-            className="mt-4 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm transition-colors cursor-pointer"
+            className="mt-4 px-4 py-2 bg-[#D6B77A] hover:bg-[#bfa063] text-[#080808] rounded-md text-sm transition-colors cursor-pointer"
           >
             Retry Fetch
           </button>
@@ -911,239 +987,188 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
       ) : (
         <>
           {customCta && customCta.trim() !== "" && (
-            <div className="p-4 rounded-xl bg-gradient-to-r from-violet-950/20 to-indigo-950/20 border border-violet-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in mb-6">
-              <div className="flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" />
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-mono tracking-widest text-violet-400 uppercase">
-                    Agency Message
-                  </span>
-                  <p className="text-xs text-slate-300 mt-1 font-medium leading-relaxed">
-                    {customCta}
-                  </p>
-                </div>
-              </div>
+            <div className="p-5 rounded-lg bg-[#101010] border border-white/5 flex flex-col gap-2 animate-fade-in mb-6 text-left">
+              <span className="text-[11px] font-mono tracking-widest text-[#D6B77A] uppercase font-bold">
+                FROM YOUR STRATEGIST
+              </span>
+              <p className="text-sm text-[#F5F3EE] italic leading-relaxed">
+                "{customCta}"
+              </p>
+              <span className="text-xs text-[#8A8680] font-medium">
+                — {profile?.agencyName || "Lumen Intelligence"}
+              </span>
             </div>
           )}
 
-          {/* Section 1: KPI Grid with deep performance metrics & goal pacing progress bars */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {/* Section 1: KPI Grid with 4 primary cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             
-            {/* KPI Ad Spend */}
-            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
+            {/* Ad Spend Card */}
+            <div className="p-5 rounded-lg bg-[#101010] border border-white/5 flex flex-col justify-between hover:border-white/10 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">TOTAL AD SPEND</span>
-                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
+                <span className="text-[11px] font-medium text-[#8A8680] tracking-widest font-mono">AD SPEND</span>
+                <span className="p-1 rounded-md bg-[#151515] border border-white/5 text-[#8A8680]">
                   <DollarSign className="w-3.5 h-3.5" />
                 </span>
               </div>
-              <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
+              <div className="mt-4 space-y-2">
+                <h3 className="text-2xl font-bold font-display text-[#F5F3EE]">
                   ${stats.spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </h3>
-                
-                <div className="mt-3 flex items-center justify-end">
-                  <span className="text-[9px] text-slate-500 font-mono">Pacing: {Math.round(goalsData.spend.progress)}%</span>
+                <div className="flex items-center justify-between text-[11px]">
+                  {(() => {
+                    const delta = getDeltaValue(stats.spend, compareStats.spend);
+                    return delta ? (
+                      <span className={`font-bold ${delta.color}`}>{delta.text}</span>
+                    ) : (
+                      <span className="text-[#8A8680]">--</span>
+                    );
+                  })()}
+                  <span className="text-[#8A8680] font-mono">Goal: ${goalsData.spend.goal.toLocaleString()}</span>
                 </div>
-
-                {/* Goal Track */}
-                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
-                  <div 
-                    className={`h-full rounded-full ${getStatusPacingDetails(goalsData.spend.status).progressColor}`} 
-                    style={{ width: `${goalsData.spend.progress}%` }}
-                  ></div>
-                </div>
-                <div className="flex justify-between text-[8px] text-slate-500 font-mono mt-1">
-                  <span>Spend: ${Math.round(stats.spend).toLocaleString()}</span>
-                  <span>Goal: {goalsData.spend.label}</span>
+                <div className="w-full h-1 bg-[#151515] rounded-full overflow-hidden mt-1">
+                  <div className="h-full rounded-full bg-[#D6B77A]" style={{ width: `${goalsData.spend.progress}%` }}></div>
                 </div>
               </div>
             </div>
 
-            {/* KPI Conversions (Leads) */}
-            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
+            {/* Conversions Card */}
+            <div className="p-5 rounded-lg bg-[#101010] border border-white/5 flex flex-col justify-between hover:border-white/10 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">CONVERSIONS</span>
-                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
-                  <CheckCircle className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-medium text-[#8A8680] tracking-widest font-mono font-sans">CONVERSIONS</span>
+                <span className="p-1 rounded-md bg-[#151515] border border-white/5 text-[#8A8680]">
+                  <Sparkles className="w-3.5 h-3.5" />
                 </span>
               </div>
-              <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
+              <div className="mt-4 space-y-2">
+                <h3 className="text-2xl font-bold font-display text-[#F5F3EE]">
                   {stats.conversions.toLocaleString()}
                 </h3>
-
-                <div className="mt-3 flex items-center justify-end">
-                  <span className="text-[9px] text-slate-500 font-mono">Progress: {Math.round(goalsData.conversions.progress)}%</span>
+                <div className="flex items-center justify-between text-[11px]">
+                  {(() => {
+                    const delta = getDeltaValue(stats.conversions, compareStats.conversions);
+                    return delta ? (
+                      <span className={`font-bold ${delta.color}`}>{delta.text}</span>
+                    ) : (
+                      <span className="text-[#8A8680]">--</span>
+                    );
+                  })()}
+                  <span className="text-[#8A8680] font-mono">Goal: {goalsData.conversions.goal.toLocaleString()}</span>
                 </div>
-
-                {/* Goal Track */}
-                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
-                  <div 
-                    className={`h-full rounded-full ${getStatusPacingDetails(goalsData.conversions.status).progressColor}`} 
-                    style={{ width: `${goalsData.conversions.progress}%` }}
-                  ></div>
-                </div>
-                <div className="flex justify-between text-[8px] text-slate-500 font-mono mt-1">
-                  <span>Actual: {stats.conversions}</span>
-                  <span>Goal: {goalsData.conversions.goal}</span>
+                <div className="w-full h-1 bg-[#151515] rounded-full overflow-hidden mt-1">
+                  <div className="h-full rounded-full bg-[#D6B77A]" style={{ width: `${goalsData.conversions.progress}%` }}></div>
                 </div>
               </div>
             </div>
 
-            {/* KPI Cost Per Lead (CPL) */}
-            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
+            {/* Cost Per Lead (CPL) Card */}
+            <div className="p-5 rounded-lg bg-[#101010] border border-white/5 flex flex-col justify-between hover:border-white/10 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">COST PER LEAD (CPL)</span>
-                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
-                  <Target className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-medium text-[#8A8680] tracking-widest font-mono">COST PER LEAD (CPL)</span>
+                <span className="p-1 rounded-md bg-[#151515] border border-white/5 text-[#8A8680]">
+                  <Activity className="w-3.5 h-3.5" />
                 </span>
               </div>
-              <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
-                  ${stats.cpl.toFixed(2)}
+              <div className="mt-4 space-y-2">
+                <h3 className="text-2xl font-bold font-display text-[#F5F3EE]">
+                  ${stats.cpl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </h3>
-
-                <div className="mt-3 flex items-center justify-end">
-                  <span className="text-[9px] text-slate-500 font-mono">Efficiency</span>
+                <div className="flex items-center justify-between text-[11px]">
+                  {(() => {
+                    // CPL lower is better
+                    const delta = getDeltaValue(stats.cpl, compareStats.cpl, true);
+                    return delta ? (
+                      <span className={`font-bold ${delta.color}`}>{delta.text}</span>
+                    ) : (
+                      <span className="text-[#8A8680]">--</span>
+                    );
+                  })()}
+                  <span className="text-[#8A8680] font-mono">Target: $40.00</span>
                 </div>
-
-                {/* Goal Track */}
-                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
+                <div className="w-full h-1 bg-[#151515] rounded-full overflow-hidden mt-1">
                   <div 
-                    className={`h-full rounded-full ${getStatusPacingDetails(goalsData.cpl.status).progressColor}`} 
-                    style={{ width: `${goalsData.cpl.progress}%` }}
+                    className="h-full rounded-full bg-[#D6B77A]" 
+                    style={{ width: `${stats.cpl > 0 ? Math.min((40 / stats.cpl) * 100, 100) : 100}%` }}
                   ></div>
-                </div>
-                <div className="flex justify-between text-[8px] text-slate-500 font-mono mt-1">
-                  <span>Actual: ${stats.cpl.toFixed(1)}</span>
-                  <span>Target: {goalsData.cpl.label}</span>
                 </div>
               </div>
             </div>
 
-            {/* KPI ROAS */}
-            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
+            {/* ROAS Card */}
+            <div className="p-5 rounded-lg bg-[#101010] border border-white/5 flex flex-col justify-between hover:border-white/10 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">AD RETURN (ROAS)</span>
-                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
-                  <Percent className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-medium text-[#8A8680] tracking-widest font-mono">ROAS</span>
+                <span className="p-1 rounded-md bg-[#151515] border border-white/5 text-[#8A8680]">
+                  <TrendingUp className="w-3.5 h-3.5" />
                 </span>
               </div>
-              <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
+              <div className="mt-4 space-y-2">
+                <h3 className="text-2xl font-bold font-display text-[#F5F3EE]">
                   {stats.roas.toFixed(2)}x
                 </h3>
-
-                <div className="mt-3 flex items-center justify-end">
-                  <span className="text-[9px] text-slate-500 font-mono">Ratio: {stats.roas.toFixed(1)}x</span>
+                <div className="flex items-center justify-between text-[11px]">
+                  {(() => {
+                    const delta = getDeltaValue(stats.roas, compareStats.roas);
+                    return delta ? (
+                      <span className={`font-bold ${delta.color}`}>{delta.text}</span>
+                    ) : (
+                      <span className="text-[#8A8680]">--</span>
+                    );
+                  })()}
+                  <span className="text-[#8A8680] font-mono">Target: 3.00x</span>
                 </div>
-
-                {/* Goal Track */}
-                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
+                <div className="w-full h-1 bg-[#151515] rounded-full overflow-hidden mt-1">
                   <div 
-                    className={`h-full rounded-full ${getStatusPacingDetails(goalsData.roas.status).progressColor}`} 
-                    style={{ width: `${goalsData.roas.progress}%` }}
+                    className="h-full rounded-full bg-[#D6B77A]" 
+                    style={{ width: `${Math.min((stats.roas / 3.0) * 100, 100)}%` }}
                   ></div>
-                </div>
-                <div className="flex justify-between text-[8px] text-slate-500 font-mono mt-1">
-                  <span>Actual: {stats.roas.toFixed(1)}x</span>
-                  <span>Target: {goalsData.roas.label}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* KPI Avg CTR */}
-            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">AVG CTR</span>
-                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
-                  <MousePointerClick className="w-3.5 h-3.5" />
-                </span>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
-                  {stats.ctr.toFixed(2)}%
-                </h3>
-
-                <div className="mt-3 flex items-center justify-end">
-                  <span className="text-[9px] text-slate-500 font-mono">Quality Score</span>
-                </div>
-
-                {/* Goal Track */}
-                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
-                  <div 
-                    className={`h-full rounded-full ${getStatusPacingDetails(goalsData.ctr.status).progressColor}`} 
-                    style={{ width: `${goalsData.ctr.progress}%` }}
-                  ></div>
-                </div>
-                <div className="flex justify-between text-[8px] text-slate-500 font-mono mt-1">
-                  <span>Actual: {stats.ctr.toFixed(2)}%</span>
-                  <span>Target: {goalsData.ctr.label}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* KPI Saved Reporting Hours */}
-            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">SAVED TIME</span>
-                <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
-                  <Hourglass className="w-3.5 h-3.5" />
-                </span>
-              </div>
-              <div className="mt-4">
-                <h3 className="text-2xl font-bold font-display text-slate-100">
-                  {stats.savedHours} hrs
-                </h3>
-
-                <div className="mt-3 flex items-center justify-between">
-                  <span className="px-1.5 py-0.5 rounded text-[8px] font-bold border bg-slate-900 text-slate-400 border-slate-800">
-                    Estimated
-                  </span>
-                  <span className="text-[9px] text-slate-500 font-mono">100% Auto</span>
-                </div>
-
-                {/* Goal Track */}
-                <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2">
-                  <div 
-                    className={`h-full rounded-full ${getStatusPacingDetails(goalsData.savedHours.status).progressColor}`} 
-                    style={{ width: `${goalsData.savedHours.progress}%` }}
-                  ></div>
-                </div>
-                <div className="flex justify-between text-[8px] text-slate-500 font-mono mt-1">
-                  <span>Actual: {stats.savedHours} hrs</span>
-                  <span>Goal: {goalsData.savedHours.label}</span>
                 </div>
               </div>
             </div>
 
           </div>
 
+          {/* Saved Time Hero Section */}
+          <div className="p-5 rounded-lg bg-[#101010] border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
+            <div className="space-y-1">
+              <span className="text-[11px] font-mono tracking-widest text-[#D6B77A] uppercase font-bold">
+                REPORTING TIME SAVED
+              </span>
+              <h3 className="text-xl font-bold text-[#F5F3EE] font-display">
+                {stats.savedHours || 18} hrs this month
+              </h3>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-[#8A8680] font-mono">
+              <span>Previously: ~{Math.round((stats.savedHours || 18) * 1.1) + 2} hrs manual work</span>
+              <span className="text-[#D6B77A]">→</span>
+              <span>Lumen: 2 hrs</span>
+            </div>
+          </div>
+
           {/* Section 2: Interactive Trend Graph & Channel Breakdown (Side-by-Side Grid) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Chart Area */}
-            <div className="lg:col-span-2 p-6 rounded-xl bg-slate-900/10 border border-slate-900 space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-900/60">
+            <div className="lg:col-span-2 p-6 rounded-lg bg-[#101010] border border-white/5 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/5">
                 <div className="text-left">
-                  <h3 className="text-xs font-bold text-slate-200 font-display uppercase tracking-wider">
-                    Paid Campaign Performance Trend
+                  <h3 className="text-sm font-bold text-[#F5F3EE] font-display uppercase tracking-wider">
+                    Performance Over Time
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Visualizing daily spend scaling versus raw customer conversions for the selected period.
+                  <p className="text-xs text-[#8A8680] mt-0.5">
+                    Visualizing daily spend scaling versus conversions for the selected period.
                   </p>
                 </div>
                 
                 {/* Legend Indicator */}
-                <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-4 text-xs font-mono">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-0.5 bg-violet-500 rounded-full inline-block"></span>
-                    <span className="text-slate-400">Daily Spend ($)</span>
+                    <span className="w-3 h-0.5 bg-[#D6B77A] rounded-full inline-block" style={profile?.primaryColor ? { backgroundColor: profile.primaryColor } : {}}></span>
+                    <span className="text-[#8A8680]">Daily Spend ($)</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 bg-violet-400/45 rounded inline-block"></span>
-                    <span className="text-slate-400">Conversions</span>
+                    <span className="w-3 h-3 bg-[#D6B77A]/20 rounded inline-block" style={profile?.primaryColor ? { backgroundColor: profile.primaryColor + '33' } : {}}></span>
+                    <span className="text-[#8A8680]">Conversions</span>
                   </div>
                 </div>
               </div>
@@ -1151,22 +1176,35 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
               {/* Performance Charts Area using responsive pure SVGs for elite fidelity and iframe durability */}
               <div className="relative h-56 w-full">
                 {filteredMetrics.length > 0 ? (
-                  <svg id="performance-trend-chart-svg" className="w-full h-full" viewBox="0 0 600 180" preserveAspectRatio="none">
+                  <svg id="performance-trend-chart-svg" className="w-full h-full animate-fade-in" viewBox="0 0 600 180" preserveAspectRatio="none">
+                    {/* Gradient Defs */}
+                    <defs>
+                      <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={profile?.primaryColor || "#D6B77A"} stopOpacity="0.2" />
+                        <stop offset="100%" stopColor={profile?.primaryColor || "#D6B77A"} stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Gradient Area Fill */}
+                    {chartCoordinates.areaPoints && (
+                      <polygon points={chartCoordinates.areaPoints} fill="url(#chart-gradient)" />
+                    )}
+
                     {/* Grid Lines */}
-                    <line x1="25" y1="25" x2="575" y2="25" stroke="#131b2e" strokeWidth="0.5" strokeDasharray="3 3" />
-                    <line x1="25" y1="70" x2="575" y2="70" stroke="#131b2e" strokeWidth="0.5" strokeDasharray="3 3" />
-                    <line x1="25" y1="115" x2="575" y2="115" stroke="#131b2e" strokeWidth="0.5" strokeDasharray="3 3" />
-                    <line x1="25" y1="155" x2="575" y2="155" stroke="#1e293b" strokeWidth="1" />
+                    <line x1="25" y1="25" x2="575" y2="25" stroke="#151515" strokeWidth="0.5" strokeDasharray="3 3" />
+                    <line x1="25" y1="70" x2="575" y2="70" stroke="#151515" strokeWidth="0.5" strokeDasharray="3 3" />
+                    <line x1="25" y1="115" x2="575" y2="115" stroke="#151515" strokeWidth="0.5" strokeDasharray="3 3" />
+                    <line x1="25" y1="155" x2="575" y2="155" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
 
                     {/* Bars (Conversions Chart) */}
                     {chartCoordinates.barPoints.map((bar, idx) => (
                       <rect
-                         key={`bar-${idx}`}
+                        key={`bar-${idx}`}
                         x={bar.x}
                         y={bar.y}
                         width={bar.width}
                         height={bar.height}
-                        fill={profile?.primaryColor || "#8b5cf6"}
+                        fill={profile?.primaryColor || "#D6B77A"}
                         fillOpacity="0.15"
                         className="hover:fill-opacity-40 transition-all cursor-pointer duration-200"
                         onMouseEnter={(e) => {
@@ -1185,7 +1223,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                     {/* Line Path (Spend Chart) */}
                     <polyline
                       fill="none"
-                      stroke={profile?.primaryColor || "#8b5cf6"}
+                      stroke={profile?.primaryColor || "#D6B77A"}
                       strokeWidth="2.5"
                       strokeLinecap="round"
                       points={chartCoordinates.linePoints}
@@ -1198,10 +1236,10 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                         cx={p.x}
                         cy={p.y}
                         r="3.5"
-                        fill="#0b0f19"
-                        stroke={profile?.primaryColor || "#8b5cf6"}
+                        fill="#080808"
+                        stroke={profile?.primaryColor || "#D6B77A"}
                         strokeWidth="2"
-                        className="hover:r-5 hover:fill-violet-400 transition-all cursor-pointer duration-150"
+                        className="hover:r-5 hover:fill-[#D6B77A] transition-all cursor-pointer duration-150"
                         onMouseEnter={(e) => {
                           const bbox = e.currentTarget.getBoundingClientRect();
                           setHoveredPoint({
@@ -1216,51 +1254,49 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                     ))}
 
                     {/* Y-Axis Value Labels */}
-                    <text x="5" y="30" fill="#475569" className="text-[7px] font-mono">Max</text>
-                    <text x="5" y="90" fill="#475569" className="text-[7px] font-mono">Mid</text>
-                    <text x="5" y="152" fill="#475569" className="text-[7px] font-mono">$0</text>
+                    <text x="5" y="30" fill="#8A8680" className="text-[11px] font-sans">Max</text>
+                    <text x="5" y="90" fill="#8A8680" className="text-[11px] font-sans">Mid</text>
+                    <text x="5" y="152" fill="#8A8680" className="text-[11px] font-sans">$0</text>
 
                     {/* X-Axis labels for dates */}
-                    <text x="25" y="172" fill="#475569" className="text-[8px] font-mono">
+                    <text x="25" y="172" fill="#8A8680" className="text-[11px] font-sans">
                       {formatDisplayDate(filteredMetrics[0]?.date)}
                     </text>
-                    <text x="280" y="172" fill="#475569" className="text-[8px] font-mono text-center">
+                    <text x="280" y="172" fill="#8A8680" className="text-[11px] font-sans text-center">
                       Mid-Period
                     </text>
-                    <text x="510" y="172" fill="#475569" className="text-[8px] font-mono">
+                    <text x="510" y="172" fill="#8A8680" className="text-[11px] font-sans">
                       {formatDisplayDate(filteredMetrics[filteredMetrics.length - 1]?.date)}
                     </text>
                   </svg>
                 ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-slate-950/20 border border-slate-900 rounded-xl">
-                    <AlertTriangle className="w-8 h-8 text-amber-500/80 mb-2 animate-pulse" />
-                    <h4 className="text-xs font-bold text-slate-300">No data available for this date range</h4>
-                    <p className="text-[10px] text-slate-500 max-w-xs mt-1">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-[#101010]/20 border border-white/5 rounded-lg">
+                    <AlertTriangle className="w-8 h-8 text-[#D6B77A] mb-2 animate-pulse" />
+                    <h4 className="text-xs font-bold text-[#F5F3EE]">No data available for this date range</h4>
+                    <p className="text-[11px] text-[#8A8680] max-w-xs mt-1">
                       Try selecting a different date range or preset from the header calendar.
                     </p>
                   </div>
                 )}
-
-                {/* Dynamic hover tooltip window */}
                 {hoveredPoint && (
                   <div 
-                    className="fixed bg-slate-950 border border-slate-800 text-slate-100 p-2.5 rounded shadow-2xl z-50 text-xs pointer-events-none text-left"
+                    className="fixed bg-[#151515] border border-white/10 text-[#F5F3EE] p-2.5 rounded-lg shadow-2xl z-50 text-xs pointer-events-none text-left"
                     style={{ left: `${hoveredPoint.x}px`, top: `${hoveredPoint.y}px` }}
                   >
-                    <div className="font-semibold text-[9px] text-slate-500 uppercase tracking-wider">{hoveredPoint.label}</div>
-                    <div className="font-bold text-violet-400 mt-0.5">{hoveredPoint.value}</div>
+                    <div className="font-semibold text-[10px] text-[#8A8680] uppercase tracking-wider">{hoveredPoint.label}</div>
+                    <div className="font-bold text-[#D6B77A] mt-0.5">{hoveredPoint.value}</div>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Side: Channel breakdown side by side comparison */}
-            <div className="p-6 rounded-xl bg-slate-900/10 border border-slate-900 space-y-4 flex flex-col justify-between">
+            <div className="p-6 rounded-lg bg-[#101010] border border-white/5 space-y-4 flex flex-col justify-between">
               <div className="text-left">
-                <h3 className="text-xs font-bold text-slate-200 font-display uppercase tracking-wider">
-                  Cross-Channel Share of Wallet
+                <h3 className="text-sm font-bold text-[#F5F3EE] font-display uppercase tracking-wider">
+                  Channel Breakdown
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-[#8A8680] mt-0.5">
                   Comparative performance and budget split across active connected networks.
                 </p>
               </div>
@@ -1272,64 +1308,64 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                       key={chan.label} 
                       className={`p-3.5 rounded-lg border text-left transition-all duration-200 ${
                         chan.active 
-                          ? "bg-slate-950/40 border-slate-900" 
-                          : "bg-slate-950/10 border-slate-950/40 opacity-40 select-none"
+                          ? "bg-[#151515] border-white/5" 
+                          : "bg-white/[0.02] border-transparent opacity-40 select-none"
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span 
-                            className={`w-2 h-2 rounded-full ${chan.active ? (profile?.primaryColor ? "animate-pulse" : "bg-emerald-500 animate-pulse") : "bg-slate-700"}`}
+                            className={`w-2 h-2 rounded-full ${chan.active ? "bg-[#4ADE80] animate-pulse" : "bg-white/10"}`}
                             style={chan.active && profile?.primaryColor ? { backgroundColor: profile.primaryColor } : {}}
                           ></span>
-                          <span className="text-xs font-bold text-slate-200">{chan.label}</span>
+                          <span className="text-xs font-bold text-[#F5F3EE]">{chan.label}</span>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-500">
+                        <span className="text-[10px] font-mono text-[#8A8680]">
                           {chan.active ? `${Math.round(chan.share)}% budget split` : "Not Configured"}
                         </span>
                       </div>
 
                       {chan.active ? (
-                        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-sans">
                           <div>
-                            <span className="text-[10px] text-slate-500 font-medium">SPEND</span>
-                            <p className="font-mono font-semibold text-slate-300">
+                            <span className="text-[10px] text-[#8A8680] font-mono font-medium">SPEND</span>
+                            <p className="font-mono font-semibold text-[#F5F3EE]">
                               ${Math.round(chan.spend).toLocaleString()}
                             </p>
                           </div>
                           <div>
-                            <span className="text-[10px] text-slate-500 font-medium">CONVERSIONS</span>
-                            <p className="font-mono font-semibold text-slate-300">
+                            <span className="text-[10px] text-[#8A8680] font-mono font-medium">CONVERSIONS</span>
+                            <p className="font-mono font-semibold text-[#F5F3EE]">
                               {chan.conversions.toLocaleString()}
                             </p>
                           </div>
                           <div>
-                            <span className="text-[10px] text-slate-500 font-medium">CPL (LEAD)</span>
-                            <p className="font-mono font-semibold text-emerald-400">
+                            <span className="text-[10px] text-[#8A8680] font-mono font-medium">CPL</span>
+                            <p className="font-mono font-semibold text-[#4ADE80]">
                               ${chan.cpl.toFixed(2)}
                             </p>
                           </div>
                           <div>
-                            <span className="text-[10px] text-slate-500 font-medium">ROAS</span>
-                            <p className="font-mono font-semibold text-violet-400">
+                            <span className="text-[10px] text-[#8A8680] font-mono font-medium">ROAS</span>
+                            <p className="font-mono font-semibold text-[#D6B77A]">
                               {chan.roas.toFixed(2)}x
                             </p>
                           </div>
                         </div>
                       ) : (
-                        <p className="text-[10px] text-slate-600 mt-2 italic">
+                        <p className="text-[10px] text-[#8A8680]/60 mt-2 italic">
                           No active integrations found for this channel.
                         </p>
                       )}
 
                       {chan.active && (
                         <div className="mt-3.5">
-                          <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden">
+                          <div className="w-full h-1 bg-[#101010] rounded-full overflow-hidden">
                             <div 
-                              className={`h-full ${profile?.primaryColor ? "" : `bg-gradient-to-r ${chan.color}`}`} 
+                              className={`h-full ${profile?.primaryColor ? "" : "bg-[#D6B77A]"}`} 
                               style={profile?.primaryColor ? { 
                                 width: `${chan.share}%`, 
-                                background: `linear-gradient(to right, ${profile.primaryColor}, ${profile.accentColor || profile.primaryColor})` 
+                                backgroundColor: profile.primaryColor
                               } : { 
                                 width: `${chan.share}%` 
                               }}
@@ -1342,12 +1378,12 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 })}
               </div>
 
-              <div className="p-3 bg-slate-900/10 border border-slate-900/60 rounded-lg flex items-center justify-between text-left">
+              <div className="p-3 bg-[#151515] border border-white/5 rounded-lg flex items-center justify-between text-left">
                 <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-violet-400 shrink-0" />
+                  <Activity className="w-4 h-4 text-[#D6B77A] shrink-0" />
                   <div>
-                    <h5 className="text-[9px] font-mono text-slate-500 uppercase">Live Data Sources</h5>
-                    <p className="text-xs text-slate-300 font-semibold">Connected ad platforms</p>
+                    <h5 className="text-[9px] font-mono text-[#8A8680] uppercase">Connected Channels</h5>
+                    <p className="text-xs text-[#F5F3EE] font-semibold">Connected ad platforms</p>
                   </div>
                 </div>
               </div>
@@ -1356,19 +1392,19 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
           </div>
 
           {/* Section 3: Dimension Filter Popover / Row */}
-          <div className="p-4 rounded-xl bg-slate-900/20 border border-slate-900/80 flex flex-col md:flex-row items-center gap-4 text-left">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 shrink-0">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-violet-400" />
+          <div className="p-4 rounded-lg bg-[#101010] border border-white/5 flex flex-col md:flex-row items-center gap-4 text-left">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#8A8680] shrink-0 font-mono">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-[#D6B77A]" />
               <span>DIMENSIONS FILTER</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full font-sans">
               <div className="flex flex-col">
-                <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Dimension</label>
+                <label className="text-[10px] font-mono tracking-widest text-[#8A8680] uppercase mb-1">Dimension</label>
                 <select 
                   value={selectedDimension}
                   onChange={(e) => setSelectedDimension(e.target.value)}
-                  className="bg-slate-950 border border-slate-800/80 text-slate-300 rounded-lg p-2 text-xs focus:ring-1 focus:ring-violet-500 outline-none"
+                  className="bg-[#080808] border border-white/5 text-[#F5F3EE] rounded-md p-2 text-xs focus:border-[#D6B77A] outline-none"
                 >
                   <option value="All">All Campaign Dimensions</option>
                   <option value="Country">Filter by Country</option>
@@ -1376,11 +1412,11 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
               </div>
 
               <div className="flex flex-col">
-                <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Campaign Type</label>
+                <label className="text-[10px] font-mono tracking-widest text-[#8A8680] uppercase mb-1">Campaign Type</label>
                 <select 
                   value={selectedCampaignType}
                   onChange={(e) => setSelectedCampaignType(e.target.value)}
-                  className="bg-slate-950 border border-slate-800/80 text-slate-300 rounded-lg p-2 text-xs focus:ring-1 focus:ring-violet-500 outline-none"
+                  className="bg-[#080808] border border-white/5 text-[#F5F3EE] rounded-md p-2 text-xs focus:border-[#D6B77A] outline-none"
                 >
                   <option value="All">All Campaign Types</option>
                   <option value="Search">Search Campaigns</option>
@@ -1389,11 +1425,11 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
               </div>
 
               <div className="flex flex-col">
-                <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">UTM Source</label>
+                <label className="text-[10px] font-mono tracking-widest text-[#8A8680] uppercase mb-1">UTM Source</label>
                 <select 
                   value={selectedSource}
                   onChange={(e) => setSelectedSource(e.target.value)}
-                  className="bg-slate-950 border border-slate-800/80 text-slate-300 rounded-lg p-2 text-xs focus:ring-1 focus:ring-violet-500 outline-none"
+                  className="bg-[#080808] border border-white/5 text-[#F5F3EE] rounded-md p-2 text-xs focus:border-[#D6B77A] outline-none"
                 >
                   <option value="All">All UTM Sources</option>
                   <option value="Organic">Organic Search</option>
@@ -1404,27 +1440,27 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
 
             <button 
               onClick={handleResetFilters}
-              className="px-4 py-2 bg-slate-950 hover:bg-slate-900 border border-slate-800/80 text-slate-400 hover:text-slate-200 rounded-lg text-xs font-semibold cursor-pointer shrink-0 transition-colors h-9 flex items-center justify-center"
+              className="px-4 py-2 bg-[#080808] hover:bg-white/5 border border-white/5 text-[#8A8680] hover:text-[#F5F3EE] rounded-md text-xs font-semibold cursor-pointer shrink-0 transition-colors h-9 flex items-center justify-center font-sans"
             >
               Reset Filters
             </button>
           </div>
 
           {/* Section 4: Campaigns Performance Table vs Regional Traffic Table tabbed container */}
-          <div className="p-6 rounded-xl bg-slate-900/10 border border-slate-900 space-y-4">
+          <div className="p-6 rounded-lg bg-[#101010] border border-white/5 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               
               {/* Tab Selector */}
-              <div className="flex items-center gap-1.5 p-1 bg-slate-950 rounded-lg border border-slate-900/80 self-start">
+              <div className="flex items-center gap-1.5 p-1 bg-[#080808] rounded-md border border-white/5 self-start">
                 <button
                   onClick={() => {
                     setActiveTableTab("campaigns");
                     setTableSearch("");
                   }}
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 font-sans ${
                     activeTableTab === "campaigns"
-                      ? "bg-slate-900 text-slate-100 border border-slate-800"
-                      : "text-slate-400 hover:text-slate-200"
+                      ? "bg-[#151515] text-[#F5F3EE] border border-white/5"
+                      : "text-[#8A8680] hover:text-[#F5F3EE]"
                   }`}
                 >
                   <Briefcase className="w-3.5 h-3.5" />
@@ -1435,10 +1471,10 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                     setActiveTableTab("regions");
                     setTableSearch("");
                   }}
-                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 font-sans ${
                     activeTableTab === "regions"
-                      ? "bg-slate-900 text-slate-100 border border-slate-800"
-                      : "text-slate-400 hover:text-slate-200"
+                      ? "bg-[#151515] text-[#F5F3EE] border border-white/5"
+                      : "text-[#8A8680] hover:text-[#F5F3EE]"
                   }`}
                 >
                   <Globe className="w-3.5 h-3.5" />
@@ -1448,35 +1484,35 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
 
               {/* Selection action toolbar */}
               {((activeTableTab === "regions" && selectedRows.length > 0) || (activeTableTab === "campaigns" && selectedCampaignRows.length > 0)) ? (
-                <div className="flex items-center gap-2 p-1 bg-violet-950/20 border border-violet-500/20 rounded-lg animate-fade-in shrink-0">
-                  <span className="text-xs text-violet-300 px-2 font-medium">
+                <div className="flex items-center gap-2 p-1 bg-white/5 border border-white/10 rounded-lg animate-fade-in shrink-0">
+                  <span className="text-xs text-[#8A8680] px-2 font-medium">
                     {activeTableTab === "regions" ? selectedRows.length : selectedCampaignRows.length} item(s) selected
                   </span>
                   <button
                     onClick={handleBulkExport}
-                    className="px-2.5 py-1 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                    className="px-2.5 py-1 bg-[#D6B77A] hover:bg-[#bfa063] text-[#080808] text-xs font-semibold rounded-md transition-colors cursor-pointer flex items-center gap-1"
                   >
                     <Download className="w-3 h-3" /> Export
                   </button>
                   <button
                     disabled
-                    className="px-2.5 py-1 bg-slate-950/40 text-slate-600 text-xs font-semibold rounded-md cursor-not-allowed"
+                    className="px-2.5 py-1 bg-[#151515] text-[#8A8680] text-xs font-semibold rounded-md cursor-not-allowed border border-white/5"
                     title="Exclusions feature coming soon"
                   >
-                    Exclude (Coming Soon)
+                    Exclude
                   </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   {/* Search bar */}
                   <div className="relative flex-1 sm:flex-initial">
-                    <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-500" />
+                    <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-[#8A8680]" />
                     <input
                       type="text"
                       placeholder={activeTableTab === "campaigns" ? "Search campaigns..." : "Search country..."}
                       value={tableSearch}
                       onChange={(e) => setTableSearch(e.target.value)}
-                      className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg pl-8 pr-3 py-2 w-full sm:w-48 focus:ring-1 focus:ring-violet-500 outline-none placeholder:text-slate-600"
+                      className="bg-[#080808] border border-white/5 text-[#F5F3EE] text-xs rounded-md pl-8 pr-3 py-2 w-full sm:w-48 focus:border-[#D6B77A] outline-none placeholder:text-[#8A8680]/60 font-sans"
                     />
                   </div>
                 </div>
@@ -1486,33 +1522,34 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
             {/* Render Tab Content */}
             {activeTableTab === "campaigns" ? (
               <div className="space-y-4">
-                <div className="overflow-x-auto rounded-lg border border-slate-900/80">
-                  <table className="w-full text-left text-xs text-slate-400 border-collapse">
-                    <thead className="bg-slate-950 text-slate-500 uppercase tracking-widest text-[9px] font-mono border-b border-slate-900">
+                <div className="overflow-x-auto rounded-lg border border-white/5">
+                  <table className="w-full text-left text-xs text-[#8A8680] border-collapse font-sans">
+                    <thead className="bg-[#101010] text-[#8A8680] uppercase tracking-widest text-[10px] font-mono border-b border-white/5">
                       <tr>
-                        <th className="p-4 w-10 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedCampaignRows.length === filteredCampaigns.length && filteredCampaigns.length > 0}
-                            onChange={handleSelectAllCampaignRows}
-                            className="rounded border-slate-800 text-violet-600 focus:ring-violet-500 bg-slate-950 cursor-pointer"
-                          />
-                        </th>
-                        <th className="p-4">Campaign Hierarchy</th>
+                        {!isClientView && (
+                          <th className="p-4 w-10 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedCampaignRows.length === filteredCampaigns.length && filteredCampaigns.length > 0}
+                              onChange={handleSelectAllCampaignRows}
+                              className="rounded border-white/10 text-[#D6B77A] focus:ring-[#D6B77A]/50 bg-[#101010] cursor-pointer"
+                            />
+                          </th>
+                        )}
+                        <th className="p-4">Campaign</th>
                         <th className="p-4">Platform</th>
                         <th className="p-4">Status</th>
-                        <th className="p-4 text-right">Ad Spend</th>
-                        <th className="p-4 text-right">Impressions</th>
-                        <th className="p-4 text-right">Clicks</th>
-                        <th className="p-4 text-center">Conversions</th>
+                        <th className="p-4 text-right">Spend</th>
+                        <th className="p-4 text-center">Leads</th>
                         <th className="p-4 text-right">CPL</th>
                         <th className="p-4 text-right">ROAS</th>
+                        <th className="p-4 text-center">Trend</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-900 bg-slate-950/20">
+                    <tbody className="divide-y divide-white/5 bg-[#101010]/20">
                       {filteredCampaigns.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="p-8 text-center text-slate-500">
+                          <td colSpan={isClientView ? 8 : 9} className="p-8 text-center text-[#8A8680]">
                             No campaigns matching search query.
                           </td>
                         </tr>
@@ -1523,55 +1560,57 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                           // Determine status icon and color
                           const statusConfig = {
                             "Active": { label: "Active", bg: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", icon: Play },
-                            "Paused": { label: "Paused", bg: "bg-slate-800 text-slate-400 border-slate-700", icon: Pause },
+                            "Paused": { label: "Paused", bg: "bg-[#151515] text-[#8A8680] border-white/5", icon: Pause },
                             "Needs Review": { label: "Needs Review", bg: "bg-amber-500/10 text-amber-400 border-amber-500/20", icon: AlertTriangle }
                           }[camp.status];
 
                           return (
                             <tr 
                               key={camp.id}
-                              className={`hover:bg-slate-900/30 transition-colors duration-150 ${isChecked ? "bg-violet-950/5" : ""}`}
+                              className={`hover:bg-white/5 transition-colors duration-150 ${!isClientView && isChecked ? "bg-[#D6B77A]/5" : ""}`}
                             >
-                              <td className="p-4 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => handleSelectCampaignRow(camp.id)}
-                                  className="rounded border-slate-800 text-violet-600 focus:ring-violet-500 bg-slate-950 cursor-pointer"
-                                />
-                              </td>
-                              <td className="p-4 font-semibold text-slate-200">
+                              {!isClientView && (
+                                <td className="p-4 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleSelectCampaignRow(camp.id)}
+                                    className="rounded border-white/10 text-[#D6B77A] focus:ring-[#D6B77A]/50 bg-[#101010] cursor-pointer"
+                                  />
+                                </td>
+                              )}
+                              <td className="py-5 px-4 font-semibold text-[#F5F3EE]">
                                 {camp.name}
                               </td>
-                              <td className="p-4 font-medium text-slate-400">
+                              <td className="py-5 px-4 font-medium text-[#8A8680]">
                                 {camp.platform}
                               </td>
-                              <td className="p-4">
+                              <td className="py-5 px-4">
                                 <span 
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold border ${statusConfig.bg}`}
-                                  title={camp.status === "Needs Review" ? "CTR or conversion rate is below target — check bids, creative, or audience targeting." : undefined}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${statusConfig.bg}`}
                                 >
                                   <statusConfig.icon className="w-2.5 h-2.5 shrink-0" />
                                   {statusConfig.label}
                                 </span>
                               </td>
-                              <td className="p-4 text-right font-mono text-slate-300 font-semibold">
+                              <td className="py-5 px-4 text-right font-mono text-[#F5F3EE] font-semibold">
                                 ${camp.spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
-                              <td className="p-4 text-right font-mono text-slate-400">
-                                {camp.impressions.toLocaleString()}
-                              </td>
-                              <td className="p-4 text-right font-mono text-slate-400">
-                                {camp.clicks.toLocaleString()}
-                              </td>
-                              <td className="p-4 text-center font-mono text-slate-300">
+                              <td className="py-5 px-4 text-center font-mono text-[#F5F3EE]">
                                 {camp.conversions.toLocaleString()}
                               </td>
-                              <td className="p-4 text-right font-mono text-emerald-400 font-semibold">
+                              <td className="py-5 px-4 text-right font-mono text-[#4ADE80] font-semibold">
                                 ${camp.cpl.toFixed(2)}
                               </td>
-                              <td className="p-4 text-right font-mono text-violet-400 font-semibold">
+                              <td className="py-5 px-4 text-right font-mono text-[#D6B77A] font-semibold">
                                 {camp.roas.toFixed(2)}x
+                              </td>
+                              <td className="py-5 px-4 text-center font-mono font-bold text-xs">
+                                {camp.roas >= 3.0 ? (
+                                  <span className="text-[#4ADE80]">↑</span>
+                                ) : (
+                                  <span className="text-[#F87171]">↓</span>
+                                )}
                               </td>
                             </tr>
                           );
@@ -1583,17 +1622,17 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
               </div>
             ) : (
               // Regional Traffic tab view
-              <div className="space-y-4">
+              <div className="space-y-4 font-sans">
                 {/* Filter Tabs matching screenshots */}
-                <div className="flex flex-wrap items-center border-b border-slate-900/60 pb-1 gap-1">
+                <div className="flex flex-wrap items-center border-b border-white/5 pb-1 gap-1">
                   {(["All", "Organic", "Invalid", "Referrals", "Direct", "Social"] as const).map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setActiveTrafficTab(tab)}
                       className={`px-3 py-2 text-xs font-medium border-b-2 cursor-pointer transition-colors ${
                         activeTrafficTab === tab
-                          ? "border-violet-500 text-violet-400"
-                          : "border-transparent text-slate-400 hover:text-slate-200"
+                          ? "border-[#D6B77A] text-[#D6B77A]"
+                          : "border-transparent text-[#8A8680] hover:text-[#F5F3EE]"
                       }`}
                     >
                       {tab}
@@ -1601,18 +1640,20 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                   ))}
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border border-slate-900/80">
-                  <table className="w-full text-left text-xs text-slate-400 border-collapse">
-                    <thead className="bg-slate-950 text-slate-500 uppercase tracking-widest text-[9px] font-mono border-b border-slate-900">
+                <div className="overflow-x-auto rounded-lg border border-white/5">
+                  <table className="w-full text-left text-xs text-[#8A8680] border-collapse">
+                    <thead className="bg-[#101010] text-[#8A8680] uppercase tracking-widest text-[10px] font-mono border-b border-white/5">
                       <tr>
-                        <th className="p-4 w-10 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedRows.length === filteredCountryTraffic.length && filteredCountryTraffic.length > 0}
-                            onChange={handleSelectAllRows}
-                            className="rounded border-slate-800 text-violet-600 focus:ring-violet-500 bg-slate-950 cursor-pointer"
-                          />
-                        </th>
+                        {!isClientView && (
+                          <th className="p-4 w-10 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedRows.length === filteredCountryTraffic.length && filteredCountryTraffic.length > 0}
+                              onChange={handleSelectAllRows}
+                              className="rounded border-white/10 text-[#D6B77A] focus:ring-[#D6B77A]/50 bg-[#101010] cursor-pointer"
+                            />
+                          </th>
+                        )}
                         <th className="p-4">Countries</th>
                         <th className="p-4">Time on Page</th>
                         <th className="p-4">Page Views</th>
@@ -1621,10 +1662,10 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                         <th className="p-4 text-right">Totals Views</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-900 bg-slate-950/20">
+                    <tbody className="divide-y divide-white/5 bg-[#101010]/20">
                       {filteredCountryTraffic.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="p-8 text-center text-slate-500">
+                          <td colSpan={isClientView ? 6 : 7} className="p-8 text-center text-[#8A8680]">
                             No traffic records found matching your dimension constraints.
                           </td>
                         </tr>
@@ -1634,27 +1675,29 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                           return (
                             <tr 
                               key={item.country} 
-                              className={`hover:bg-slate-900/30 transition-colors duration-150 ${isChecked ? "bg-violet-950/5" : ""}`}
+                              className={`hover:bg-white/5 transition-colors duration-150 ${!isClientView && isChecked ? "bg-[#D6B77A]/5" : ""}`}
                             >
-                              <td className="p-4 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => handleSelectRow(item.country)}
-                                  className="rounded border-slate-800 text-violet-600 focus:ring-violet-500 bg-slate-950 cursor-pointer"
-                                />
-                              </td>
-                              <td className="p-4 font-semibold text-slate-200 flex items-center gap-2">
+                              {!isClientView && (
+                                <td className="p-4 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleSelectRow(item.country)}
+                                    className="rounded border-white/10 text-[#D6B77A] focus:ring-[#D6B77A]/50 bg-[#101010] cursor-pointer"
+                                  />
+                                </td>
+                              )}
+                              <td className="p-4 font-semibold text-[#F5F3EE] flex items-center gap-2">
                                 <span className="text-base select-none">{item.flag}</span>
                                 <span>{item.country}</span>
                               </td>
-                              <td className="p-4 font-mono text-slate-400">{item.timeOnPage}</td>
-                              <td className="p-4 font-mono">{(item.views / 12).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                              <td className="p-4 font-mono text-slate-400">{item.bounceRate}</td>
-                              <td className="p-4 text-center font-mono font-medium text-emerald-400">
+                              <td className="p-4 font-mono text-[#8A8680]">{item.timeOnPage}</td>
+                              <td className="p-4 font-mono text-[#F5F3EE]">{(item.views / 12).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                              <td className="p-4 font-mono text-[#8A8680]">{item.bounceRate}</td>
+                              <td className="p-4 text-center font-mono font-medium text-[#4ADE80]">
                                 {item.conversionRate}
                               </td>
-                              <td className="p-4 text-right font-mono text-slate-300 font-semibold">
+                              <td className="p-4 text-right font-mono text-[#F5F3EE] font-semibold">
                                 {item.views.toLocaleString()}
                               </td>
                             </tr>

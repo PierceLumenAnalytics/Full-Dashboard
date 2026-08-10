@@ -14,21 +14,22 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a; /* deep slate dark */
+  background: #080808; 
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155; /* gray-700 */
+  background: #151515; 
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #202020;
 }
 
 body {
   font-family: var(--font-sans);
-  background-color: #0b0f19; /* dark cybernetic slate background */
-  color: #f1f5f9;
+  background-color: #080808; 
+  color: #F5F3EE;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "./Sidebar";
 import Overview from "./Overview";
 import ClientsManager from "./ClientsManager";
@@ -8,7 +8,7 @@ import AgencySettings from "./AgencySettings";
 import ToastContainer, { ToastMessage } from "./Toast";
 import { ClientAccount, AuditLog, ActiveTab } from "../types";
 import { RefreshCw, Calendar, ChevronDown } from "lucide-react";
-import { DateRange, getPresetRange, formatDisplayDate } from "../utils/dateHelpers";
+import { DateRange, getPresetRange, formatDisplayDate, getCompareRange } from "../utils/dateHelpers";
 import { authFetch } from "../lib/supabaseClient";
 
 interface DashboardShellProps {
@@ -36,6 +36,37 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
     endDate: getPresetRange("30days").endDate
   });
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [isClientView, setIsClientView] = useState(false);
+  const [compareMode, setCompareMode] = useState<"previous_period" | "previous_year" | "custom">("previous_period");
+  const [customCompareRange, setCustomCompareRange] = useState<DateRange>({
+    preset: "custom",
+    startDate: "",
+    endDate: ""
+  });
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+
+  // Calculate default custom comparison range whenever dateRange changes
+  useEffect(() => {
+    if (dateRange.startDate && dateRange.endDate) {
+      const prev = getCompareRange(dateRange.startDate, dateRange.endDate, "previous_period");
+      setCustomCompareRange({
+        preset: "custom",
+        startDate: prev.startDate,
+        endDate: prev.endDate
+      });
+    }
+  }, [dateRange.startDate, dateRange.endDate]);
+
+  const compareRange = useMemo(() => {
+    return getCompareRange(
+      dateRange.startDate,
+      dateRange.endDate,
+      compareMode,
+      customCompareRange.startDate,
+      customCompareRange.endDate
+    );
+  }, [dateRange, compareMode, customCompareRange]);
 
   // Toast notifier helper
   const addToast = (
@@ -316,109 +347,233 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
   });
 
   return (
-    <div className="flex h-screen w-screen bg-[#0b0f19] text-slate-100 overflow-hidden font-sans select-none">
+    <div className="flex h-screen w-screen bg-[#080808] text-[#F5F3EE] overflow-hidden font-sans select-none">
       {/* Persistent Left Sidebar */}
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         profile={profile} 
         onLogout={onLogout}
+        isClientView={isClientView}
       />
 
       {/* Main Container Area */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Global Action Header Bar */}
-        <header className="h-16 bg-slate-950/40 border-b border-slate-900/60 px-6 flex items-center justify-between shrink-0">
+        <header className="h-16 bg-[#101010] border-b border-white/5 px-6 flex items-center justify-between shrink-0 relative z-30">
           <div className="flex items-center gap-6">
-            {!profile?.logoUrl && (
-              <div className="bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-md text-[10px] font-bold text-amber-500/90 tracking-wide uppercase shrink-0">
-                Demo Mode (Read Only)
+            {/* Subtle Client View Switcher */}
+            <div className="flex items-center gap-1.5 bg-[#151515] border border-white/5 rounded-md p-1">
+              <button
+                onClick={() => {
+                  setIsClientView(false);
+                  addToast("Switched Context", "Agency management console active", "success");
+                }}
+                className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider transition-colors cursor-pointer ${
+                  !isClientView
+                    ? "bg-[#D6B77A] text-[#080808]"
+                    : "text-[#8A8680] hover:text-[#F5F3EE]"
+                }`}
+              >
+                AGENCY
+              </button>
+              <button
+                onClick={() => {
+                  setIsClientView(true);
+                  addToast("Switched Context", "White-label client view active", "success");
+                }}
+                className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider transition-colors cursor-pointer ${
+                  isClientView
+                    ? "bg-[#D6B77A] text-[#080808]"
+                    : "text-[#8A8680] hover:text-[#F5F3EE]"
+                }`}
+              >
+                CLIENT
+              </button>
+            </div>
+
+            {/* Sync dot & pill */}
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] text-[#8A8680]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80] opacity-70 animate-pulse"></span>
+                <span>Synced 2 min ago</span>
               </div>
-            )}
-            {/* Global Agency Filter for Admin */}
-            {profile?.isAdmin && (
-              <div className="flex items-center gap-2 text-left">
-                <span className="text-[9px] font-mono tracking-wider text-slate-500 uppercase">
-                  AGENCY:
+              
+              {!profile?.logoUrl && (
+                <div className="bg-[#D6B77A]/10 border border-[#D6B77A]/20 px-2 py-0.5 rounded text-[10px] font-semibold text-[#D6B77A] tracking-wider uppercase">
+                  Sample Account
+                </div>
+              )}
+            </div>
+
+            {/* Splitter border */}
+            <span className="h-4 w-px bg-white/10" />
+
+            {/* Left Context: Custom Client Select / Client Title */}
+            {isClientView ? (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-mono tracking-widest text-[#8A8680] uppercase">
+                  CLIENT PORTAL:
                 </span>
-                <div className="relative">
-                  <select
-                    value={selectedAgencyId}
-                    onChange={(e) => {
-                      setSelectedAgencyId(e.target.value);
-                      const filtered = clients.filter(c => e.target.value === "All" || c.agencyId === e.target.value);
-                      if (filtered.length > 0) {
-                        setSelectedClientId(filtered[0].id);
-                      } else {
-                        setSelectedClientId("");
-                      }
-                    }}
-                    className="appearance-none bg-slate-900 border border-slate-800 text-slate-200 text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 focus:ring-1 focus:ring-violet-500 outline-none cursor-pointer"
-                  >
-                    <option value="All">All Agencies</option>
-                    {agencies.map((agency) => (
-                      <option key={agency.id} value={agency.id}>
-                        {agency.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-2.5 pointer-events-none" />
+                <span className="text-xs font-bold text-[#F5F3EE]">
+                  {activeClientEntity ? activeClientEntity.name : "Sample Client"}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-5">
+                {/* Global Agency Filter for Admin */}
+                {profile?.isAdmin && (
+                  <div className="flex items-center gap-2 text-left">
+                    <span className="text-[11px] font-mono tracking-wider text-[#8A8680] uppercase">
+                      AGENCY:
+                    </span>
+                    <div className="relative">
+                      <select
+                        value={selectedAgencyId}
+                        onChange={(e) => {
+                          setSelectedAgencyId(e.target.value);
+                          const filtered = clients.filter(c => e.target.value === "All" || c.agencyId === e.target.value);
+                          if (filtered.length > 0) {
+                            setSelectedClientId(filtered[0].id);
+                          } else {
+                            setSelectedClientId("");
+                          }
+                        }}
+                        className="appearance-none bg-[#151515] border border-white/10 text-[#F5F3EE] text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 focus:border-[#D6B77A]/40 outline-none cursor-pointer"
+                      >
+                        <option value="All">All Agencies</option>
+                        {agencies.map((agency) => (
+                          <option key={agency.id} value={agency.id}>
+                            {agency.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-3.5 h-3.5 text-[#8A8680] absolute right-2.5 top-2.5 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
+
+                {/* Left Context: Selected Client Dropdown */}
+                <div className="flex items-center gap-2 text-left relative">
+                  <span className="text-[11px] font-mono tracking-wider text-[#8A8680] uppercase">
+                    CLIENT:
+                  </span>
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsClientDropdownOpen(!isClientDropdownOpen)}
+                      className="flex items-center justify-between w-48 bg-[#151515] border border-white/10 text-[#F5F3EE] text-xs font-semibold rounded-lg px-3 py-1.5 focus:border-[#D6B77A]/40 outline-none cursor-pointer text-left font-display"
+                    >
+                      <span className="truncate">{activeClientEntity ? activeClientEntity.name : "Select Client"}</span>
+                      <ChevronDown className="w-3.5 h-3.5 text-[#8A8680] shrink-0 ml-1" />
+                    </button>
+
+                    {isClientDropdownOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-30" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsClientDropdownOpen(false);
+                            setClientSearch("");
+                          }}
+                        />
+                        <div className="absolute left-0 mt-1 w-64 rounded-lg bg-[#151515] border border-white/10 shadow-2xl p-2 z-40 space-y-2">
+                          <input
+                            type="text"
+                            value={clientSearch}
+                            onChange={(e) => setClientSearch(e.target.value)}
+                            placeholder="Search clients..."
+                            className="w-full bg-[#101010] border border-white/5 rounded-md px-2 py-1 text-xs text-[#F5F3EE] focus:border-[#D6B77A]/40 outline-none placeholder:text-slate-600 font-sans"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div className="max-h-48 overflow-y-auto space-y-0.5 font-sans">
+                            {visibleClients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.domain.toLowerCase().includes(clientSearch.toLowerCase())).map((client) => (
+                              <button
+                                key={client.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedClientId(client.id);
+                                  setIsClientDropdownOpen(false);
+                                  setClientSearch("");
+                                  addToast(
+                                    "Context Switched", 
+                                    `Reporting cache updated for ${client.name}`, 
+                                    "info"
+                                  );
+                                }}
+                                className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors cursor-pointer block truncate ${
+                                  selectedClientId === client.id
+                                    ? "bg-[#D6B77A]/10 text-[#D6B77A] font-bold"
+                                    : "text-[#8A8680] hover:bg-white/5 hover:text-[#F5F3EE]"
+                                }`}
+                              >
+                                {client.name}
+                                <span className="text-[9px] block text-[#8A8680] font-mono font-normal">
+                                  {client.domain}
+                                </span>
+                              </button>
+                            ))}
+                            {visibleClients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.domain.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 && (
+                              <span className="text-[11px] text-[#8A8680] block text-center py-2">
+                                No clients found
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
-
-            {/* Left Context: Selected Client Dropdown */}
-            <div className="flex items-center gap-2 text-left">
-              <span className="text-[9px] font-mono tracking-wider text-slate-500 uppercase">
-                CLIENT:
-              </span>
-              <div className="relative">
-                <select
-                  value={selectedClientId}
-                  onChange={(e) => {
-                    setSelectedClientId(e.target.value);
-                    addToast(
-                      "Context Switched", 
-                      `Reporting cache updated for ${clients.find(c => c.id === e.target.value)?.name}`, 
-                      "info"
-                    );
-                  }}
-                  className="appearance-none bg-slate-900 border border-slate-800 text-slate-200 text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 focus:ring-1 focus:ring-violet-500 outline-none cursor-pointer"
-                >
-                  {visibleClients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name} ({client.domain})
-                    </option>
-                  ))}
-                  {visibleClients.length === 0 && (
-                    <option value="">No clients found</option>
-                  )}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-2.5 pointer-events-none" />
-              </div>
-            </div>
           </div>
 
           {/* Right Context: Actions (Manual Sync & Functional Date Picker) */}
           <div className="flex items-center gap-4">
+            {/* Compare To dropdown */}
+            <div className="flex items-center gap-2 text-left">
+              <span className="text-[11px] font-mono tracking-wider text-[#8A8680] uppercase">
+                COMPARE:
+              </span>
+              <div className="relative">
+                <select
+                  value={compareMode}
+                  onChange={(e) => {
+                    setCompareMode(e.target.value as any);
+                    addToast(
+                      "Comparison Mode Updated", 
+                      `Comparing to ${e.target.value === "previous_period" ? "Previous Period" : e.target.value === "previous_year" ? "Previous Year" : "Custom Period"}`, 
+                      "info"
+                    );
+                  }}
+                  className="appearance-none bg-[#151515] border border-white/10 text-[#F5F3EE] text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 focus:border-[#D6B77A]/40 outline-none cursor-pointer"
+                >
+                  <option value="previous_period">Previous Period</option>
+                  <option value="previous_year">Previous Year</option>
+                  <option value="custom">Custom Period</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-[#8A8680] absolute right-2.5 top-2.5 pointer-events-none" />
+              </div>
+            </div>
+
             {/* Functional Date Range Picker */}
-            <div className="relative">
+            <div className="relative font-sans">
               <button
                 onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
-                className="flex items-center gap-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 px-3 py-1.5 rounded-lg text-slate-300 hover:text-slate-100 text-xs font-semibold cursor-pointer transition-all"
+                className="flex items-center gap-2 bg-[#151515] hover:bg-[#202020] border border-white/10 px-3 py-1.5 rounded-lg text-[#F5F3EE] text-xs font-semibold cursor-pointer transition-all"
               >
-                <Calendar className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                <Calendar className="w-3.5 h-3.5 text-[#D6B77A] shrink-0" />
                 <span className="font-medium tracking-wide">
                   {formatDisplayDate(dateRange.startDate)} to {formatDisplayDate(dateRange.endDate)}
                 </span>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                <ChevronDown className="w-3.5 h-3.5 text-[#8A8680]" />
               </button>
 
               {/* Date Picker Dropdown Popover */}
               {isDatePickerOpen && (
-                <div className="absolute right-0 mt-2 w-72 rounded-xl bg-slate-950 border border-slate-800/95 shadow-2xl p-4 z-50 text-left space-y-3.5">
+                <div className="absolute right-0 mt-2 w-72 rounded-lg bg-[#151515] border border-white/10 shadow-2xl p-4 z-50 text-left space-y-3.5">
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] font-mono tracking-wider text-slate-500 uppercase">
+                    <span className="text-[10px] font-mono tracking-wider text-[#8A8680] uppercase">
                       Select Range Preset
                     </span>
                     <div className="grid grid-cols-2 gap-1.5 mt-1">
@@ -450,10 +605,10 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                               setDateRange((prev) => ({ ...prev, preset: "custom" }));
                             }
                           }}
-                          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium text-left transition-colors cursor-pointer ${
+                          className={`px-2.5 py-1.5 rounded-md text-xs font-medium text-left transition-colors cursor-pointer ${
                             dateRange.preset === preset.value
-                              ? "bg-violet-600/20 text-violet-300 border border-violet-500/30"
-                              : "bg-slate-900/50 text-slate-400 hover:bg-slate-900 border border-transparent"
+                              ? "bg-[#D6B77A]/10 text-[#D6B77A] border border-[#D6B77A]/30"
+                              : "bg-[#101010] text-[#8A8680] hover:bg-[#151515] border border-transparent"
                           }`}
                         >
                           {preset.label}
@@ -464,9 +619,9 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
 
                   {/* Custom Date Inputs */}
                   {dateRange.preset === "custom" && (
-                    <div className="pt-2.5 border-t border-slate-900 space-y-2">
+                    <div className="pt-2.5 border-t border-white/5 space-y-2">
                       <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-mono tracking-wider text-slate-500 uppercase">
+                        <label className="text-[10px] font-mono tracking-wider text-[#8A8680] uppercase">
                           Start Date
                         </label>
                         <input
@@ -478,11 +633,11 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                               setDateRange((prev) => ({ ...prev, startDate: newStart }));
                             }
                           }}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:border-violet-500 outline-none w-full cursor-pointer [color-scheme:dark]"
+                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-[#D6B77A]/40 outline-none w-full cursor-pointer [color-scheme:dark]"
                         />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-mono tracking-wider text-slate-500 uppercase">
+                        <label className="text-[10px] font-mono tracking-wider text-[#8A8680] uppercase">
                           End Date
                         </label>
                         <input
@@ -494,7 +649,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                               setDateRange((prev) => ({ ...prev, endDate: newEnd }));
                             }
                           }}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:border-violet-500 outline-none w-full cursor-pointer [color-scheme:dark]"
+                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-[#D6B77A]/40 outline-none w-full cursor-pointer [color-scheme:dark]"
                         />
                       </div>
                       <button
@@ -510,10 +665,48 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                             "info"
                           );
                         }}
-                        className="w-full py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+                        className="w-full py-1.5 bg-[#D6B77A] hover:bg-[#bfa063] text-[#080808] font-semibold text-xs rounded-md transition-colors cursor-pointer"
                       >
                         Apply Range
                       </button>
+                    </div>
+                  )}
+
+                  {/* Custom Compare inputs if compareMode is custom */}
+                  {compareMode === "custom" && (
+                    <div className="pt-2.5 border-t border-white/5 space-y-2">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-mono tracking-wider text-[#8A8680] uppercase">
+                          Compare Start
+                        </label>
+                        <input
+                          type="date"
+                          value={customCompareRange.startDate}
+                          onChange={(e) => {
+                            const newStart = e.target.value;
+                            if (newStart) {
+                              setCustomCompareRange((prev) => ({ ...prev, startDate: newStart }));
+                            }
+                          }}
+                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-[#D6B77A]/40 outline-none w-full cursor-pointer [color-scheme:dark]"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-mono tracking-wider text-[#8A8680] uppercase">
+                          Compare End
+                        </label>
+                        <input
+                          type="date"
+                          value={customCompareRange.endDate}
+                          onChange={(e) => {
+                            const newEnd = e.target.value;
+                            if (newEnd) {
+                              setCustomCompareRange((prev) => ({ ...prev, endDate: newEnd }));
+                            }
+                          }}
+                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-[#D6B77A]/40 outline-none w-full cursor-pointer [color-scheme:dark]"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -524,10 +717,10 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
             <button
               onClick={handleManualRefresh}
               disabled={isRefreshing}
-              className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 rounded-lg cursor-pointer transition-colors"
+              className="p-2 bg-[#151515] hover:bg-[#202020] border border-white/10 text-[#8A8680] hover:text-[#F5F3EE] rounded-lg cursor-pointer transition-colors"
               title="Pull latest live platform API data"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-violet-400" : ""}`} />
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-[#D6B77A]" : ""}`} />
             </button>
           </div>
         </header>
@@ -537,7 +730,10 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
           {activeTab === "overview" && (
             <Overview 
               selectedClient={activeClientEntity} 
+              clients={clients}
               dateRange={dateRange}
+              compareRange={compareRange}
+              isClientView={isClientView}
               onRefresh={handleManualRefresh}
               isRefreshing={isRefreshing}
               addToast={addToast}
