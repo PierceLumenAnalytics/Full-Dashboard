@@ -64,8 +64,13 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
                     </span>
                   </div>
                   <div>
-                    <h1 className="text-sm font-semibold tracking-tight text-[#F5F3EE]">
+                    <h1 className="text-sm font-semibold tracking-tight text-[#F5F3EE] flex items-center gap-1.5">
                       {profile.agencyName}
+                      {profile?.isDemo && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-[#D6B77A]/10 text-[#D6B77A] border border-[#D6B77A]/20 uppercase tracking-widest font-mono shrink-0">
+                          Demo
+                        </span>
+                      )}
                     </h1>
                     <span className="text-[9px] text-[#8A8680] tracking-wider font-mono uppercase block">
                       Marketing Intelligence
@@ -184,6 +189,7 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
       <div className="p-3 space-y-3 border-t border-white/5">
         <div className="px-3 py-1 flex justify-between text-[9px] text-[#8A8680] font-mono pt-1">
           <span>{isClientView ? "Client Portal" : isPublicReader ? "Client Portal" : profile?.isAdmin ? "Admin Console" : "Agency Portal"}</span>
+          {profile?.isDemo && <span className="text-[#D6B77A] font-bold tracking-wider">DEMO MODE</span>}
         </div>
 
         {!isClientView && !isPublicReader && (

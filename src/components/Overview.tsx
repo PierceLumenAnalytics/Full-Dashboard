@@ -79,62 +79,7 @@ interface CampaignData {
   roas: number;
 }
 
-// Generate dynamic campaigns tailored to client domain and platform splits
-const getMockCampaignsForClient = (
-  clientName: string, 
-  totalSpend: number, 
-  totalConversions: number, 
-  platform: string
-): CampaignData[] => {
-  const isGoogleOnly = platform === "Google Ads";
-  const isMetaOnly = platform === "Meta Ads";
-  const isTikTokOnly = platform === "TikTok Ads";
-
-  const allCamps = [
-    { name: "Brand Search - High Intent", platform: "Google Ads" as const, active: !isMetaOnly && !isTikTokOnly },
-    { name: "Meta - Custom Retargeting Lookalike (3% Purchasers)", platform: "Meta Ads" as const, active: !isGoogleOnly && !isTikTokOnly },
-    { name: "TikTok - UGC Direct Offer (Creators Promo)", platform: "TikTok Ads" as const, active: !isGoogleOnly && !isMetaOnly },
-    { name: "Google - Performance Max (Retail Feed Expansion)", platform: "Google Ads" as const, active: !isMetaOnly && !isTikTokOnly },
-    { name: "Meta - Broad Demographics prospecting", platform: "Meta Ads" as const, active: !isGoogleOnly && !isTikTokOnly },
-    { name: "Google - Competitor Conquesting Keyword Push", platform: "Google Ads" as const, active: !isMetaOnly && !isTikTokOnly },
-  ];
-
-  const activeCamps = allCamps.filter(c => c.active);
-  if (activeCamps.length === 0) {
-    activeCamps.push({ name: "Generic Local Brand Awareness Campaign", platform: "Google Ads" as const, active: true });
-  }
-
-  const numCamps = activeCamps.length;
-  return activeCamps.map((camp, idx) => {
-    // Distribute budget unevenly across campaigns
-    const rawShare = 1 / (idx + 1);
-    const sumShares = Array.from({ length: numCamps }, (_, i) => 1 / (i + 1)).reduce((a, b) => a + b, 0);
-    const share = rawShare / sumShares;
-
-    const campaignSpend = Math.round(totalSpend * share * 100) / 100;
-    const campaignConversions = Math.round(totalConversions * share);
-    const campaignClicks = Math.round(campaignConversions * (12 + (idx % 3) * 5) + (campaignSpend * 0.08));
-    const campaignImpressions = Math.round(campaignClicks * (28 + idx * 12));
-    
-    const cpl = campaignConversions > 0 ? campaignSpend / campaignConversions : 0;
-    const roas = campaignSpend > 0 ? (campaignConversions * 148) / campaignSpend : 0;
-
-    const statuses: CampaignData["status"][] = ["Active", "Active", "Needs Review", "Paused", "Active", "Paused"];
-    
-    return {
-      id: `camp-${idx + 1}`,
-      name: `${clientName} | ${camp.name}`,
-      platform: camp.platform,
-      status: statuses[idx % statuses.length],
-      spend: campaignSpend,
-      impressions: Math.max(campaignImpressions, campaignClicks * 12),
-      clicks: Math.max(campaignClicks, campaignConversions),
-      conversions: campaignConversions,
-      cpl,
-      roas
-    };
-  });
-};
+// Cleaned up client-side mock campaign generator
 
 export default function Overview({ 
   selectedClient, 
@@ -149,6 +94,7 @@ export default function Overview({
   profile 
 }: OverviewProps) {
   const [metrics, setMetrics] = useState<PerformanceMetric[]>([]);
+  const [backendCampaigns, setBackendCampaigns] = useState<any[]>([]);
   const [allClientsMetrics, setAllClientsMetrics] = useState<{[clientId: string]: PerformanceMetric[]}>({});
 
   // Background fetch metrics for all clients to support health dashboard
@@ -229,6 +175,7 @@ export default function Overview({
       .then((data) => {
         if (isMounted) {
           setMetrics(data.metrics);
+          setBackendCampaigns(data.campaigns || []);
           setIsLoading(false);
         }
       })
@@ -440,11 +387,11 @@ export default function Overview({
     ];
   }, [stats, selectedClient]);
 
-  // Dynamic campaigns based on calculations
+  // Campaigns list from database campaign_metrics
   const campaignsList = useMemo(() => {
     if (!selectedClient) return [];
-    return getMockCampaignsForClient(selectedClient.name, stats.spend, stats.conversions, selectedClient.platform);
-  }, [selectedClient, stats]);
+    return backendCampaigns || [];
+  }, [selectedClient, backendCampaigns]);
 
   // Reset Filters trigger
   const handleResetFilters = () => {

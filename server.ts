@@ -174,6 +174,7 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
               id: authUser.id,
               email: authUser.email,
               isAdmin: true,
+              isDemo: false,
               agencyId: null,
               agencyName: null,
               customCta: null,
@@ -195,7 +196,8 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
               logoUrl: agency?.logo_url || null,
               primaryColor: agency?.primary_color || null,
               accentColor: agency?.accent_color || null,
-              clientLimit: agency?.client_limit || 5
+              clientLimit: agency?.client_limit || 5,
+              isDemo: agency?.is_demo || false
             };
             return next();
           }
@@ -458,62 +460,7 @@ interface PerformanceMetric {
   conversions: number;
 }
 
-// Seedable LCG random number generator
-const seedRandom = (seedStr: string) => {
-  let hash = 0;
-  for (let i = 0; i < seedStr.length; i++) {
-    hash = seedStr.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  let seed = Math.abs(hash);
-  return () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296;
-    return seed / 4294967296;
-  };
-};
-
-// Generative historical metric generator for dashboard charts
-const generateMockMetrics = (clientId: string, baseBudget: number): PerformanceMetric[] => {
-  const data: PerformanceMetric[] = [];
-  const dailyBaseSpend = baseBudget / 30;
-  
-  // Deterministic client-specific ROAS factor to target realistic 3x-8x range
-  const clientRng = seedRandom(clientId);
-  for (let k = 0; k < 15; k++) clientRng(); // Warm up LCG to scramble close seeds
-  const clientRoasTarget = 3.2 + clientRng() * 4.3; // believable 3.2x to 7.5x target
-  const crMultiplier = clientRoasTarget / 3.55;
-
-  // Create last 120 days of data to support 7, 30, 90 day ranges
-  for (let i = 119; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().split("T")[0];
-    
-    // Seed using client ID and the date string
-    const rng = seedRandom(`${clientId}-${dateStr}`);
-    
-    // Add some realistic volatility and trend
-    const dayOfWeek = d.getDay();
-    const weekendMultiplier = (dayOfWeek === 0 || dayOfWeek === 6) ? 0.75 : 1.15;
-    const volatility = 0.85 + rng() * 0.3; // 85% to 115% volatility
-    
-    const spend = Math.round(dailyBaseSpend * weekendMultiplier * volatility * 100) / 100;
-    // Clicks: spend / CPC (avg CPC around $1.50)
-    const clicks = Math.round((spend / (1.2 + rng() * 0.6)) * 1);
-    // Impressions: clicks / CTR (avg CTR around 2.5%)
-    const impressions = Math.round(clicks / (0.02 + rng() * 0.01));
-    // Conversions: clicks * ConvRate (avg Conversion Rate around 3.5%)
-    const conversions = Math.round(clicks * (0.025 + rng() * 0.02) * crMultiplier);
-    
-    data.push({
-      date: dateStr,
-      spend,
-      clicks,
-      impressions,
-      conversions
-    });
-  }
-  return data;
-};
+// Cleaned up client-side mock generators
 
 // API: List connected clients
 app.get("/api/clients", requireAuth, async (req, res) => {
@@ -521,13 +468,25 @@ app.get("/api/clients", requireAuth, async (req, res) => {
     const user = (req as any).user;
     console.log(`GET /api/clients: Querying clients table for ${user.email} (Admin: ${user.isAdmin})`);
     
-    let query = supabase
-      .from("clients")
-      .select("*")
-      .order("created_at", { ascending: true });
-
-    if (!user.isAdmin) {
-      query = query.eq("agency_id", user.agencyId);
+    let query;
+    if (user.isAdmin) {
+      // Admin lists only clients belonging to real (non-demo) agencies
+      const { data: nonDemoAgencies } = await supabase
+        .from("agencies")
+        .select("id")
+        .eq("is_demo", false);
+      const nonDemoIds = (nonDemoAgencies || []).map(a => a.id);
+      query = supabase
+        .from("clients")
+        .select("*")
+        .in("agency_id", nonDemoIds)
+        .order("created_at", { ascending: true });
+    } else {
+      query = supabase
+        .from("clients")
+        .select("*")
+        .eq("agency_id", user.agencyId)
+        .order("created_at", { ascending: true });
     }
 
     const { data, error } = await query;
@@ -818,15 +777,18 @@ app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
     // Check if there are any imported metrics in DB
     const { data: dbMetrics, error: metricsError } = await supabase
       .from("campaign_metrics")
-      .select("date, spend, impressions, clicks, conversions, platform")
+      .select("date, spend, impressions, clicks, conversions, platform, campaign_name, revenue")
       .eq("client_id", clientId)
       .order("date", { ascending: true });
 
     let metrics: PerformanceMetric[] = [];
+    let campaignsList: any[] = [];
     let status = "OK";
     if (!metricsError && dbMetrics && dbMetrics.length > 0) {
       // Group and aggregate metrics by date to handle multiple campaigns/platforms per day
       const dailyGroup: { [date: string]: PerformanceMetric } = {};
+      const campaignsGroup: { [name: string]: any } = {};
+
       for (const m of dbMetrics) {
         const dateStr = m.date;
         if (!dailyGroup[dateStr]) {
@@ -842,22 +804,58 @@ app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
         dailyGroup[dateStr].clicks += Number(m.clicks);
         dailyGroup[dateStr].impressions += Number(m.impressions);
         dailyGroup[dateStr].conversions += Number(m.conversions);
+
+        // Group campaign-level aggregates
+        if (m.campaign_name && m.campaign_name !== "General") {
+          const cName = m.campaign_name;
+          if (!campaignsGroup[cName]) {
+            campaignsGroup[cName] = {
+              id: `camp-${cName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+              name: cName,
+              platform: m.platform,
+              status: "Active",
+              spend: 0,
+              impressions: 0,
+              clicks: 0,
+              conversions: 0,
+              revenue: 0
+            };
+          }
+          campaignsGroup[cName].spend += Number(m.spend);
+          campaignsGroup[cName].impressions += Number(m.impressions);
+          campaignsGroup[cName].clicks += Number(m.clicks);
+          campaignsGroup[cName].conversions += Number(m.conversions);
+          campaignsGroup[cName].revenue += Number(m.revenue || 0);
+        }
       }
       metrics = Object.values(dailyGroup).sort((a, b) => a.date.localeCompare(b.date));
+
+      campaignsList = Object.values(campaignsGroup).map((c: any) => {
+        const cpl = c.conversions > 0 ? c.spend / c.conversions : 0;
+        const roas = c.spend > 0 ? c.revenue / c.spend : 0;
+        return {
+          id: c.id,
+          name: c.name,
+          platform: c.platform,
+          status: c.status,
+          spend: c.spend,
+          impressions: c.impressions,
+          clicks: c.clicks,
+          conversions: c.conversions,
+          cpl,
+          roas
+        };
+      });
+
       console.log(`GET /api/analytics/${clientId}: Loaded and aggregated ${dbMetrics.length} campaign metrics into ${metrics.length} daily entries.`);
     } else {
-      // Only allow mock data if the agency context is a demo context
-      const isDemo = user.agencyName === "Demo Agency" || user.agencyName === "Ignite PPC Group" || user.id === "public-demo-user-id" || user.id === "public-reader";
-      if (isDemo) {
-        metrics = generateMockMetrics(clientId, mappedClient.monthlyBudget);
-      } else {
-        status = "NO_DATA";
-      }
+      status = "NO_DATA";
     }
 
     res.json({
       client: mappedClient,
       metrics,
+      campaigns: campaignsList,
       status
     });
   } catch (err: any) {
@@ -1524,15 +1522,18 @@ app.get("/api/public/analytics/:clientId", rateLimiter(30, 60000), async (req, r
 
     const { data: dbMetrics, error: metricsError } = await supabase
       .from("campaign_metrics")
-      .select("date, spend, impressions, clicks, conversions, platform")
+      .select("date, spend, impressions, clicks, conversions, platform, campaign_name, revenue")
       .eq("client_id", clientId)
       .order("date", { ascending: true });
 
     let metrics: PerformanceMetric[] = [];
+    let campaignsList: any[] = [];
     let status = "OK";
 
     if (!metricsError && dbMetrics && dbMetrics.length > 0) {
       const dailyGroup: { [date: string]: PerformanceMetric } = {};
+      const campaignsGroup: { [name: string]: any } = {};
+
       for (const m of dbMetrics) {
         const dateStr = m.date;
         if (!dailyGroup[dateStr]) {
@@ -1548,21 +1549,55 @@ app.get("/api/public/analytics/:clientId", rateLimiter(30, 60000), async (req, r
         dailyGroup[dateStr].clicks += Number(m.clicks);
         dailyGroup[dateStr].impressions += Number(m.impressions);
         dailyGroup[dateStr].conversions += Number(m.conversions);
+
+        if (m.campaign_name && m.campaign_name !== "General") {
+          const cName = m.campaign_name;
+          if (!campaignsGroup[cName]) {
+            campaignsGroup[cName] = {
+              id: `camp-${cName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+              name: cName,
+              platform: m.platform,
+              status: "Active",
+              spend: 0,
+              impressions: 0,
+              clicks: 0,
+              conversions: 0,
+              revenue: 0
+            };
+          }
+          campaignsGroup[cName].spend += Number(m.spend);
+          campaignsGroup[cName].impressions += Number(m.impressions);
+          campaignsGroup[cName].clicks += Number(m.clicks);
+          campaignsGroup[cName].conversions += Number(m.conversions);
+          campaignsGroup[cName].revenue += Number(m.revenue || 0);
+        }
       }
       metrics = Object.values(dailyGroup).sort((a, b) => a.date.localeCompare(b.date));
+
+      campaignsList = Object.values(campaignsGroup).map((c: any) => {
+        const cpl = c.conversions > 0 ? c.spend / c.conversions : 0;
+        const roas = c.spend > 0 ? c.revenue / c.spend : 0;
+        return {
+          id: c.id,
+          name: c.name,
+          platform: c.platform,
+          status: c.status,
+          spend: c.spend,
+          impressions: c.impressions,
+          clicks: c.clicks,
+          conversions: c.conversions,
+          cpl,
+          roas
+        };
+      });
     } else {
-      const { data: agency } = await supabase.from("agencies").select("name").eq("id", agencyId).single();
-      const isDemo = agency?.name === "Demo Agency" || agency?.name === "Ignite PPC Group";
-      if (isDemo) {
-        metrics = generateMockMetrics(clientId, mappedClient.monthlyBudget);
-      } else {
-        status = "NO_DATA";
-      }
+      status = "NO_DATA";
     }
 
     res.json({
       client: mappedClient,
       metrics,
+      campaigns: campaignsList,
       status
     });
   } catch (err: any) {
