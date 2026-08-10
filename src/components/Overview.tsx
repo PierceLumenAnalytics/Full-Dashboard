@@ -43,28 +43,74 @@ interface OverviewProps {
   onSelectClient?: (clientId: string) => void;
 }
 
-// Country Traffic representation
-interface CountryTraffic {
-  country: string;
+interface GeoDistribution {
+  location: string;
   code: string;
   flag: string;
-  timeOnPage: string;
-  views: number;
+  share: number; // percentage of total metrics (spend, impressions, clicks)
+  conversionShare: number; // percentage of total conversions
   bounceRate: string;
-  conversionRate: string;
+  timeOnPage: string;
   type: "Organic" | "Referral" | "Invalid" | "Direct" | "Social" | "Email";
 }
 
-const mockCountryTraffic: CountryTraffic[] = [
-  { country: "United States", code: "US", flag: "🇺🇸", timeOnPage: "3 mins 21 ses", views: 980232, bounceRate: "25.13%", conversionRate: "32.36%", type: "Organic" },
-  { country: "United Kingdom", code: "GB", flag: "🇬🇧", timeOnPage: "2 mins 12 ses", views: 896365, bounceRate: "24.35%", conversionRate: "28.83%", type: "Organic" },
-  { country: "Bangladesh", code: "BD", flag: "🇧🇩", timeOnPage: "1 mins 18 ses", views: 683723, bounceRate: "32.18%", conversionRate: "20.18%", type: "Invalid" },
-  { country: "France", code: "FR", flag: "🇫🇷", timeOnPage: "4 mins 39 ses", views: 453483, bounceRate: "18.72%", conversionRate: "28.48%", type: "Organic" },
-  { country: "Germany", code: "DE", flag: "🇩🇪", timeOnPage: "2 mins 55 ses", views: 395120, bounceRate: "21.40%", conversionRate: "27.50%", type: "Referral" },
-  { country: "Canada", code: "CA", flag: "🇨🇦", timeOnPage: "3 mins 05 ses", views: 320140, bounceRate: "24.90%", conversionRate: "29.10%", type: "Direct" },
-  { country: "Japan", code: "JP", flag: "🇯🇵", timeOnPage: "1 mins 45 ses", views: 280550, bounceRate: "15.30%", conversionRate: "35.20%", type: "Organic" },
-  { country: "Australia", code: "AU", flag: "🇦🇺", timeOnPage: "2 mins 40 ses", views: 210890, bounceRate: "23.10%", conversionRate: "26.90%", type: "Social" },
-];
+const geoDistributions: { [clientId: string]: GeoDistribution[] } = {
+  c_apex_roof: [
+    { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.30, conversionShare: 0.32, bounceRate: "24.5%", timeOnPage: "3m 15s", type: "Organic" },
+    { location: "Mesa, AZ", code: "US", flag: "🌵", share: 0.15, conversionShare: 0.16, bounceRate: "25.0%", timeOnPage: "2m 50s", type: "Organic" },
+    { location: "Chandler, AZ", code: "US", flag: "🌵", share: 0.12, conversionShare: 0.13, bounceRate: "23.8%", timeOnPage: "3m 05s", type: "Organic" },
+    { location: "Scottsdale, AZ", code: "US", flag: "🌵", share: 0.10, conversionShare: 0.11, bounceRate: "22.1%", timeOnPage: "3m 40s", type: "Referral" },
+    { location: "Tempe, AZ", code: "US", flag: "🌵", share: 0.08, conversionShare: 0.09, bounceRate: "26.4%", timeOnPage: "2m 30s", type: "Social" },
+    { location: "Gilbert, AZ", code: "US", flag: "🌵", share: 0.07, conversionShare: 0.07, bounceRate: "24.9%", timeOnPage: "2m 55s", type: "Direct" },
+    { location: "Glendale, AZ", code: "US", flag: "🌵", share: 0.06, conversionShare: 0.06, bounceRate: "27.2%", timeOnPage: "2m 20s", type: "Organic" },
+    { location: "Peoria, AZ", code: "US", flag: "🌵", share: 0.04, conversionShare: 0.04, bounceRate: "25.5%", timeOnPage: "2m 45s", type: "Organic" },
+    { location: "Surprise, AZ", code: "US", flag: "🌵", share: 0.02, conversionShare: 0.02, bounceRate: "28.0%", timeOnPage: "2m 10s", type: "Organic" },
+    { location: "Salt Lake City, UT", code: "US", flag: "🏔️", share: 0.03, conversionShare: 0.00, bounceRate: "82.0%", timeOnPage: "0m 15s", type: "Referral" },
+    { location: "Las Vegas, NV", code: "US", flag: "🎰", share: 0.02, conversionShare: 0.00, bounceRate: "85.0%", timeOnPage: "0m 12s", type: "Social" },
+    { location: "Dhaka, Bangladesh", code: "BD", flag: "🇧🇩", share: 0.01, conversionShare: 0.00, bounceRate: "98.5%", timeOnPage: "0m 02s", type: "Invalid" }
+  ],
+  c_verde_dental: [
+    { location: "Tempe, AZ", code: "US", flag: "🌵", share: 0.25, conversionShare: 0.26, bounceRate: "23.1%", timeOnPage: "3m 22s", type: "Organic" },
+    { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.22, bounceRate: "24.5%", timeOnPage: "3m 10s", type: "Organic" },
+    { location: "Chandler, AZ", code: "US", flag: "🌵", share: 0.18, conversionShare: 0.19, bounceRate: "22.4%", timeOnPage: "3m 08s", type: "Organic" },
+    { location: "Mesa, AZ", code: "US", flag: "🌵", share: 0.15, conversionShare: 0.16, bounceRate: "25.6%", timeOnPage: "2m 44s", type: "Organic" },
+    { location: "Gilbert, AZ", code: "US", flag: "🌵", share: 0.12, conversionShare: 0.12, bounceRate: "24.1%", timeOnPage: "2m 58s", type: "Direct" },
+    { location: "Scottsdale, AZ", code: "US", flag: "🌵", share: 0.05, conversionShare: 0.05, bounceRate: "21.9%", timeOnPage: "3m 35s", type: "Referral" },
+    { location: "Tucson, AZ", code: "US", flag: "🌵", share: 0.04, conversionShare: 0.00, bounceRate: "88.0%", timeOnPage: "0m 10s", type: "Referral" },
+    { location: "San Diego, CA", code: "US", flag: "🌊", share: 0.01, conversionShare: 0.00, bounceRate: "95.0%", timeOnPage: "0m 04s", type: "Invalid" }
+  ],
+  c_summit_fit: [
+    { location: "Scottsdale, AZ", code: "US", flag: "🌵", share: 0.35, conversionShare: 0.36, bounceRate: "20.5%", timeOnPage: "3m 48s", type: "Organic" },
+    { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.25, conversionShare: 0.27, bounceRate: "23.4%", timeOnPage: "3m 20s", type: "Organic" },
+    { location: "Paradise Valley, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.21, bounceRate: "18.2%", timeOnPage: "4m 15s", type: "Organic" },
+    { location: "Tempe, AZ", code: "US", flag: "🌵", share: 0.16, conversionShare: 0.16, bounceRate: "25.1%", timeOnPage: "2m 45s", type: "Social" },
+    { location: "Flagstaff, AZ", code: "US", flag: "🌲", share: 0.03, conversionShare: 0.00, bounceRate: "84.0%", timeOnPage: "0m 14s", type: "Referral" },
+    { location: "Denver, CO", code: "US", flag: "🏔️", share: 0.01, conversionShare: 0.00, bounceRate: "96.0%", timeOnPage: "0m 03s", type: "Invalid" }
+  ],
+  c_westline_auto: [
+    { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.25, conversionShare: 0.27, bounceRate: "25.2%", timeOnPage: "3m 12s", type: "Organic" },
+    { location: "Tucson, AZ", code: "US", flag: "🌵", share: 0.18, conversionShare: 0.19, bounceRate: "27.4%", timeOnPage: "2m 58s", type: "Organic" },
+    { location: "Mesa, AZ", code: "US", flag: "🌵", share: 0.12, conversionShare: 0.13, bounceRate: "26.0%", timeOnPage: "2m 45s", type: "Organic" },
+    { location: "Chandler, AZ", code: "US", flag: "🌵", share: 0.10, conversionShare: 0.11, bounceRate: "24.8%", timeOnPage: "3m 02s", type: "Organic" },
+    { location: "Glendale, AZ", code: "US", flag: "🌵", share: 0.08, conversionShare: 0.08, bounceRate: "28.5%", timeOnPage: "2m 24s", type: "Organic" },
+    { location: "Flagstaff, AZ", code: "US", flag: "🌲", share: 0.07, conversionShare: 0.07, bounceRate: "26.1%", timeOnPage: "2m 35s", type: "Direct" },
+    { location: "Prescott, AZ", code: "US", flag: "🌲", share: 0.05, conversionShare: 0.05, bounceRate: "23.9%", timeOnPage: "3m 10s", type: "Referral" },
+    { location: "Yuma, AZ", code: "US", flag: "🌵", share: 0.04, conversionShare: 0.03, bounceRate: "29.1%", timeOnPage: "2m 15s", type: "Organic" },
+    { location: "Lake Havasu, AZ", code: "US", flag: "🌵", share: 0.04, conversionShare: 0.00, bounceRate: "78.0%", timeOnPage: "0m 35s", type: "Referral" },
+    { location: "Las Vegas, NV", code: "US", flag: "🎰", share: 0.05, conversionShare: 0.00, bounceRate: "81.0%", timeOnPage: "0m 22s", type: "Social" },
+    { location: "Albuquerque, NM", code: "US", flag: "🌶️", share: 0.02, conversionShare: 0.00, bounceRate: "92.0%", timeOnPage: "0m 05s", type: "Invalid" }
+  ],
+  c_canyon_home: [
+    { location: "Glendale, AZ", code: "US", flag: "🌵", share: 0.25, conversionShare: 0.26, bounceRate: "26.4%", timeOnPage: "2m 55s", type: "Organic" },
+    { location: "Peoria, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.21, bounceRate: "25.1%", timeOnPage: "3m 05s", type: "Organic" },
+    { location: "Surprise, AZ", code: "US", flag: "🌵", share: 0.18, conversionShare: 0.19, bounceRate: "27.8%", timeOnPage: "2m 40s", type: "Organic" },
+    { location: "Goodyear, AZ", code: "US", flag: "🌵", share: 0.15, conversionShare: 0.16, bounceRate: "24.9%", timeOnPage: "3m 12s", type: "Organic" },
+    { location: "Avondale, AZ", code: "US", flag: "🌵", share: 0.10, conversionShare: 0.11, bounceRate: "28.0%", timeOnPage: "2m 28s", type: "Social" },
+    { location: "Buckeye, AZ", code: "US", flag: "🌵", share: 0.07, conversionShare: 0.07, bounceRate: "29.5%", timeOnPage: "2m 10s", type: "Direct" },
+    { location: "Flagstaff, AZ", code: "US", flag: "🌲", share: 0.04, conversionShare: 0.00, bounceRate: "85.0%", timeOnPage: "0m 18s", type: "Referral" },
+    { location: "El Paso, TX", code: "US", flag: "🤠", share: 0.01, conversionShare: 0.00, bounceRate: "96.0%", timeOnPage: "0m 02s", type: "Invalid" }
+  ]
+};
 
 // Campaign Data structure for top campaign table
 interface CampaignData {
@@ -534,9 +580,92 @@ export default function Overview({
     addToast("Filters reset", "All overview parameters restored to default", "info");
   };
 
+  // Dynamic Location Traffic calculation
+  const locationTrafficList = useMemo(() => {
+    // If selectedClient, use selectedClient's geo footprint
+    if (selectedClient) {
+      const dists = geoDistributions[selectedClient.id] || [];
+      return dists.map(d => {
+        const impressions = Math.round(stats.impressions * d.share);
+        const clicks = Math.round(stats.clicks * d.share);
+        const spend = stats.spend * d.share;
+        const conversions = Math.round(stats.conversions * d.conversionShare);
+        const conversionRate = clicks > 0 ? (conversions / clicks) * 100 : 0;
+        return {
+          country: d.location,
+          code: d.code,
+          flag: d.flag,
+          timeOnPage: d.timeOnPage,
+          views: impressions,
+          clicks,
+          spend,
+          conversions,
+          bounceRate: d.bounceRate,
+          conversionRate: `${conversionRate.toFixed(2)}%`,
+          type: d.type
+        };
+      });
+    }
+
+    // Else aggregate all clients
+    const aggregateMap: { [location: string]: any } = {};
+    for (const client of (clients || [])) {
+      const clientData = allClientsData[client.id] || { metrics: [], campaigns: [] };
+      const rangeMetrics = clientData.metrics.filter(m => m.date >= dateRange.startDate && m.date <= dateRange.endDate);
+      const clientImpressions = rangeMetrics.reduce((sum, m) => sum + m.impressions, 0);
+      const clientClicks = rangeMetrics.reduce((sum, m) => sum + m.clicks, 0);
+      const clientSpend = rangeMetrics.reduce((sum, m) => sum + m.spend, 0);
+      const clientConversions = rangeMetrics.reduce((sum, m) => sum + m.conversions, 0);
+
+      const dists = geoDistributions[client.id] || [];
+      for (const d of dists) {
+        const impressions = Math.round(clientImpressions * d.share);
+        const clicks = Math.round(clientClicks * d.share);
+        const spend = clientSpend * d.share;
+        const conversions = Math.round(clientConversions * d.conversionShare);
+
+        if (!aggregateMap[d.location]) {
+          aggregateMap[d.location] = {
+            location: d.location,
+            code: d.code,
+            flag: d.flag,
+            timeOnPage: d.timeOnPage,
+            views: 0,
+            clicks: 0,
+            spend: 0,
+            conversions: 0,
+            bounceRate: d.bounceRate,
+            type: d.type
+          };
+        }
+        aggregateMap[d.location].views += impressions;
+        aggregateMap[d.location].clicks += clicks;
+        aggregateMap[d.location].spend += spend;
+        aggregateMap[d.location].conversions += conversions;
+      }
+    }
+
+    return Object.values(aggregateMap).map((item: any) => {
+      const conversionRate = item.clicks > 0 ? (item.conversions / item.clicks) * 100 : 0;
+      return {
+        country: item.location,
+        code: item.code,
+        flag: item.flag,
+        timeOnPage: item.timeOnPage,
+        views: item.views,
+        clicks: item.clicks,
+        spend: item.spend,
+        conversions: item.conversions,
+        bounceRate: item.bounceRate,
+        conversionRate: `${conversionRate.toFixed(2)}%`,
+        type: item.type
+      };
+    });
+  }, [selectedClient, clients, allClientsData, stats, dateRange]);
+
   // Filter Country Traffic Data
   const filteredCountryTraffic = useMemo(() => {
-    return mockCountryTraffic.filter((item) => {
+    return locationTrafficList.filter((item) => {
       const matchesSearch = item.country.toLowerCase().includes(tableSearch.toLowerCase());
       
       let matchesTab = true;
@@ -553,7 +682,7 @@ export default function Overview({
 
       return matchesSearch && matchesTab && matchesDimension;
     });
-  }, [activeTrafficTab, tableSearch, selectedDimension]);
+  }, [locationTrafficList, activeTrafficTab, tableSearch, selectedDimension]);
 
   // Filter Campaigns based on search
   const filteredCampaigns = useMemo(() => {
@@ -1940,7 +2069,7 @@ export default function Overview({
                     <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-[#8A8680]" />
                     <input
                       type="text"
-                      placeholder={activeTableTab === "campaigns" ? "Search campaigns..." : "Search country..."}
+                      placeholder={activeTableTab === "campaigns" ? "Search campaigns..." : "Search location..."}
                       value={tableSearch}
                       onChange={(e) => setTableSearch(e.target.value)}
                       className="bg-[#080808] border border-white/5 text-[#F5F3EE] text-xs rounded-md pl-8 pr-3 py-2 w-full sm:w-48 focus:border-[#D6B77A] outline-none placeholder:text-[#8A8680]/60 font-sans"
@@ -2085,7 +2214,7 @@ export default function Overview({
                             />
                           </th>
                         )}
-                        <th className="p-4">Countries</th>
+                        <th className="p-4">{selectedClient ? "Locations" : "Client Geographic Performance"}</th>
                         <th className="p-4">Time on Page</th>
                         <th className="p-4">Page Views</th>
                         <th className="p-4">Bounce Rate</th>
