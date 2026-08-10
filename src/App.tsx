@@ -32,7 +32,7 @@ export default function App() {
       }
 
       if (path === "/" || path === "") {
-        const slug = "ignite-ppc";
+        const slug = "northstar-digital";
         setAgencySlug(slug);
         setIsAdminRoute(false);
         const publicSession = {

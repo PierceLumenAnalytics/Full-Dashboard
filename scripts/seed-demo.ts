@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -503,7 +504,7 @@ async function main() {
     // Create demo public dashboard config
     console.log("Creating default enabled public dashboard configuration...");
     const demoToken = "lumen_dash_northstar_demo_token_secret_42";
-    const tokenHash = "50764c6198f1f7dcf60b73c4f923ce3ebec3cb38cd84d9435b62dbbb1489e81b"; // SHA-256 of token
+    const tokenHash = crypto.createHash("sha256").update(demoToken).update("salt_value_lumen_2026").digest("hex");
     const { error: dashErr } = await supabase
       .from("public_dashboards")
       .insert({

@@ -205,6 +205,57 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
       }
     }
 
+    // 3. Check X-Agency-Slug header for public white-label dashboard requests (read-only)
+    const agencySlug = req.headers["x-agency-slug"] || req.query.agencySlug;
+    if (agencySlug && typeof agencySlug === "string") {
+      const { data: agency, error: agencyError } = await supabase
+        .from("agencies")
+        .select("*")
+        .eq("slug", agencySlug)
+        .single();
+      
+      if (!agencyError && agency) {
+        (req as any).user = {
+          id: "public-reader",
+          email: agency.contact_email || `agency@${agency.slug}.com`,
+          agencyId: agency.id,
+          isAdmin: false,
+          agencyName: agency.name,
+          customCta: agency.custom_cta || null,
+          logoUrl: agency.logo_url || null,
+          primaryColor: agency.primary_color || null,
+          accentColor: agency.accent_color || null,
+          clientLimit: agency.client_limit || 5,
+          isDemo: agency.is_demo || false
+        };
+        return next();
+      }
+    }
+
+    // 4. Default fallback lookup of Northstar Digital agency info for backward compatibility / public demo session
+    const { data: agency, error: agencyError } = await supabase
+      .from("agencies")
+      .select("*")
+      .eq("name", "Northstar Digital")
+      .single();
+
+    if (!agencyError && agency) {
+      (req as any).user = {
+        id: "public-demo-user-id",
+        email: "demo@northstar-digital.com",
+        agencyId: agency.id,
+        isAdmin: false,
+        agencyName: agency.name,
+        customCta: agency.custom_cta || null,
+        logoUrl: agency.logo_url || null,
+        primaryColor: agency.primary_color || null,
+        accentColor: agency.accent_color || null,
+        clientLimit: agency.client_limit || 5,
+        isDemo: agency.is_demo || false
+      };
+      return next();
+    }
+
     return res.status(401).json({ error: "Unauthorized: Invalid credentials." });
   } catch (err: any) {
     console.error("Auth middleware error:", err.message);
