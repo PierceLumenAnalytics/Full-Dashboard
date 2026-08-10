@@ -240,23 +240,22 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     const spendGoal = Math.round(monthlyBudget * timeRatio);
     const spendProgress = Math.min((stats.spend / spendGoal) * 100, 100);
     let spendStatus: "on_track" | "warning" | "danger" = "on_track";
-    const spendRatio = stats.spend / spendGoal;
-    if (spendRatio < 0.75 || spendRatio > 1.2) spendStatus = "danger";
-    else if (spendRatio < 0.9 || spendRatio > 1.1) spendStatus = "warning";
+    if (spendProgress < 50) spendStatus = "danger";
+    else if (spendProgress < 75) spendStatus = "warning";
 
     // Conversions Goal (scaled to range duration, target CPA $40)
     const conversionGoal = Math.max(1, Math.round((monthlyBudget / 40) * timeRatio));
     const conversionProgress = Math.min((stats.conversions / conversionGoal) * 100, 100);
     let conversionStatus: "on_track" | "warning" | "danger" = "on_track";
-    if (conversionProgress < 80) conversionStatus = "danger";
-    else if (conversionProgress < 95) conversionStatus = "warning";
+    if (conversionProgress < 50) conversionStatus = "danger";
+    else if (conversionProgress < 75) conversionStatus = "warning";
 
     // Cost Per Lead (CPL) Goal - Lower is better! Target CPL is $40
     const cplGoal = 40.0;
     const cplProgress = stats.cpl > 0 ? Math.min((cplGoal / stats.cpl) * 100, 100) : 0;
     let cplStatus: "on_track" | "warning" | "danger" = "on_track";
-    if (stats.cpl > cplGoal * 1.25) cplStatus = "danger";
-    else if (stats.cpl > cplGoal) cplStatus = "warning";
+    if (cplProgress < 50) cplStatus = "danger";
+    else if (cplProgress < 75) cplStatus = "warning";
 
     // Return on Ad Spend (ROAS) Goal - Higher is better! Target is 3.5x
     const roasGoal = 3.5;
@@ -670,7 +669,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     `;
 
     // Custom CTA Block for PDF report
-    const ctaHtml = customCta ? `
+    const ctaHtml = (customCta && customCta.trim() !== "") ? `
       <div style="padding: 12px 16px; border: 1px solid ${(profile?.primaryColor || '#6d28d9')}33; border-radius: 8px; background-color: #f8fafc; margin-bottom: 20px;">
         <div style="font-size: 8px; font-weight: 700; color: ${profile?.primaryColor || '#6d28d9'}; text-transform: uppercase; letter-spacing: 0.5px;">Agency Message</div>
         <div style="font-size: 11px; font-weight: 500; color: #1e293b; margin-top: 4px; line-height: 1.45;">${customCta}</div>
@@ -828,11 +827,11 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
   const getStatusPacingDetails = (status: "on_track" | "warning" | "danger") => {
     switch (status) {
       case "on_track":
-        return { text: "On Track", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", progressColor: "bg-emerald-500" };
+        return { text: "On Track", color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20", progressColor: "bg-emerald-400/80" };
       case "warning":
-        return { text: "Behind", color: "text-amber-400 bg-amber-500/10 border-amber-500/20", progressColor: "bg-amber-500" };
+        return { text: "Behind", color: "text-amber-400 bg-amber-500/10 border-amber-500/20", progressColor: "bg-amber-400/80" };
       case "danger":
-        return { text: "Significantly Behind", color: "text-rose-400 bg-rose-500/10 border-rose-500/20", progressColor: "bg-rose-500" };
+        return { text: "Significantly Behind", color: "text-rose-400 bg-rose-500/10 border-rose-500/20", progressColor: "bg-rose-500/70" };
     }
   };
 
@@ -854,10 +853,10 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
         <div>
           <h2 className="text-xl font-bold font-display text-slate-100 flex items-center gap-2">
             <LayoutDashboard className="w-5 h-5 text-violet-400" />
-            Executive Performance Overview
+            Performance Overview
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time attribution and performance metrics for connected ad accounts.
+            Live campaign metrics for {selectedClient?.name || "your clients"}.
           </p>
         </div>
 
@@ -911,7 +910,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
         </div>
       ) : (
         <>
-          {customCta && (
+          {customCta && customCta.trim() !== "" && (
             <div className="p-4 rounded-xl bg-gradient-to-r from-violet-950/20 to-indigo-950/20 border border-violet-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in mb-6">
               <div className="flex items-start gap-3">
                 <Sparkles className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" />
@@ -931,7 +930,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             
             {/* KPI Ad Spend */}
-            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
+            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">TOTAL AD SPEND</span>
                 <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
@@ -939,14 +938,11 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-xl font-bold font-display text-slate-100">
+                <h3 className="text-2xl font-bold font-display text-slate-100">
                   ${stats.spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </h3>
                 
-                <div className="mt-3 flex items-center justify-between">
-                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${getStatusPacingDetails(goalsData.spend.status).color}`}>
-                    {getStatusPacingDetails(goalsData.spend.status).text}
-                  </span>
+                <div className="mt-3 flex items-center justify-end">
                   <span className="text-[9px] text-slate-500 font-mono">Pacing: {Math.round(goalsData.spend.progress)}%</span>
                 </div>
 
@@ -965,7 +961,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
             </div>
 
             {/* KPI Conversions (Leads) */}
-            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
+            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">CONVERSIONS</span>
                 <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
@@ -973,14 +969,11 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-xl font-bold font-display text-slate-100">
+                <h3 className="text-2xl font-bold font-display text-slate-100">
                   {stats.conversions.toLocaleString()}
                 </h3>
 
-                <div className="mt-3 flex items-center justify-between">
-                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${getStatusPacingDetails(goalsData.conversions.status).color}`}>
-                    {getStatusPacingDetails(goalsData.conversions.status).text}
-                  </span>
+                <div className="mt-3 flex items-center justify-end">
                   <span className="text-[9px] text-slate-500 font-mono">Progress: {Math.round(goalsData.conversions.progress)}%</span>
                 </div>
 
@@ -999,7 +992,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
             </div>
 
             {/* KPI Cost Per Lead (CPL) */}
-            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
+            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">COST PER LEAD (CPL)</span>
                 <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
@@ -1007,14 +1000,11 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-xl font-bold font-display text-slate-100">
+                <h3 className="text-2xl font-bold font-display text-slate-100">
                   ${stats.cpl.toFixed(2)}
                 </h3>
 
-                <div className="mt-3 flex items-center justify-between">
-                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${getStatusPacingDetails(goalsData.cpl.status).color}`}>
-                    {getStatusPacingDetails(goalsData.cpl.status).text}
-                  </span>
+                <div className="mt-3 flex items-center justify-end">
                   <span className="text-[9px] text-slate-500 font-mono">Efficiency</span>
                 </div>
 
@@ -1033,7 +1023,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
             </div>
 
             {/* KPI ROAS */}
-            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
+            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">AD RETURN (ROAS)</span>
                 <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
@@ -1041,14 +1031,11 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-xl font-bold font-display text-slate-100">
+                <h3 className="text-2xl font-bold font-display text-slate-100">
                   {stats.roas.toFixed(2)}x
                 </h3>
 
-                <div className="mt-3 flex items-center justify-between">
-                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${getStatusPacingDetails(goalsData.roas.status).color}`}>
-                    {getStatusPacingDetails(goalsData.roas.status).text}
-                  </span>
+                <div className="mt-3 flex items-center justify-end">
                   <span className="text-[9px] text-slate-500 font-mono">Ratio: {stats.roas.toFixed(1)}x</span>
                 </div>
 
@@ -1067,7 +1054,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
             </div>
 
             {/* KPI Avg CTR */}
-            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
+            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">AVG CTR</span>
                 <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
@@ -1075,14 +1062,11 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-xl font-bold font-display text-slate-100">
+                <h3 className="text-2xl font-bold font-display text-slate-100">
                   {stats.ctr.toFixed(2)}%
                 </h3>
 
-                <div className="mt-3 flex items-center justify-between">
-                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${getStatusPacingDetails(goalsData.ctr.status).color}`}>
-                    {getStatusPacingDetails(goalsData.ctr.status).text}
-                  </span>
+                <div className="mt-3 flex items-center justify-end">
                   <span className="text-[9px] text-slate-500 font-mono">Quality Score</span>
                 </div>
 
@@ -1101,7 +1085,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
             </div>
 
             {/* KPI Saved Reporting Hours */}
-            <div className="p-4 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
+            <div className="p-5 rounded-xl bg-slate-900/15 border border-slate-900 flex flex-col justify-between hover:border-slate-800/80 transition-colors duration-200 text-left">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-medium text-slate-500 tracking-wider font-mono">SAVED TIME</span>
                 <span className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-400">
@@ -1109,7 +1093,7 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </span>
               </div>
               <div className="mt-4">
-                <h3 className="text-xl font-bold font-display text-slate-100">
+                <h3 className="text-2xl font-bold font-display text-slate-100">
                   {stats.savedHours} hrs
                 </h3>
 

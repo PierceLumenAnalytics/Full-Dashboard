@@ -383,7 +383,7 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {/* Main summary outcome pane */}
-          <div className="p-6 rounded-xl bg-slate-900/10 border border-slate-900 space-y-4 relative min-h-[350px]">
+          <div className="p-6 rounded-xl bg-slate-900/10 border border-slate-900 space-y-4 relative min-h-[350px] border-t-2" style={{ borderTopColor: profile?.primaryColor || '#8b5cf6' }}>
             {/* Copy report button */}
             <div className="absolute top-4 right-4 z-10">
               <button

@@ -387,7 +387,7 @@ export default function ClientsManager({
       <div className="bg-slate-950/20 border border-slate-900 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-400 border-collapse">
-            <thead className="bg-slate-950 text-slate-500 uppercase tracking-widest text-[9px] font-mono border-b border-slate-900">
+            <thead className="bg-slate-950 text-slate-500 uppercase tracking-widest text-[10px] font-mono border-b border-slate-900">
               <tr>
                 <th className="p-4">Client details</th>
                 <th className="p-4">Ad networks</th>
