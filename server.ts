@@ -1079,16 +1079,16 @@ app.post("/api/summary", requireAuth, async (req, res) => {
     const costPerConversion = summary.costPerConversion || 0;
 
     return `### AI Campaign Insights for ${name}
-* **Trend Analysis**: Over the last 30 days, Google and Meta ad spend was highly efficient. Total ad spend reached **$${totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**, generating **${totalClicks.toLocaleString()}** clicks with an average click-through rate of **${avgCtr.toFixed(2)}%**.
+* **Trend Analysis**: Over the last 30 days, paid ad spend was highly efficient. Total ad spend reached **$${totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}**, generating **${totalClicks.toLocaleString()}** clicks with an average click-through rate of **${avgCtr.toFixed(2)}%**.
 * **Highlight**: Conversion volume settled at **${totalConversions.toLocaleString()}** conversions, with an average conversion rate of **${avgConvRate.toFixed(2)}%**. The cost per acquisition (CPA) was managed exceptionally well at **$${costPerConversion.toFixed(2)}** per conversion.
 * **Opportunities for ${name}**:
   1. **Optimize Underperforming Budgets**: Shift 15% budget from underperforming ad variations to the high-converting campaigns.
   2. **Frequency Cap Warning**: Creative fatigue detected in display assets. Refresh display assets to sustain click rate levels.`;
   };
 
-  const systemInstruction = `You are an elite, senior performance marketing director and analytics AI for Lumen Analytics. 
-You translate complex Google Ads, Meta Ads, and other marketing channel metrics into clear, calm, extremely actionable executive bullet points for marketing agencies and their clients.
-Never use dry robotic corporate jargon, and avoid hype words. Be realistic, direct, and helpful. Translate metrics into plain English and guide agency owners (like Pierce) on what went up, what went down, and exactly what to fix.`;
+  const systemPrompt = `You are an elite digital marketing performance analyst and executive reporting expert.
+You translate complex paid advertising performance metrics into clear, calm, extremely actionable executive bullet points for marketing agencies and their clients.
+IMPORTANT: Only reference ad channels and platforms that have data in the metrics provided to you. Never mention Google Ads, Meta Ads, TikTok Ads, or any specific platform unless that platform's data is explicitly included in the metrics summary.`;
 
   const prompt = `Please analyze the performance metrics over the last 30 days for our client "${clientName}":
 Metrics summary:
@@ -1123,7 +1123,7 @@ Address this to our agency dashboard and write directly, clearly, with beautiful
           body: JSON.stringify({
             model: "claude-sonnet-5",
             max_tokens: 1500,
-            system: systemInstruction,
+            system: systemPrompt,
             messages: [
               {
                 role: "user",

@@ -265,12 +265,12 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
     if (stats.roas < roasGoal * 0.8) roasStatus = "danger";
     else if (stats.roas < roasGoal) roasStatus = "warning";
 
-    // Average CTR Goal - Target is 2.5%
+    // Average CTR Goal - Target is 2.5% (5% buffer before flagging warning)
     const ctrGoal = 2.5;
     const ctrProgress = Math.min((stats.ctr / ctrGoal) * 100, 100);
     let ctrStatus: "on_track" | "warning" | "danger" = "on_track";
-    if (stats.ctr < ctrGoal * 0.8) ctrStatus = "danger";
-    else if (stats.ctr < ctrGoal) ctrStatus = "warning";
+    if (stats.ctr < ctrGoal * 0.75) ctrStatus = "danger";
+    else if (stats.ctr < ctrGoal * 0.95) ctrStatus = "warning";
 
     // Saved Reporting Hours Goal (scaled to range duration)
     const savedHoursGoal = Math.max(1, Math.round(15 * timeRatio));
@@ -1114,8 +1114,8 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 </h3>
 
                 <div className="mt-3 flex items-center justify-between">
-                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${getStatusPacingDetails(goalsData.savedHours.status).color}`}>
-                    {getStatusPacingDetails(goalsData.savedHours.status).text}
+                  <span className="px-1.5 py-0.5 rounded text-[8px] font-bold border bg-slate-900 text-slate-400 border-slate-800">
+                    Estimated
                   </span>
                   <span className="text-[9px] text-slate-500 font-mono">100% Auto</span>
                 </div>
@@ -1362,8 +1362,8 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                 <div className="flex items-center gap-2">
                   <Activity className="w-4 h-4 text-violet-400 shrink-0" />
                   <div>
-                    <h5 className="text-[9px] font-mono text-slate-500 uppercase">Integrations Cache</h5>
-                    <p className="text-xs text-slate-300 font-semibold">Automatic 1-click hooks</p>
+                    <h5 className="text-[9px] font-mono text-slate-500 uppercase">Live Data Sources</h5>
+                    <p className="text-xs text-slate-300 font-semibold">Connected ad platforms</p>
                   </div>
                 </div>
               </div>
@@ -1563,7 +1563,10 @@ export default function Overview({ selectedClient, dateRange, onRefresh, isRefre
                                 {camp.platform}
                               </td>
                               <td className="p-4">
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold border ${statusConfig.bg}`}>
+                                <span 
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold border ${statusConfig.bg}`}
+                                  title={camp.status === "Needs Review" ? "CTR or conversion rate is below target — check bids, creative, or audience targeting." : undefined}
+                                >
                                   <statusConfig.icon className="w-2.5 h-2.5 shrink-0" />
                                   {statusConfig.label}
                                 </span>

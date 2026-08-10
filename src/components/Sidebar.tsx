@@ -25,8 +25,11 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout }: 
 
   let managementNavigation = [
     { id: "clients" as ActiveTab, name: "Connected Clients", icon: Users },
-    { id: "logs" as ActiveTab, name: "Security Audit Logs", icon: FileTerminal },
   ];
+
+  if (profile?.isAdmin) {
+    managementNavigation.push({ id: "logs" as ActiveTab, name: "Security Audit Logs", icon: FileTerminal });
+  }
 
   const isPublicReader = profile?.id === "public-reader";
 
@@ -150,7 +153,6 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout }: 
       <div className="p-3 space-y-3">
         <div className="px-3 py-1 flex justify-between text-[9px] text-slate-600 font-mono pt-2 border-t border-slate-900/30">
           <span>{isPublicReader ? "Client Portal" : profile?.isAdmin ? "Admin Console" : "Agency Portal"}</span>
-          <span>v4.1.2</span>
         </div>
 
         {!isPublicReader && (

@@ -270,9 +270,6 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
             <Sparkles className="w-5 h-5 text-violet-400" />
             AI Written Daily Summary
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Lumen's AI-orchestration converts multi-channel spend data into natural English insights. Ideal for client summaries.
-          </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -384,9 +381,9 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           {/* Main summary outcome pane */}
-          <div className="lg:col-span-2 p-6 rounded-xl bg-slate-900/10 border border-slate-900 space-y-4 relative min-h-[350px]">
+          <div className="p-6 rounded-xl bg-slate-900/10 border border-slate-900 space-y-4 relative min-h-[350px]">
             {/* Copy report button */}
             <div className="absolute top-4 right-4 z-10">
               <button
@@ -418,7 +415,7 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
             <div className="flex items-center gap-2 border-b border-slate-900 pb-4 mb-4">
               <FileText className="w-4 h-4 text-violet-400" />
               <span className="text-[10px] font-mono tracking-widest text-slate-500 uppercase">
-                EXECUTIVE COGNITIVE SUMMARY
+                Performance Summary
               </span>
             </div>
 
@@ -443,41 +440,6 @@ export default function AIDailySummary({ selectedClient, dateRange, addToast, pr
               >
                 {summary}
               </Markdown>
-            </div>
-          </div>
-
-          {/* Side quick statistics column */}
-          <div className="space-y-4">
-            <div className="p-5 rounded-xl bg-slate-900/25 border border-slate-900 space-y-4">
-              <h4 className="text-xs font-bold text-slate-200 font-display uppercase tracking-wider">
-                Why live dashboards work
-              </h4>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                By sending your agency's clients a single Lumen link, they can read this plain-English daily synthesis of their budget anytime.
-              </p>
-              
-              <ul className="space-y-2.5 text-xs text-slate-300">
-                <li className="flex gap-2.5">
-                  <span className="p-0.5 rounded bg-violet-500/10 text-violet-400 shrink-0">✓</span>
-                  <p className="text-slate-400"><strong>Saves 10-20 hrs</strong> client reporting per month.</p>
-                </li>
-                <li className="flex gap-2.5">
-                  <span className="p-0.5 rounded bg-violet-500/10 text-violet-400 shrink-0">✓</span>
-                  <p className="text-slate-400">Eliminates end-of-month PPT screenshot scramble.</p>
-                </li>
-                <li className="flex gap-2.5">
-                  <span className="p-0.5 rounded bg-violet-500/10 text-violet-400 shrink-0">✓</span>
-                  <p className="text-slate-400">Enables premium fee charging for elite reporting.</p>
-                </li>
-              </ul>
-            </div>
-
-            <div className="p-5 rounded-xl bg-slate-900/10 border border-slate-900/60 flex items-center justify-between">
-              <div>
-                <h5 className="text-[10px] font-mono tracking-wider text-slate-500 uppercase">Report Status</h5>
-                <p className="text-xs text-emerald-400 font-semibold mt-0.5">Synthesized & Safe</p>
-              </div>
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             </div>
           </div>
         </div>
