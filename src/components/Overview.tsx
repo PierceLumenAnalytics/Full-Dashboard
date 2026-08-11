@@ -893,11 +893,11 @@ export default function Overview({
 
     // Executive Header
     const headerHtml = `
-      <div style="border-bottom: 2px solid ${profile?.primaryColor || '#D6B77A'}; padding-bottom: 16px; margin-bottom: 24px;">
+      <div style="border-bottom: 2px solid ${profile?.primaryColor || 'var(--agency-primary)'}; padding-bottom: 16px; margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: flex-end;">
           <div>
             <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">${profile?.agencyName || 'Lumen Analytics'} Report</div>
-            <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: ${profile?.primaryColor || '#D6B77A'}; margin-top: 3px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE DASHBOARD</div>
+            <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: ${profile?.primaryColor || 'var(--agency-primary)'}; margin-top: 3px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE DASHBOARD</div>
           </div>
           <div style="font-size: 10px; color: #64748b; font-weight: 600; text-align: right;">
             Generated: ${new Date().toLocaleDateString()}
@@ -984,14 +984,14 @@ export default function Overview({
         text.style.fontFamily = "sans-serif";
       });
       clonedSvg.querySelectorAll("polyline").forEach((polyline) => {
-        polyline.setAttribute("stroke", profile?.primaryColor || "#D6B77A");
+        polyline.setAttribute("stroke", profile?.primaryColor || "var(--agency-primary)");
       });
       clonedSvg.querySelectorAll("circle").forEach((circle) => {
-        circle.setAttribute("stroke", profile?.primaryColor || "#D6B77A");
+        circle.setAttribute("stroke", profile?.primaryColor || "var(--agency-primary)");
         circle.setAttribute("fill", "#ffffff");
       });
       clonedSvg.querySelectorAll("rect").forEach((rect) => {
-        rect.setAttribute("fill", profile?.primaryColor || "#D6B77A");
+        rect.setAttribute("fill", profile?.primaryColor || "var(--agency-primary)");
         rect.setAttribute("fill-opacity", "0.2");
       });
       
@@ -1046,8 +1046,8 @@ export default function Overview({
 
     // Custom CTA Block for PDF report
     const ctaHtml = (customCta && customCta.trim() !== "") ? `
-      <div style="padding: 12px 16px; border: 1px solid ${(profile?.primaryColor || '#D6B77A')}33; border-radius: 8px; background-color: #f8fafc; margin-bottom: 20px;">
-        <div style="font-size: 8px; font-weight: 700; color: ${profile?.primaryColor || '#D6B77A'}; text-transform: uppercase; letter-spacing: 0.5px;">Agency Message</div>
+      <div style="padding: 12px 16px; border: 1px solid ${(profile?.primaryColor || 'var(--agency-primary)')}33; border-radius: 8px; background-color: #f8fafc; margin-bottom: 20px;">
+        <div style="font-size: 8px; font-weight: 700; color: ${profile?.primaryColor || 'var(--agency-primary)'}; text-transform: uppercase; letter-spacing: 0.5px;">Agency Message</div>
         <div style="font-size: 11px; font-weight: 500; color: #1e293b; margin-top: 4px; line-height: 1.45;">${customCta}</div>
       </div>
     ` : "";
@@ -1235,7 +1235,7 @@ export default function Overview({
           </h2>
           <p className="text-sm text-[#8A8680] mt-1 flex items-center gap-2">
             Your clients' performance at a glance.
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#D6B77A]/10 text-[#D6B77A] border border-[#D6B77A]/20">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-accent/10 text-accent border border-accent/20">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               Live (Demo Environment)
             </span>
@@ -1248,7 +1248,7 @@ export default function Overview({
         <button
           onClick={handleExportPDF}
           disabled={isLoading || filteredMetrics.length === 0}
-          className="px-3.5 py-2 bg-[#D6B77A] hover:bg-[#bfa063] border border-[#D6B77A] text-[#080808] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 shrink-0"
+          className="px-3.5 py-2 bg-accent hover:bg-[#bfa063] border border-accent text-[#080808] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 shrink-0"
           title="Download full dashboard PDF report"
         >
           <Download className="w-3.5 h-3.5" />
@@ -1273,7 +1273,7 @@ export default function Overview({
           <p className="text-xs text-[#8A8680] mt-1">{error}</p>
           <button 
             onClick={onRefresh}
-            className="mt-4 px-4 py-2 bg-[#D6B77A] hover:bg-[#bfa063] text-[#080808] rounded-md text-sm transition-colors cursor-pointer"
+            className="mt-4 px-4 py-2 bg-accent hover:bg-[#bfa063] text-[#080808] rounded-md text-sm transition-colors cursor-pointer"
           >
             Retry Fetch
           </button>
@@ -1282,7 +1282,7 @@ export default function Overview({
         <>
           {customCta && customCta.trim() !== "" && (
             <div className="p-5 rounded-lg bg-[#101010] border border-white/5 flex flex-col gap-2 animate-fade-in mb-6 text-left">
-              <span className="text-[11px] font-mono tracking-widest text-[#D6B77A] uppercase font-bold">
+              <span className="text-[11px] font-mono tracking-widest text-accent uppercase font-bold">
                 FROM YOUR STRATEGIST
               </span>
               <p className="text-sm text-[#F5F3EE] italic leading-relaxed">
@@ -1371,7 +1371,7 @@ export default function Overview({
                             if (onSelectClient) onSelectClient(client.id);
                           }}
                         >
-                          <td className="p-3 pl-0 font-semibold text-[#F5F3EE] group-hover:text-[#D6B77A] transition-colors font-display">
+                          <td className="p-3 pl-0 font-semibold text-[#F5F3EE] group-hover:text-accent transition-colors font-display">
                             {client.name}
                             <span className="text-[10px] block text-[#8A8680] font-mono font-normal">
                               {client.domain}
@@ -1398,7 +1398,7 @@ export default function Overview({
                             </span>
                           </td>
                           <td className="p-3 text-right pr-0">
-                            <span className="text-[#D6B77A] group-hover:underline text-[11px] font-semibold">
+                            <span className="text-accent group-hover:underline text-[11px] font-semibold">
                               Open Dashboard →
                             </span>
                           </td>
@@ -1438,7 +1438,7 @@ export default function Overview({
                   <span className="text-[#8A8680] font-mono">Goal: ${goalsData.spend.goal.toLocaleString()}</span>
                 </div>
                 <div className="w-full h-1 bg-[#151515] rounded-full overflow-hidden mt-1">
-                  <div className="h-full rounded-full bg-[#D6B77A]" style={{ width: `${goalsData.spend.progress}%` }}></div>
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${goalsData.spend.progress}%` }}></div>
                 </div>
               </div>
             </div>
@@ -1467,7 +1467,7 @@ export default function Overview({
                   <span className="text-[#8A8680] font-mono">Goal: {goalsData.conversions.goal.toLocaleString()}</span>
                 </div>
                 <div className="w-full h-1 bg-[#151515] rounded-full overflow-hidden mt-1">
-                  <div className="h-full rounded-full bg-[#D6B77A]" style={{ width: `${goalsData.conversions.progress}%` }}></div>
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${goalsData.conversions.progress}%` }}></div>
                 </div>
               </div>
             </div>
@@ -1498,7 +1498,7 @@ export default function Overview({
                 </div>
                 <div className="w-full h-1 bg-[#151515] rounded-full overflow-hidden mt-1">
                   <div 
-                    className="h-full rounded-full bg-[#D6B77A]" 
+                    className="h-full rounded-full bg-accent" 
                     style={{ width: `${stats.cpl > 0 ? Math.min((40 / stats.cpl) * 100, 100) : 100}%` }}
                   ></div>
                 </div>
@@ -1530,7 +1530,7 @@ export default function Overview({
                 </div>
                 <div className="w-full h-1 bg-[#151515] rounded-full overflow-hidden mt-1">
                   <div 
-                    className="h-full rounded-full bg-[#D6B77A]" 
+                    className="h-full rounded-full bg-accent" 
                     style={{ width: `${Math.min((stats.roas / 3.0) * 100, 100)}%` }}
                   ></div>
                 </div>
@@ -1542,7 +1542,7 @@ export default function Overview({
           {/* Saved Time Hero Section */}
           <div className="p-5 rounded-lg bg-[#101010] border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
             <div className="space-y-1">
-              <span className="text-[11px] font-mono tracking-widest text-[#D6B77A] uppercase font-bold">
+              <span className="text-[11px] font-mono tracking-widest text-accent uppercase font-bold">
                 REPORTING TIME SAVED
               </span>
               <h3 className="text-xl font-bold text-[#F5F3EE] font-display">
@@ -1551,7 +1551,7 @@ export default function Overview({
             </div>
             <div className="flex items-center gap-3 text-xs text-[#8A8680] font-mono">
               <span>Previously: ~{Math.round((stats.savedHours || 18) * 1.1) + 2} hrs manual work</span>
-              <span className="text-[#D6B77A]">→</span>
+              <span className="text-accent">→</span>
               <span>Lumen: 2 hrs</span>
             </div>
           </div>
@@ -1678,7 +1678,7 @@ export default function Overview({
                         tableSection.scrollIntoView({ behavior: "smooth" });
                       }
                     }}
-                    className="text-xs font-bold text-[#D6B77A] hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-xs font-bold text-accent hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     Review all →
                   </button>
@@ -1706,11 +1706,11 @@ export default function Overview({
                 {/* Legend Indicator */}
                 <div className="flex items-center gap-4 text-xs font-mono">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-0.5 bg-[#D6B77A] rounded-full inline-block"></span>
+                    <span className="w-3 h-0.5 bg-accent rounded-full inline-block"></span>
                     <span className="text-[#8A8680]">Daily Spend ($)</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 bg-[#D6B77A]/20 rounded inline-block"></span>
+                    <span className="w-3 h-3 bg-accent/20 rounded inline-block"></span>
                     <span className="text-[#8A8680]">Conversions</span>
                   </div>
                 </div>
@@ -1723,8 +1723,8 @@ export default function Overview({
                     {/* Gradient Defs */}
                     <defs>
                       <linearGradient id="chart-gradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#D6B77A" stopOpacity="0.1" />
-                        <stop offset="100%" stopColor="#D6B77A" stopOpacity="0.0" />
+                        <stop offset="0%" stopColor="var(--agency-primary)" stopOpacity="0.1" />
+                        <stop offset="100%" stopColor="var(--agency-primary)" stopOpacity="0.0" />
                       </linearGradient>
                     </defs>
 
@@ -1747,7 +1747,7 @@ export default function Overview({
                         y={bar.y}
                         width={bar.width}
                         height={bar.height}
-                        fill="#D6B77A"
+                        fill="var(--agency-primary)"
                         fillOpacity="0.15"
                         className="hover:fill-opacity-40 transition-all cursor-pointer duration-200"
                         onMouseEnter={(e) => {
@@ -1766,7 +1766,7 @@ export default function Overview({
                     {/* Line Path (Spend Chart) */}
                     <polyline
                       fill="none"
-                      stroke="#D6B77A"
+                      stroke="var(--agency-primary)"
                       strokeWidth="2.5"
                       strokeLinecap="round"
                       points={chartCoordinates.linePoints}
@@ -1780,9 +1780,9 @@ export default function Overview({
                         cy={p.y}
                         r="3.5"
                         fill="#080808"
-                        stroke="#D6B77A"
+                        stroke="var(--agency-primary)"
                         strokeWidth="2"
-                        className="hover:r-5 hover:fill-[#D6B77A] transition-all cursor-pointer duration-150"
+                        className="hover:r-5 hover:fill-[var(--agency-primary)] transition-all cursor-pointer duration-150"
                         onMouseEnter={(e) => {
                           const bbox = e.currentTarget.getBoundingClientRect();
                           setHoveredPoint({
@@ -1814,7 +1814,7 @@ export default function Overview({
                   </svg>
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-[#101010]/20 border border-white/5 rounded-lg">
-                    <AlertTriangle className="w-8 h-8 text-[#D6B77A] mb-2 animate-pulse" />
+                    <AlertTriangle className="w-8 h-8 text-accent mb-2 animate-pulse" />
                     <h4 className="text-xs font-bold text-[#F5F3EE]">No data available for this date range</h4>
                     <p className="text-[11px] text-[#8A8680] max-w-xs mt-1">
                       Try selecting a different date range or preset from the header calendar.
@@ -1827,7 +1827,7 @@ export default function Overview({
                     style={{ left: `${hoveredPoint.x}px`, top: `${hoveredPoint.y}px` }}
                   >
                     <div className="font-semibold text-[10px] text-[#8A8680] uppercase tracking-wider">{hoveredPoint.label}</div>
-                    <div className="font-bold text-[#D6B77A] mt-0.5">{hoveredPoint.value}</div>
+                    <div className="font-bold text-accent mt-0.5">{hoveredPoint.value}</div>
                   </div>
                 )}
               </div>
@@ -1889,7 +1889,7 @@ export default function Overview({
                           </div>
                           <div>
                             <span className="text-[10px] text-[#8A8680] font-mono font-medium">ROAS</span>
-                            <p className="font-mono font-semibold text-[#D6B77A]">
+                            <p className="font-mono font-semibold text-accent">
                               {chan.roas.toFixed(2)}x
                             </p>
                           </div>
@@ -1904,7 +1904,7 @@ export default function Overview({
                         <div className="mt-3.5">
                           <div className="w-full h-1 bg-[#101010] rounded-full overflow-hidden">
                             <div 
-                              className="h-full bg-[#D6B77A]" 
+                              className="h-full bg-accent" 
                               style={{ width: `${chan.share}%` }}
                             ></div>
                           </div>
@@ -1917,7 +1917,7 @@ export default function Overview({
 
               <div className="p-3 bg-[#151515] border border-white/5 rounded-lg flex items-center justify-between text-left">
                 <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-[#D6B77A] shrink-0" />
+                  <Activity className="w-4 h-4 text-accent shrink-0" />
                   <div>
                     <h5 className="text-[9px] font-mono text-[#8A8680] uppercase">Connected Channels</h5>
                     <p className="text-xs text-[#F5F3EE] font-semibold">Connected ad platforms</p>
@@ -1933,7 +1933,7 @@ export default function Overview({
               {/* Section 3: Dimension Filter Popover / Row */}
               <div className="p-4 rounded-lg bg-[#101010] border border-white/5 flex flex-col md:flex-row items-center gap-4 text-left">
                 <div className="flex items-center gap-2 text-xs font-semibold text-[#8A8680] shrink-0 font-mono">
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#D6B77A]" />
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-accent" />
                   <span>DIMENSIONS FILTER</span>
             </div>
 
@@ -1943,7 +1943,7 @@ export default function Overview({
                 <select 
                   value={selectedDimension}
                   onChange={(e) => setSelectedDimension(e.target.value)}
-                  className="bg-[#080808] border border-white/5 text-[#F5F3EE] rounded-md p-2 text-xs focus:border-[#D6B77A] outline-none"
+                  className="bg-[#080808] border border-white/5 text-[#F5F3EE] rounded-md p-2 text-xs focus:border-accent outline-none"
                 >
                   <option value="All">All Campaign Dimensions</option>
                   <option value="Country">Filter by Country</option>
@@ -1955,7 +1955,7 @@ export default function Overview({
                 <select 
                   value={selectedCampaignType}
                   onChange={(e) => setSelectedCampaignType(e.target.value)}
-                  className="bg-[#080808] border border-white/5 text-[#F5F3EE] rounded-md p-2 text-xs focus:border-[#D6B77A] outline-none"
+                  className="bg-[#080808] border border-white/5 text-[#F5F3EE] rounded-md p-2 text-xs focus:border-accent outline-none"
                 >
                   <option value="All">All Campaign Types</option>
                   <option value="Search">Search Campaigns</option>
@@ -1968,7 +1968,7 @@ export default function Overview({
                 <select 
                   value={selectedSource}
                   onChange={(e) => setSelectedSource(e.target.value)}
-                  className="bg-[#080808] border border-white/5 text-[#F5F3EE] rounded-md p-2 text-xs focus:border-[#D6B77A] outline-none"
+                  className="bg-[#080808] border border-white/5 text-[#F5F3EE] rounded-md p-2 text-xs focus:border-accent outline-none"
                 >
                   <option value="All">All UTM Sources</option>
                   <option value="Organic">Organic Search</option>
@@ -2029,7 +2029,7 @@ export default function Overview({
                   </span>
                   <button
                     onClick={handleBulkExport}
-                    className="px-2.5 py-1 bg-[#D6B77A] hover:bg-[#bfa063] text-[#080808] text-xs font-semibold rounded-md transition-colors cursor-pointer flex items-center gap-1"
+                    className="px-2.5 py-1 bg-accent hover:bg-[#bfa063] text-[#080808] text-xs font-semibold rounded-md transition-colors cursor-pointer flex items-center gap-1"
                   >
                     <Download className="w-3 h-3" /> Export
                   </button>
@@ -2051,7 +2051,7 @@ export default function Overview({
                       placeholder={activeTableTab === "campaigns" ? "Search campaigns..." : "Search location..."}
                       value={tableSearch}
                       onChange={(e) => setTableSearch(e.target.value)}
-                      className="bg-[#080808] border border-white/5 text-[#F5F3EE] text-xs rounded-md pl-8 pr-3 py-2 w-full sm:w-48 focus:border-[#D6B77A] outline-none placeholder:text-[#8A8680]/60 font-sans"
+                      className="bg-[#080808] border border-white/5 text-[#F5F3EE] text-xs rounded-md pl-8 pr-3 py-2 w-full sm:w-48 focus:border-accent outline-none placeholder:text-[#8A8680]/60 font-sans"
                     />
                   </div>
                 </div>
@@ -2071,7 +2071,7 @@ export default function Overview({
                               type="checkbox"
                               checked={selectedCampaignRows.length === filteredCampaigns.length && filteredCampaigns.length > 0}
                               onChange={handleSelectAllCampaignRows}
-                              className="rounded border-white/10 text-[#D6B77A] focus:ring-[#D6B77A]/50 bg-[#101010] cursor-pointer"
+                              className="rounded border-white/10 text-accent focus:ring-accent/50 bg-[#101010] cursor-pointer"
                             />
                           </th>
                         )}
@@ -2106,7 +2106,7 @@ export default function Overview({
                           return (
                             <tr 
                               key={camp.id}
-                              className={`hover:bg-white/5 transition-colors duration-150 ${!isClientView && isChecked ? "bg-[#D6B77A]/5" : ""}`}
+                              className={`hover:bg-white/5 transition-colors duration-150 ${!isClientView && isChecked ? "bg-accent/5" : ""}`}
                             >
                               {!isClientView && (
                                 <td className="p-4 text-center">
@@ -2114,7 +2114,7 @@ export default function Overview({
                                     type="checkbox"
                                     checked={isChecked}
                                     onChange={() => handleSelectCampaignRow(camp.id)}
-                                    className="rounded border-white/10 text-[#D6B77A] focus:ring-[#D6B77A]/50 bg-[#101010] cursor-pointer"
+                                    className="rounded border-white/10 text-accent focus:ring-accent/50 bg-[#101010] cursor-pointer"
                                   />
                                 </td>
                               )}
@@ -2141,7 +2141,7 @@ export default function Overview({
                               <td className="py-5 px-4 text-right font-mono text-[#4ADE80] font-semibold">
                                 ${camp.cpl.toFixed(2)}
                               </td>
-                              <td className="py-5 px-4 text-right font-mono text-[#D6B77A] font-semibold">
+                              <td className="py-5 px-4 text-right font-mono text-accent font-semibold">
                                 {camp.roas.toFixed(2)}x
                               </td>
                               <td className="py-5 px-4 text-center font-mono font-bold text-xs">
@@ -2170,7 +2170,7 @@ export default function Overview({
                       onClick={() => setActiveTrafficTab(tab)}
                       className={`px-3 py-2 text-xs font-medium border-b-2 cursor-pointer transition-colors ${
                         activeTrafficTab === tab
-                          ? "border-[#D6B77A] text-[#D6B77A]"
+                          ? "border-accent text-accent"
                           : "border-transparent text-[#8A8680] hover:text-[#F5F3EE]"
                       }`}
                     >
@@ -2189,7 +2189,7 @@ export default function Overview({
                               type="checkbox"
                               checked={selectedRows.length === filteredCountryTraffic.length && filteredCountryTraffic.length > 0}
                               onChange={handleSelectAllRows}
-                              className="rounded border-white/10 text-[#D6B77A] focus:ring-[#D6B77A]/50 bg-[#101010] cursor-pointer"
+                              className="rounded border-white/10 text-accent focus:ring-accent/50 bg-[#101010] cursor-pointer"
                             />
                           </th>
                         )}
@@ -2214,7 +2214,7 @@ export default function Overview({
                           return (
                             <tr 
                               key={item.country} 
-                              className={`hover:bg-white/5 transition-colors duration-150 ${!isClientView && isChecked ? "bg-[#D6B77A]/5" : ""}`}
+                              className={`hover:bg-white/5 transition-colors duration-150 ${!isClientView && isChecked ? "bg-accent/5" : ""}`}
                             >
                               {!isClientView && (
                                 <td className="p-4 text-center">
@@ -2222,7 +2222,7 @@ export default function Overview({
                                     type="checkbox"
                                     checked={isChecked}
                                     onChange={() => handleSelectRow(item.country)}
-                                    className="rounded border-white/10 text-[#D6B77A] focus:ring-[#D6B77A]/50 bg-[#101010] cursor-pointer"
+                                    className="rounded border-white/10 text-accent focus:ring-accent/50 bg-[#101010] cursor-pointer"
                                   />
                                 </td>
                               )}

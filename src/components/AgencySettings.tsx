@@ -46,7 +46,7 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
     <div className="space-y-6 font-sans text-left animate-fade-in">
       <div>
         <h2 className="text-xl font-bold font-display text-slate-100 flex items-center gap-2">
-          <Sliders className="w-5 h-5 text-[#D6B77A]" />
+          <Sliders className="w-5 h-5 text-accent" />
           Agency Control Panel
         </h2>
         <p className="text-xs text-slate-400 mt-1">
@@ -69,7 +69,7 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
               value={ctaText}
               onChange={(e) => setCtaText(e.target.value)}
               placeholder="e.g., Ready to scale? Ask us about our new SEO & Content packages to double organic traffic!"
-              className="w-full form-input h-auto leading-relaxed focus:border-[#D6B77A]/50 p-4"
+              className="w-full form-input h-auto leading-relaxed focus:border-accent/50 p-4"
             />
           </div>
  
@@ -90,7 +90,7 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
         </form>
 
         <div className="p-5 rounded-xl bg-[#101010] border border-white/5 space-y-4 h-fit">
-          <div className="flex items-center gap-2 text-[#D6B77A]">
+          <div className="flex items-center gap-2 text-accent">
             <Sparkles className="w-4 h-4" />
             <h4 className="text-xs font-bold text-slate-200 font-display uppercase tracking-wider">
               Preview Mode
@@ -101,7 +101,7 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
           </p>
 
           {ctaText ? (
-            <div className="p-3.5 rounded-lg bg-[#D6B77A]/5 border border-[#D6B77A]/20 text-xs text-[#D6B77A] font-medium leading-relaxed">
+            <div className="p-3.5 rounded-lg bg-accent/5 border border-accent/20 text-xs text-accent font-medium leading-relaxed">
               {ctaText}
             </div>
           ) : (

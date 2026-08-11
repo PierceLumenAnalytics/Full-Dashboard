@@ -38,14 +38,14 @@ function ToastItem({ toast, onClose }: { toast: ToastMessage; onClose: (id: stri
     success: <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />,
     error: <XCircle className="w-5 h-5 text-rose-400 shrink-0" />,
     warning: <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />,
-    info: <Info className="w-5 h-5 text-[#D6B77A] shrink-0" />,
+    info: <Info className="w-5 h-5 text-accent shrink-0" />,
   };
 
   const bgColors = {
     success: "bg-slate-900 border-emerald-500/30 text-emerald-50 text-slate-100",
     error: "bg-slate-900 border-rose-500/30 text-rose-50 text-slate-100",
     warning: "bg-slate-900 border-amber-500/30 text-amber-50 text-slate-100",
-    info: "bg-slate-900 border-[#D6B77A]/30 text-slate-100",
+    info: "bg-slate-900 border-accent/30 text-slate-100",
   };
 
   return (

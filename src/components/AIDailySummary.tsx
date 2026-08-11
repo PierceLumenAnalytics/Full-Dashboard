@@ -192,9 +192,9 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
 
     // Printable Executive Header
     element.innerHTML = `
-      <div style="border-bottom: 2px solid ${profile?.primaryColor || '#D6B77A'}; padding-bottom: 16px; margin-bottom: 24px;">
+      <div style="border-bottom: 2px solid ${profile?.primaryColor || 'var(--agency-primary)'}; padding-bottom: 16px; margin-bottom: 24px;">
         <div style="font-size: 22px; font-weight: 800; color: #1e1b4b; letter-spacing: -0.5px;">${profile?.agencyName || 'Lumen Analytics'} Summary</div>
-        <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: ${profile?.primaryColor || '#D6B77A'}; margin-top: 4px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE REPORT</div>
+        <div style="font-size: 9px; text-transform: uppercase; font-weight: 700; color: ${profile?.primaryColor || 'var(--agency-primary)'}; margin-top: 4px; letter-spacing: 1px;">EXECUTIVE PERFORMANCE REPORT</div>
         <div style="margin-top: 12px; font-size: 11px; color: #334155; display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
           <div><strong>Client Name:</strong> ${selectedClient ? `${selectedClient.name} (${selectedClient.domain})` : "All Clients"}</div>
           <div><strong>Date Range:</strong> ${dateRange.startDate} to ${dateRange.endDate}</div>
@@ -333,7 +333,7 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-5">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-[#F5F3EE] font-display flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[#D6B77A]" />
+            <Sparkles className="w-5 h-5 text-accent" />
             Lumen Intelligence
           </h2>
         </div>
@@ -342,17 +342,17 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
           <button
             onClick={fetchAISummary}
             disabled={loading}
-            className="px-3.5 py-2 bg-transparent hover:bg-white/5 border border-white/10 hover:border-[#D6B77A] text-[#8A8680] hover:text-[#F5F3EE] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 font-sans"
+            className="px-3.5 py-2 bg-transparent hover:bg-white/5 border border-white/10 hover:border-accent text-[#8A8680] hover:text-[#F5F3EE] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 font-sans"
             title="Re-compile insights"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-[#D6B77A]" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-accent" : ""}`} />
             <span>Regenerate</span>
           </button>
 
           <button
             onClick={handleCopy}
             disabled={loading || !summary}
-            className="px-3.5 py-2 bg-transparent hover:bg-white/5 border border-white/10 hover:border-[#D6B77A] text-[#8A8680] hover:text-[#F5F3EE] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 font-sans"
+            className="px-3.5 py-2 bg-transparent hover:bg-white/5 border border-white/10 hover:border-accent text-[#8A8680] hover:text-[#F5F3EE] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 font-sans"
             title="Copy summary content"
           >
             <Copy className="w-3.5 h-3.5 text-[#8A8680]" />
@@ -362,7 +362,7 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
           <button
             onClick={handleExportPDF}
             disabled={loading || !summary}
-            className="px-3.5 py-2 bg-[#D6B77A] hover:bg-[#bfa063] border border-[#D6B77A] text-[#080808] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 font-sans"
+            className="px-3.5 py-2 bg-accent hover:bg-[#bfa063] border border-accent text-[#080808] text-xs font-semibold rounded-md cursor-pointer transition-colors flex items-center gap-1.5 font-sans"
             title="Download executive PDF report"
           >
             <Download className="w-3.5 h-3.5 text-[#080808]" />
@@ -375,8 +375,8 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
       {loading ? (
         <div className="p-8 rounded-lg bg-[#101010] border border-white/5 min-h-[300px] flex flex-col items-center justify-center text-center space-y-4">
           <div className="relative flex items-center justify-center">
-            <div className="w-14 h-14 rounded-full border-2 border-white/10 border-t-[#D6B77A] animate-spin"></div>
-            <Sparkles className="w-5 h-5 text-[#D6B77A] absolute animate-pulse" />
+            <div className="w-14 h-14 rounded-full border-2 border-white/10 border-t-[var(--agency-primary)] animate-spin"></div>
+            <Sparkles className="w-5 h-5 text-accent absolute animate-pulse" />
           </div>
           <div>
             <h4 className="text-sm font-semibold text-[#F5F3EE]">Compiling Ad Spend Insights...</h4>
@@ -396,7 +396,7 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
           </div>
           <button
             onClick={fetchAISummary}
-            className="px-4 py-2 bg-[#D6B77A] hover:bg-[#bfa063] text-[#080808] text-xs font-semibold rounded-md transition-colors cursor-pointer animate-fade-in"
+            className="px-4 py-2 bg-accent hover:bg-[#bfa063] text-[#080808] text-xs font-semibold rounded-md transition-colors cursor-pointer animate-fade-in"
           >
             Retry Generation
           </button>
@@ -407,7 +407,7 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {insights.map((ins, idx) => {
                 const colors = {
-                  scale: { border: "border-[#D6B77A]/20", bg: "bg-[#101010]", text: "text-[#D6B77A]" },
+                  scale: { border: "border-accent/20", bg: "bg-[#101010]", text: "text-accent" },
                   watch: { border: "border-amber-500/20", bg: "bg-[#101010]", text: "text-amber-400" },
                   opportunity: { border: "border-emerald-500/20", bg: "bg-[#101010]", text: "text-emerald-400" },
                   alert: { border: "border-rose-500/20", bg: "bg-[#101010]", text: "text-rose-400" }
@@ -430,7 +430,7 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
                     </div>
                     <div className="pt-3 border-t border-white/5">
                       <p className="text-[11px] text-[#F5F3EE]">
-                        <span className="font-semibold text-[#D6B77A]">Recommendation:</span> {ins.action}
+                        <span className="font-semibold text-accent">Recommendation:</span> {ins.action}
                       </p>
                     </div>
                   </div>
@@ -444,7 +444,7 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
               <div className="absolute top-4 right-4 z-10">
                 <button
                   onClick={handleCopy}
-                  className="p-2 bg-[#151515] hover:bg-white/5 border border-white/5 hover:border-[#D6B77A] rounded-md text-[#8A8680] hover:text-[#F5F3EE] transition-colors cursor-pointer flex items-center gap-1 text-xs font-sans"
+                  className="p-2 bg-[#151515] hover:bg-white/5 border border-white/5 hover:border-accent rounded-md text-[#8A8680] hover:text-[#F5F3EE] transition-colors cursor-pointer flex items-center gap-1 text-xs font-sans"
                   title="Copy formatted markdown report"
                 >
                   <Copy className="w-3.5 h-3.5" />
@@ -454,7 +454,7 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
 
               {/* Document layout header */}
               <div className="flex items-center gap-2 border-b border-white/5 pb-4 mb-4 text-left">
-                <FileText className="w-4 h-4 text-[#D6B77A]" />
+                <FileText className="w-4 h-4 text-accent" />
                 <span className="text-[10px] font-mono tracking-widest text-[#8A8680] uppercase">
                   Performance Summary
                 </span>
@@ -465,14 +465,14 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
                 <Markdown
                   components={{
                     h1: ({ children }) => <h1 className="text-lg font-bold text-[#F5F3EE] mt-6 mb-3 font-display border-b border-white/5 pb-2 text-left">{children}</h1>,
-                    h2: ({ children }) => <h2 className="text-base font-bold text-[#D6B77A] mt-5 mb-2 font-display text-left">{children}</h2>,
-                    h3: ({ children }) => <h3 className="text-sm font-bold text-[#D6B77A] mt-4 mb-2 uppercase tracking-wider font-display text-left">{children}</h3>,
+                    h2: ({ children }) => <h2 className="text-base font-bold text-accent mt-5 mb-2 font-display text-left">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-sm font-bold text-accent mt-4 mb-2 uppercase tracking-wider font-display text-left">{children}</h3>,
                     p: ({ children }) => <p className="text-xs text-[#8A8680] leading-relaxed mt-2 mb-2 text-left">{children}</p>,
                     ul: ({ children }) => <ul className="space-y-2.5 my-3 pl-1 text-left">{children}</ul>,
                     ol: ({ children }) => <ol className="space-y-2.5 my-3 pl-1 list-decimal text-left">{children}</ol>,
                     li: ({ children }) => (
                       <li className="flex gap-2 text-xs text-[#8A8680] py-1 pl-1 leading-relaxed items-start text-left">
-                        <span className="text-[#D6B77A] font-semibold shrink-0 mt-1">●</span>
+                        <span className="text-accent font-semibold shrink-0 mt-1">●</span>
                         <span>{children}</span>
                       </li>
                     ),

@@ -27,6 +27,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { authFetch } from "../lib/supabaseClient";
+import { isValidHex } from "../utils/themeHelpers";
 import ClientsManager from "./ClientsManager";
 import LogsViewer from "./LogsViewer";
 import ToastContainer, { ToastMessage } from "./Toast";
@@ -148,6 +149,13 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
   };
 
   useEffect(() => {
+    // Reset to default Lumen Gold theme for Admin interface
+    document.documentElement.style.setProperty("--agency-primary", "#D6B77A");
+    document.documentElement.style.setProperty("--agency-primary-hover", "#c5af69");
+    document.documentElement.style.setProperty("--agency-primary-muted", "rgba(216, 194, 122, 0.12)");
+    document.documentElement.style.setProperty("--agency-primary-border", "rgba(216, 194, 122, 0.28)");
+    document.documentElement.style.setProperty("--agency-primary-contrast", "#080808");
+
     setLoading(true);
     Promise.all([fetchAgencies(), fetchClients(), fetchLogs()]).finally(() => setLoading(false));
   }, []);
@@ -1002,6 +1010,31 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
                 </div>
               </div>
 
+              {/* LIVE BRAND PREVIEW */}
+              <div className="border border-slate-900 rounded-lg p-3 bg-slate-950/40 text-left mt-3">
+                <span className="text-[9px] font-mono tracking-widest text-slate-500 uppercase block mb-2">Live Brand Accent Preview</span>
+                <div className="flex items-center justify-between border-b pb-2 px-1" style={{ borderBottomColor: isValidHex(agencyPrimaryColor) ? agencyPrimaryColor : "#D6B77A" }}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded bg-slate-900 border flex items-center justify-center font-bold text-[8px] uppercase shrink-0" style={{ borderColor: isValidHex(agencyPrimaryColor) ? agencyPrimaryColor : "#D6B77A" }}>
+                      {agencyLogoUrl ? (
+                        <img src={agencyLogoUrl} alt="" className="w-4 h-4 object-contain" />
+                      ) : (
+                        <span style={{ color: isValidHex(agencyPrimaryColor) ? agencyPrimaryColor : "#D6B77A" }}>
+                          {agencyName ? agencyName.substring(0, 2).toUpperCase() : "AG"}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-200">
+                      {agencyName || "Agency Name"}
+                    </span>
+                  </div>
+                  
+                  <span className="text-[8px] font-bold uppercase tracking-wider" style={{ color: isValidHex(agencyPrimaryColor) ? agencyPrimaryColor : "#D6B77A" }}>
+                    Active Accent
+                  </span>
+                </div>
+              </div>
+
               {/* Submit Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-900 shrink-0">
                 <button
@@ -1155,6 +1188,31 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
                       className="bg-slate-900/50 border border-slate-800 text-slate-200 text-xs rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-violet-500 flex-1 font-mono text-[10px]"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* LIVE BRAND PREVIEW */}
+              <div className="border border-slate-900 rounded-lg p-3 bg-slate-950/40 text-left mt-3">
+                <span className="text-[9px] font-mono tracking-widest text-slate-500 uppercase block mb-2">Live Brand Accent Preview</span>
+                <div className="flex items-center justify-between border-b pb-2 px-1" style={{ borderBottomColor: isValidHex(editingAgency.primary_color) ? editingAgency.primary_color : "#D6B77A" }}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded bg-slate-900 border flex items-center justify-center font-bold text-[8px] uppercase shrink-0" style={{ borderColor: isValidHex(editingAgency.primary_color) ? editingAgency.primary_color : "#D6B77A" }}>
+                      {editingAgency.logo_url ? (
+                        <img src={editingAgency.logo_url} alt="" className="w-4 h-4 object-contain" />
+                      ) : (
+                        <span style={{ color: isValidHex(editingAgency.primary_color) ? editingAgency.primary_color : "#D6B77A" }}>
+                          {editingAgency.name ? editingAgency.name.substring(0, 2).toUpperCase() : "AG"}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-200">
+                      {editingAgency.name || "Agency Name"}
+                    </span>
+                  </div>
+                  
+                  <span className="text-[8px] font-bold uppercase tracking-wider" style={{ color: isValidHex(editingAgency.primary_color) ? editingAgency.primary_color : "#D6B77A" }}>
+                    Active Accent
+                  </span>
                 </div>
               </div>
 

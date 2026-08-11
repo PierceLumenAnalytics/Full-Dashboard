@@ -59,8 +59,8 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
                 />
               ) : (
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg border border-[#D6B77A]/20 bg-[#151515] flex items-center justify-center font-bold text-xs">
-                    <span className="text-[#D6B77A] font-display text-sm font-bold">
+                  <div className="w-8 h-8 rounded-lg border border-accent/20 bg-[#151515] flex items-center justify-center font-bold text-xs">
+                    <span className="text-accent font-display text-sm font-bold">
                       {profile.logoUrl === "IGNITE_PPC" ? "IP" : profile.agencyName?.substring(0, 2).toUpperCase()}
                     </span>
                   </div>
@@ -68,7 +68,7 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
                     <h1 className="text-sm font-semibold tracking-tight text-[#F5F3EE] flex items-center gap-1.5">
                       {profile.agencyName}
                       {profile?.isDemo && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-[#D6B77A]/10 text-[#D6B77A] border border-[#D6B77A]/20 uppercase tracking-widest font-mono shrink-0">
+                        <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-accent/10 text-accent border border-accent/20 uppercase tracking-widest font-mono shrink-0">
                           Demo
                         </span>
                       )}
@@ -82,8 +82,8 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
             </div>
           ) : (
             <>
-              <div className="w-8 h-8 rounded-lg border border-[#D6B77A]/25 bg-[#151515] flex items-center justify-center font-bold text-xs">
-                <span className="text-[#D6B77A] font-display text-sm font-bold">L</span>
+              <div className="w-8 h-8 rounded-lg border border-accent/25 bg-[#151515] flex items-center justify-center font-bold text-xs">
+                <span className="text-accent font-display text-sm font-bold">L</span>
               </div>
               <div>
                 <h1 className="text-sm font-bold tracking-widest text-[#F5F3EE] font-display">
@@ -114,12 +114,12 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
                       onClick={() => setActiveTab(item.id)}
                       className={`w-full flex items-center py-2 text-xs font-medium transition-all cursor-pointer focus:outline-none ${
                         isActive
-                          ? "border-l-2 border-[#D6B77A] text-[#D6B77A] bg-transparent pl-2.5 font-bold"
+                          ? "border-l-2 border-accent text-accent bg-transparent pl-2.5 font-bold"
                           : "text-[#8A8680] hover:text-[#F5F3EE] hover:bg-white/5 pl-3"
                       }`}
                     >
                       {isActive ? (
-                        <span className="w-3.5 h-3.5 mr-2.5 bg-[#D6B77A] rounded-full inline-block scale-50"></span>
+                        <span className="w-3.5 h-3.5 mr-2.5 bg-accent rounded-full inline-block scale-50"></span>
                       ) : (
                         <Icon className="w-3.5 h-3.5 mr-2.5 text-[#8A8680]/60 shrink-0" />
                       )}
@@ -165,7 +165,7 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
                           onClick={() => setActiveTab(item.id)}
                           className={`w-full flex items-center py-1.5 text-[10.5px] font-medium transition-all cursor-pointer focus:outline-none ${
                             isActive
-                              ? "border-l-2 border-[#D6B77A] text-[#D6B77A] bg-transparent pl-2.5 font-bold"
+                              ? "border-l-2 border-accent text-accent bg-transparent pl-2.5 font-bold"
                               : "text-[#8A8680]/80 hover:text-[#F5F3EE] pl-3"
                           }`}
                         >
@@ -182,12 +182,12 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
                         onClick={() => setActiveTab(item.id)}
                         className={`w-full flex items-center py-2 text-xs font-medium transition-all cursor-pointer focus:outline-none ${
                           isActive
-                            ? "border-l-2 border-[#D6B77A] text-[#D6B77A] bg-transparent pl-2.5 font-bold"
+                            ? "border-l-2 border-accent text-accent bg-transparent pl-2.5 font-bold"
                             : "text-[#8A8680] hover:text-[#F5F3EE] hover:bg-white/5 pl-3"
                         }`}
                       >
                         {isActive ? (
-                          <span className="w-3.5 h-3.5 mr-2.5 bg-[#D6B77A] rounded-full inline-block scale-50"></span>
+                          <span className="w-3.5 h-3.5 mr-2.5 bg-accent rounded-full inline-block scale-50"></span>
                         ) : (
                           <Icon className="w-3.5 h-3.5 mr-2.5 text-[#8A8680]/60 shrink-0" />
                         )}
@@ -206,7 +206,7 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
       <div className="p-3 space-y-3 border-t border-white/5">
         <div className="px-3 py-1 flex justify-between text-[9px] text-[#8A8680] font-mono pt-1">
           <span>{isClientView ? "Client Portal" : isPublicReader ? "Client Portal" : profile?.isAdmin ? "Admin Console" : "Agency Portal"}</span>
-          {profile?.isDemo && <span className="text-[#D6B77A] font-bold tracking-wider">DEMO MODE</span>}
+          {profile?.isDemo && <span className="text-accent font-bold tracking-wider">DEMO MODE</span>}
         </div>
 
         {!isClientView && !isPublicReader && (

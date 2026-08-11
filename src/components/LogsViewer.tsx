@@ -25,7 +25,7 @@ export default function LogsViewer({ logs, onRefresh, isRefreshing }: LogsViewer
       case "CREATE":
         return "bg-emerald-500/10 border-emerald-500/20 text-emerald-400";
       case "UPDATE":
-        return "bg-[#D6B77A]/10 border-[#D6B77A]/20 text-[#D6B77A]";
+        return "bg-accent/10 border-accent/20 text-accent";
       case "DELETE":
         return "bg-rose-500/10 border-rose-500/20 text-rose-400";
       default:
@@ -39,7 +39,7 @@ export default function LogsViewer({ logs, onRefresh, isRefreshing }: LogsViewer
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in">
         <div>
           <h2 className="text-xl font-bold font-display text-slate-100 flex items-center gap-2">
-            <FileTerminal className="w-5 h-5 text-[#D6B77A]" />
+            <FileTerminal className="w-5 h-5 text-accent" />
             Security Audit Logs
           </h2>
           <p className="text-xs text-slate-400 mt-1">
@@ -52,7 +52,7 @@ export default function LogsViewer({ logs, onRefresh, isRefreshing }: LogsViewer
           disabled={isRefreshing}
           className="btn-secondary flex items-center gap-1.5 self-start sm:self-auto shrink-0"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-[#D6B77A]" : ""}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-accent" : ""}`} />
           <span>Refresh Logs</span>
         </button>
       </div>

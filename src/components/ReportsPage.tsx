@@ -183,7 +183,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
       {/* Premium Header Workload Card */}
       <div className="p-6 rounded-lg bg-gradient-to-r from-[#101010] to-[#151515] border border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="space-y-1">
-          <span className="text-[10px] font-mono tracking-widest text-[#D6B77A] uppercase font-bold">
+          <span className="text-[10px] font-mono tracking-widest text-accent uppercase font-bold">
             Automated Workload
           </span>
           <h2 className="text-xl font-bold text-[#F5F3EE] font-display uppercase tracking-tight">
@@ -241,7 +241,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
                       report.status === "Delivered" 
                         ? "bg-[#4ADE80]/5 text-[#4ADE80] border-[#4ADE80]/20"
                         : report.status === "Scheduled"
-                        ? "bg-[#D6B77A]/5 text-[#D6B77A] border-[#D6B77A]/20"
+                        ? "bg-accent/5 text-accent border-accent/20"
                         : "bg-white/5 text-[#8A8680] border-white/5"
                     }`}>
                       {report.status}
@@ -253,10 +253,10 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
                     <div className="flex items-center justify-end gap-1.5">
                       <button
                         onClick={() => handleGenerateReport(report)}
-                        className="p-1.5 bg-[#151515] hover:bg-white/5 border border-white/5 rounded text-[#D6B77A] hover:text-[#bfa063] transition-colors cursor-pointer"
+                        className="p-1.5 bg-[#151515] hover:bg-white/5 border border-white/5 rounded text-accent hover:text-[#bfa063] transition-colors cursor-pointer"
                         title="Generate Report"
                       >
-                        <Play className="w-3.5 h-3.5 fill-[#D6B77A] hover:fill-[#bfa063]" />
+                        <Play className="w-3.5 h-3.5 fill-[var(--agency-primary)] hover:fill-[#bfa063]" />
                       </button>
                       <button
                         onClick={() => {
@@ -303,7 +303,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
             {/* Modal Header */}
             <div className="p-5 border-b border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#D6B77A]" />
+                <Sparkles className="w-4 h-4 text-accent" />
                 <h3 className="text-sm font-bold text-[#F5F3EE] uppercase tracking-wider font-display">
                   Report Builder — {selectedReport.clientName}
                 </h3>
@@ -336,7 +336,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
                       onClick={() => setSelectedTone(tone)}
                       className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
                         selectedTone === tone
-                          ? "bg-[#D6B77A]/10 text-[#D6B77A] border border-[#D6B77A]/30"
+                          ? "bg-accent/10 text-accent border border-accent/30"
                           : "bg-[#101010] text-[#8A8680] hover:bg-[#151515] border border-transparent"
                       }`}
                     >
@@ -354,7 +354,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
                   </p>
                   <button
                     onClick={executeGeneration}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-[#D6B77A] hover:bg-[#bfa063] text-[#080808] text-xs font-bold rounded-md transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-accent hover:bg-[#bfa063] text-[#080808] text-xs font-bold rounded-md transition-colors cursor-pointer"
                   >
                     <Play className="w-3 h-3 fill-[#080808]" />
                     <span>Run AI Analysis</span>
@@ -365,7 +365,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
               {/* Generating spinner */}
               {isGenerating && (
                 <div className="p-8 text-center flex flex-col items-center justify-center space-y-4 min-h-[150px]">
-                  <Loader2 className="w-8 h-8 text-[#D6B77A] animate-spin" />
+                  <Loader2 className="w-8 h-8 text-accent animate-spin" />
                   <p className="text-xs text-[#8A8680]">
                     Compiling ad metrics and prompting AI using {selectedTone} tone...
                   </p>
@@ -381,7 +381,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
                     </span>
                     <button
                       onClick={executeGeneration}
-                      className="text-xs font-bold text-[#D6B77A] hover:underline cursor-pointer flex items-center gap-1"
+                      className="text-xs font-bold text-accent hover:underline cursor-pointer flex items-center gap-1"
                     >
                       Regenerate in new tone
                     </button>
@@ -390,7 +390,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {generatedResult.map((ins, idx) => {
                       const colors = {
-                        scale: { border: "border-[#D6B77A]/30", bg: "bg-[#D6B77A]/5", text: "text-[#D6B77A]" },
+                        scale: { border: "border-accent/30", bg: "bg-accent/5", text: "text-accent" },
                         watch: { border: "border-[#FCD34D]/30", bg: "bg-[#FCD34D]/5", text: "text-[#FCD34D]" },
                         opportunity: { border: "border-[#4ADE80]/30", bg: "bg-[#4ADE80]/5", text: "text-[#4ADE80]" },
                         alert: { border: "border-[#F87171]/30", bg: "bg-[#F87171]/5", text: "text-[#F87171]" }
@@ -407,7 +407,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
                           </div>
                           <div className="pt-2 border-t border-white/5">
                             <p className="text-[10px] text-[#F5F3EE] leading-snug">
-                              <span className="font-semibold text-[#D6B77A]">Rec:</span> {ins.action}
+                              <span className="font-semibold text-accent">Rec:</span> {ins.action}
                             </p>
                           </div>
                         </div>
@@ -446,7 +446,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
                   disabled={!generatedResult}
                   className={`px-3 py-2 rounded text-xs font-semibold border flex items-center gap-1 transition-colors ${
                     generatedResult
-                      ? "bg-[#101010] hover:bg-[#151515] border-white/5 text-[#D6B77A] cursor-pointer"
+                      ? "bg-[#101010] hover:bg-[#151515] border-white/5 text-accent cursor-pointer"
                       : "bg-[#101010] border-transparent text-[#8A8680]/30 cursor-not-allowed"
                   }`}
                 >
@@ -458,7 +458,7 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
                   disabled={!generatedResult}
                   className={`px-4 py-2 rounded text-xs font-bold flex items-center gap-1 transition-colors ${
                     generatedResult
-                      ? "bg-[#D6B77A] hover:bg-[#bfa063] text-[#080808] cursor-pointer"
+                      ? "bg-accent hover:bg-[#bfa063] text-[#080808] cursor-pointer"
                       : "bg-[#101010] text-[#8A8680]/30 cursor-not-allowed"
                   }`}
                 >

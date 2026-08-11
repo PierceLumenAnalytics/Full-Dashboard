@@ -11,6 +11,7 @@ import { RefreshCw, Calendar, ChevronDown } from "lucide-react";
 import { DateRange, getPresetRange, formatDisplayDate, getCompareRange } from "../utils/dateHelpers";
 import ReportsPage from "./ReportsPage";
 import { authFetch } from "../lib/supabaseClient";
+import { isValidHex, getContrastColor, darkenColor } from "../utils/themeHelpers";
 
 interface DashboardShellProps {
   session: any;
@@ -114,7 +115,17 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
 
   // Apply dynamic agency branding colors
   useEffect(() => {
-    // Disabled to preserve unified Lumen champagne gold brand design system globally
+    if (profile) {
+      const primaryColor = profile.primaryColor && isValidHex(profile.primaryColor) ? profile.primaryColor : "#D6B77A";
+      const hoverColor = darkenColor(primaryColor, 0.1);
+      const contrastColor = getContrastColor(primaryColor);
+      
+      document.documentElement.style.setProperty("--agency-primary", primaryColor);
+      document.documentElement.style.setProperty("--agency-primary-hover", hoverColor);
+      document.documentElement.style.setProperty("--agency-primary-muted", `${primaryColor}1f`);
+      document.documentElement.style.setProperty("--agency-primary-border", `${primaryColor}47`);
+      document.documentElement.style.setProperty("--agency-primary-contrast", contrastColor);
+    }
   }, [profile]);
 
   // Fetch list of all agencies if admin
@@ -350,7 +361,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                 }}
                 className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider transition-colors cursor-pointer ${
                   !isClientView
-                    ? "bg-[#D6B77A] text-[#080808]"
+                    ? "bg-accent text-[#080808]"
                     : "text-[#8A8680] hover:text-[#F5F3EE]"
                 }`}
               >
@@ -363,7 +374,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                 }}
                 className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider transition-colors cursor-pointer ${
                   isClientView
-                    ? "bg-[#D6B77A] text-[#080808]"
+                    ? "bg-accent text-[#080808]"
                     : "text-[#8A8680] hover:text-[#F5F3EE]"
                 }`}
               >
@@ -379,7 +390,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
               </div>
               
               {!profile?.logoUrl && (
-                <div className="bg-[#D6B77A]/10 border border-[#D6B77A]/20 px-2 py-0.5 rounded text-[10px] font-semibold text-[#D6B77A] tracking-wider uppercase">
+                <div className="bg-accent/10 border border-accent/20 px-2 py-0.5 rounded text-[10px] font-semibold text-accent tracking-wider uppercase">
                   Sample Account
                 </div>
               )}
@@ -418,7 +429,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                             setSelectedClientId("");
                           }
                         }}
-                        className="appearance-none bg-[#151515] border border-white/10 text-[#F5F3EE] text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 focus:border-[#D6B77A]/40 outline-none cursor-pointer"
+                        className="appearance-none bg-[#151515] border border-white/10 text-[#F5F3EE] text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 focus:border-accent/40 outline-none cursor-pointer"
                       >
                         <option value="All">All Agencies</option>
                         {agencies.map((agency) => (
@@ -440,7 +451,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                   <div className="relative">
                     <button
                       onClick={() => setIsClientDropdownOpen(!isClientDropdownOpen)}
-                      className="flex items-center justify-between w-48 bg-[#151515] border border-white/10 text-[#F5F3EE] text-xs font-semibold rounded-lg px-3 py-1.5 focus:border-[#D6B77A]/40 outline-none cursor-pointer text-left font-display"
+                      className="flex items-center justify-between w-48 bg-[#151515] border border-white/10 text-[#F5F3EE] text-xs font-semibold rounded-lg px-3 py-1.5 focus:border-accent/40 outline-none cursor-pointer text-left font-display"
                     >
                       <span className="truncate">{selectedClientId === "agency-overview" ? "All Clients" : activeClientEntity ? activeClientEntity.name : "Select Client"}</span>
                       <ChevronDown className="w-3.5 h-3.5 text-[#8A8680] shrink-0 ml-1" />
@@ -462,7 +473,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                             value={clientSearch}
                             onChange={(e) => setClientSearch(e.target.value)}
                             placeholder="Search clients..."
-                            className="w-full bg-[#101010] border border-white/5 rounded-md px-2 py-1 text-xs text-[#F5F3EE] focus:border-[#D6B77A]/40 outline-none placeholder:text-slate-600 font-sans"
+                            className="w-full bg-[#101010] border border-white/5 rounded-md px-2 py-1 text-xs text-[#F5F3EE] focus:border-accent/40 outline-none placeholder:text-slate-600 font-sans"
                             onClick={(e) => e.stopPropagation()}
                           />
                           <div className="max-h-48 overflow-y-auto space-y-0.5 font-sans">
@@ -481,7 +492,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                                 }}
                                 className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors cursor-pointer block truncate ${
                                   selectedClientId === "agency-overview"
-                                    ? "bg-[#D6B77A]/10 text-[#D6B77A] font-bold"
+                                    ? "bg-accent/10 text-accent font-bold"
                                     : "text-[#8A8680] hover:bg-white/5 hover:text-[#F5F3EE]"
                                 }`}
                               >
@@ -507,7 +518,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                                 }}
                                 className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors cursor-pointer block truncate ${
                                   selectedClientId === client.id
-                                    ? "bg-[#D6B77A]/10 text-[#D6B77A] font-bold"
+                                    ? "bg-accent/10 text-accent font-bold"
                                     : "text-[#8A8680] hover:bg-white/5 hover:text-[#F5F3EE]"
                                 }`}
                               >
@@ -550,7 +561,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                       "info"
                     );
                   }}
-                  className="appearance-none bg-[#151515] border border-white/10 text-[#F5F3EE] text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 focus:border-[#D6B77A]/40 outline-none cursor-pointer"
+                  className="appearance-none bg-[#151515] border border-white/10 text-[#F5F3EE] text-xs font-semibold rounded-lg pl-3 pr-8 py-1.5 focus:border-accent/40 outline-none cursor-pointer"
                 >
                   <option value="previous_period">Previous Period</option>
                   <option value="previous_year">Previous Year</option>
@@ -566,7 +577,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                 onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
                 className="flex items-center gap-2 bg-[#151515] hover:bg-[#202020] border border-white/10 px-3 py-1.5 rounded-lg text-[#F5F3EE] text-xs font-semibold cursor-pointer transition-all"
               >
-                <Calendar className="w-3.5 h-3.5 text-[#D6B77A] shrink-0" />
+                <Calendar className="w-3.5 h-3.5 text-accent shrink-0" />
                 <span className="font-medium tracking-wide">
                   {formatDisplayDate(dateRange.startDate)} to {formatDisplayDate(dateRange.endDate)}
                 </span>
@@ -611,7 +622,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                           }}
                           className={`px-2.5 py-1.5 rounded-md text-xs font-medium text-left transition-colors cursor-pointer ${
                             dateRange.preset === preset.value
-                              ? "bg-[#D6B77A]/10 text-[#D6B77A] border border-[#D6B77A]/30"
+                              ? "bg-accent/10 text-accent border border-accent/30"
                               : "bg-[#101010] text-[#8A8680] hover:bg-[#151515] border border-transparent"
                           }`}
                         >
@@ -637,7 +648,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                               setDateRange((prev) => ({ ...prev, startDate: newStart }));
                             }
                           }}
-                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-[#D6B77A]/40 outline-none w-full cursor-pointer [color-scheme:dark]"
+                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-accent/40 outline-none w-full cursor-pointer [color-scheme:dark]"
                         />
                       </div>
                       <div className="flex flex-col gap-1">
@@ -653,7 +664,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                               setDateRange((prev) => ({ ...prev, endDate: newEnd }));
                             }
                           }}
-                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-[#D6B77A]/40 outline-none w-full cursor-pointer [color-scheme:dark]"
+                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-accent/40 outline-none w-full cursor-pointer [color-scheme:dark]"
                         />
                       </div>
                       <button
@@ -669,7 +680,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                             "info"
                           );
                         }}
-                        className="w-full py-1.5 bg-[#D6B77A] hover:bg-[#bfa063] text-[#080808] font-semibold text-xs rounded-md transition-colors cursor-pointer"
+                        className="w-full py-1.5 bg-accent hover:bg-[#bfa063] text-[#080808] font-semibold text-xs rounded-md transition-colors cursor-pointer"
                       >
                         Apply Range
                       </button>
@@ -692,7 +703,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                               setCustomCompareRange((prev) => ({ ...prev, startDate: newStart }));
                             }
                           }}
-                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-[#D6B77A]/40 outline-none w-full cursor-pointer [color-scheme:dark]"
+                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-accent/40 outline-none w-full cursor-pointer [color-scheme:dark]"
                         />
                       </div>
                       <div className="flex flex-col gap-1">
@@ -708,7 +719,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
                               setCustomCompareRange((prev) => ({ ...prev, endDate: newEnd }));
                             }
                           }}
-                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-[#D6B77A]/40 outline-none w-full cursor-pointer [color-scheme:dark]"
+                          className="bg-[#101010] border border-white/5 rounded-md px-2.5 py-1.5 text-xs text-[#F5F3EE] focus:border-accent/40 outline-none w-full cursor-pointer [color-scheme:dark]"
                         />
                       </div>
                     </div>
@@ -724,7 +735,7 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
               className="p-2 bg-[#151515] hover:bg-[#202020] border border-white/10 text-[#8A8680] hover:text-[#F5F3EE] rounded-lg cursor-pointer transition-colors"
               title="Pull latest live platform API data"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-[#D6B77A]" : ""}`} />
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-accent" : ""}`} />
             </button>
           </div>
         </header>
