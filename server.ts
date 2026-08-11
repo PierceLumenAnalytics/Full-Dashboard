@@ -3,6 +3,8 @@ import path from "path";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
+import { generateReportData } from "./services/clientReport.js";
+import { sendEmail, renderReportHtml } from "./services/emailService.js";
 
 dotenv.config();
 
@@ -946,7 +948,14 @@ app.get("/api/clients", requireAuth, async (req, res) => {
       primaryGoal: c.primary_goal || null,
       regionalDistribution: c.regional_distribution || null,
       primaryMarket: c.primary_market || null,
-      logoUrl: c.logo_url || null
+      logoUrl: c.logo_url || null,
+      reportingEnabled: c.reporting_enabled || false,
+      reportEmail: c.report_email || null,
+      reportCc: c.report_cc || null,
+      reportDay: c.report_day !== undefined ? c.report_day : 1,
+      reportTime: c.report_time || "08:00",
+      reportTimezone: c.report_timezone || "UTC",
+      reportPeriod: c.report_period || "weekly"
     }));
 
     console.log(`GET /api/clients: Successfully retrieved and mapped ${mapped.length} clients.`);
@@ -959,7 +968,7 @@ app.get("/api/clients", requireAuth, async (req, res) => {
 
 // API: Create a client
 app.post("/api/clients", requireAuth, async (req, res) => {
-  const { name, domain, platform, monthlyBudget, agencyId: inputAgencyId, targetCpl, brandColor, industry, primaryGoal, primaryMarket, logoUrl } = req.body;
+  const { name, domain, platform, monthlyBudget, agencyId: inputAgencyId, targetCpl, brandColor, industry, primaryGoal, primaryMarket, logoUrl, reportingEnabled, reportEmail, reportCc, reportDay, reportTime, reportTimezone, reportPeriod } = req.body;
   const user = (req as any).user;
   
   // Zod-like simple key validation for security/safety
@@ -1012,7 +1021,14 @@ app.post("/api/clients", requireAuth, async (req, res) => {
         industry: industry || null,
         primary_goal: primaryGoal || null,
         primary_market: primaryMarket || null,
-        logo_url: logoUrl || null
+        logo_url: logoUrl || null,
+        reporting_enabled: !!reportingEnabled,
+        report_email: reportEmail ? reportEmail.trim() : null,
+        report_cc: reportCc ? reportCc.trim() : null,
+        report_day: reportDay !== undefined ? Number(reportDay) : 1,
+        report_time: reportTime || "08:00",
+        report_timezone: reportTimezone || "UTC",
+        report_period: reportPeriod || "weekly"
       })
       .select()
       .single();
@@ -1054,7 +1070,14 @@ app.post("/api/clients", requireAuth, async (req, res) => {
       primaryGoal: newClientData.primary_goal || null,
       regionalDistribution: newClientData.regional_distribution || null,
       primaryMarket: newClientData.primary_market || null,
-      logoUrl: newClientData.logo_url || null
+      logoUrl: newClientData.logo_url || null,
+      reportingEnabled: newClientData.reporting_enabled,
+      reportEmail: newClientData.report_email,
+      reportCc: newClientData.report_cc,
+      reportDay: newClientData.report_day,
+      reportTime: newClientData.report_time,
+      reportTimezone: newClientData.report_timezone,
+      reportPeriod: newClientData.report_period
     };
 
     res.status(201).json(mappedClient);
@@ -1100,6 +1123,13 @@ app.put("/api/clients/:id", requireAuth, async (req, res) => {
     if (req.body.regionalDistribution !== undefined) updates.regional_distribution = req.body.regionalDistribution || null;
     if (req.body.primaryMarket !== undefined) updates.primary_market = req.body.primaryMarket || null;
     if (req.body.logoUrl !== undefined) updates.logo_url = req.body.logoUrl || null;
+    if (req.body.reportingEnabled !== undefined) updates.reporting_enabled = !!req.body.reportingEnabled;
+    if (req.body.reportEmail !== undefined) updates.report_email = req.body.reportEmail ? req.body.reportEmail.trim() : null;
+    if (req.body.reportCc !== undefined) updates.report_cc = req.body.reportCc ? req.body.reportCc.trim() : null;
+    if (req.body.reportDay !== undefined) updates.report_day = Number(req.body.reportDay);
+    if (req.body.reportTime !== undefined) updates.report_time = req.body.reportTime;
+    if (req.body.reportTimezone !== undefined) updates.report_timezone = req.body.reportTimezone;
+    if (req.body.reportPeriod !== undefined) updates.report_period = req.body.reportPeriod;
 
     // 3. Update client
     const { data: updatedClientData, error: updateError } = await supabase
@@ -1139,7 +1169,21 @@ app.put("/api/clients/:id", requireAuth, async (req, res) => {
       monthlyBudget: Number(updatedClientData.monthly_budget),
       status: updatedClientData.status,
       createdAt: updatedClientData.created_at,
-      agencyId: updatedClientData.agency_id
+      agencyId: updatedClientData.agency_id,
+      targetCpl: updatedClientData.target_cpl ? Number(updatedClientData.target_cpl) : null,
+      brandColor: updatedClientData.brand_color || null,
+      industry: updatedClientData.industry || null,
+      primaryGoal: updatedClientData.primary_goal || null,
+      regionalDistribution: updatedClientData.regional_distribution || null,
+      primaryMarket: updatedClientData.primary_market || null,
+      logoUrl: updatedClientData.logo_url || null,
+      reportingEnabled: updatedClientData.reporting_enabled,
+      reportEmail: updatedClientData.report_email,
+      reportCc: updatedClientData.report_cc,
+      reportDay: updatedClientData.report_day,
+      reportTime: updatedClientData.report_time,
+      reportTimezone: updatedClientData.report_timezone,
+      reportPeriod: updatedClientData.report_period
     };
 
     res.json(mappedClient);
@@ -2020,6 +2064,300 @@ app.put("/api/clients/:id/public-dashboard", requireAuth, async (req, res) => {
     res.json({ success: true, clientId: id, publicDashboardEnabled: !!enabled });
   } catch (err: any) {
     res.status(500).json({ error: "Failed to publish client: " + err.message });
+  }
+});
+
+// ============================================================================
+// AUTOMATED CLIENT REPORTING + EMAIL ROUTING SYSTEM
+// ============================================================================
+
+// A. GET: Fetch client performance report data
+app.get("/api/clients/:clientId/report", requireAuth, async (req, res) => {
+  const { clientId } = req.params;
+  const user = (req as any).user;
+
+  try {
+    const { data: client, error: fetchError } = await supabase
+      .from("clients")
+      .select("agency_id, name")
+      .eq("id", clientId)
+      .single();
+
+    if (fetchError || !client) {
+      return res.status(404).json({ error: "Client account not found." });
+    }
+
+    if (!user.isAdmin && client.agency_id !== user.agencyId) {
+      return res.status(403).json({ error: "Access Denied: You do not own this client account." });
+    }
+
+    let startStr = req.query.startDate as string;
+    let endStr = req.query.endDate as string;
+    
+    // Default to last complete week (Monday -> Sunday)
+    if (!startStr || !endStr) {
+      const today = new Date();
+      const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday
+      const daysToSub = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      
+      const end = new Date();
+      end.setDate(today.getDate() - daysToSub - 1); // Last Sunday
+      const start = new Date();
+      start.setDate(end.getDate() - 6); // Last Monday
+      
+      startStr = start.toISOString().split("T")[0];
+      endStr = end.toISOString().split("T")[0];
+    }
+
+    const report = await generateReportData(clientId, client.agency_id, startStr, endStr, supabase);
+    res.json(report);
+  } catch (err: any) {
+    console.error("Error generating report:", err.message);
+    res.status(500).json({ error: "Failed to generate report: " + err.message });
+  }
+});
+
+// A2. GET: Fetch client performance report HTML preview
+app.get("/api/clients/:clientId/report/preview", requireAuth, async (req, res) => {
+  const { clientId } = req.params;
+  const user = (req as any).user;
+
+  try {
+    const { data: client, error: fetchError } = await supabase
+      .from("clients")
+      .select("agency_id, name")
+      .eq("id", clientId)
+      .single();
+
+    if (fetchError || !client) {
+      return res.status(404).send("Client account not found.");
+    }
+
+    if (!user.isAdmin && client.agency_id !== user.agencyId) {
+      return res.status(403).send("Access Denied: You do not own this client account.");
+    }
+
+    let startStr = req.query.startDate as string;
+    let endStr = req.query.endDate as string;
+    
+    if (!startStr || !endStr) {
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const daysToSub = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      
+      const end = new Date();
+      end.setDate(today.getDate() - daysToSub - 1);
+      const start = new Date();
+      start.setDate(end.getDate() - 6);
+      
+      startStr = start.toISOString().split("T")[0];
+      endStr = end.toISOString().split("T")[0];
+    }
+
+    const report = await generateReportData(clientId, client.agency_id, startStr, endStr, supabase);
+    const html = renderReportHtml(report);
+    res.setHeader("Content-Type", "text/html");
+    res.send(html);
+  } catch (err: any) {
+    console.error("Error generating report preview:", err.message);
+    res.status(500).send("Failed to generate report preview: " + err.message);
+  }
+});
+
+// B. POST: Dispatch test report email to target email address
+app.post("/api/clients/:clientId/report/test", requireAuth, async (req, res) => {
+  const { clientId } = req.params;
+  const { testEmail } = req.body;
+  const user = (req as any).user;
+
+  if (!testEmail || typeof testEmail !== "string" || !testEmail.includes("@")) {
+    return res.status(400).json({ error: "A valid testEmail address is required." });
+  }
+
+  try {
+    const { data: client, error: fetchError } = await supabase
+      .from("clients")
+      .select("agency_id, name")
+      .eq("id", clientId)
+      .single();
+
+    if (fetchError || !client) {
+      return res.status(404).json({ error: "Client account not found." });
+    }
+
+    if (!user.isAdmin && client.agency_id !== user.agencyId) {
+      return res.status(403).json({ error: "Access Denied: You do not own this client account." });
+    }
+
+    // Default to last complete week
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const daysToSub = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    
+    const end = new Date();
+    end.setDate(today.getDate() - daysToSub - 1);
+    const start = new Date();
+    start.setDate(end.getDate() - 6);
+    
+    const startStr = start.toISOString().split("T")[0];
+    const endStr = end.toISOString().split("T")[0];
+
+    const report = await generateReportData(clientId, client.agency_id, startStr, endStr, supabase);
+    const html = renderReportHtml(report);
+    
+    const emailResult = await sendEmail({
+      to: testEmail,
+      subject: `[TEST REPORT] Weekly Performance Report for ${report.clientName}`,
+      html,
+      agencyName: report.agencyName
+    });
+
+    if (emailResult.success) {
+      res.json({ success: true, message: "Test report email dispatched successfully!" });
+    } else {
+      res.status(500).json({ error: "Failed to deliver email: " + emailResult.error });
+    }
+  } catch (err: any) {
+    console.error("Error sending test report:", err.message);
+    res.status(500).json({ error: "Failed to send test report: " + err.message });
+  }
+});
+
+// C. POST: Cron handler to generate and dispatch weekly reports
+app.post("/api/cron/client-reports", async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET;
+  const reqSecret = req.query.secret || req.headers["x-cron-secret"];
+
+  if (cronSecret && reqSecret !== cronSecret) {
+    return res.status(401).json({ error: "Unauthorized: Invalid cron secret." });
+  }
+
+  console.log("[CRON] Initiating automated client report batch process...");
+
+  try {
+    const { data: clients, error: fetchErr } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("reporting_enabled", true);
+
+    if (fetchErr) throw fetchErr;
+    if (!clients || clients.length === 0) {
+      return res.json({ message: "No clients configured for automated reporting.", processed: 0 });
+    }
+
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const daysToSub = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    
+    const end = new Date();
+    end.setDate(today.getDate() - daysToSub - 1);
+    const start = new Date();
+    start.setDate(end.getDate() - 6);
+    
+    const startStr = start.toISOString().split("T")[0];
+    const endStr = end.toISOString().split("T")[0];
+
+    const results: any[] = [];
+    let processed = 0;
+
+    for (const client of clients) {
+      const recipient = client.report_email;
+      if (!recipient || !recipient.includes("@")) {
+        results.push({ clientId: client.id, status: "skipped", reason: "Invalid or missing report_email." });
+        continue;
+      }
+
+      // Check timezone eligibility
+      try {
+        const clientDateObj = new Date(new Intl.DateTimeFormat("en-US", { timeZone: client.report_timezone || "UTC" }).format(new Date()));
+        const clientLocalDay = clientDateObj.getDay(); // 0 = Sunday, 1 = Monday, etc.
+
+        if (clientLocalDay !== client.report_day) {
+          // Not the configured day for this client yet
+          continue;
+        }
+
+        const clientLocalHourStr = new Intl.DateTimeFormat("en-US", { timeZone: client.report_timezone || "UTC", hour: "numeric", hour12: false }).format(new Date());
+        const clientLocalHour = parseInt(clientLocalHourStr, 10);
+        const targetHour = parseInt((client.report_time || "08:00").split(":")[0], 10);
+
+        if (clientLocalHour < targetHour) {
+          // Configured hour has not arrived yet in client's timezone
+          continue;
+        }
+      } catch (tzErr: any) {
+        console.warn(`Timezone lookup failed for client ${client.id} (${client.report_timezone}): ${tzErr.message}. Defaulting to send.`);
+      }
+
+      processed++;
+
+      // Check if already sent (Idempotency unique check)
+      const { data: existingDelivery } = await supabase
+        .from("client_report_deliveries")
+        .select("id")
+        .eq("client_id", client.id)
+        .eq("report_period_start", startStr)
+        .eq("report_period_end", endStr)
+        .eq("recipient_email", recipient)
+        .maybeSingle();
+
+      if (existingDelivery) {
+        results.push({ clientId: client.id, status: "skipped", reason: "Report already sent for this period." });
+        continue;
+      }
+
+      try {
+        // Generate Report
+        const report = await generateReportData(client.id, client.agency_id, startStr, endStr, supabase);
+        const html = renderReportHtml(report);
+
+        // Send Email
+        const emailResult = await sendEmail({
+          to: recipient,
+          cc: client.report_cc || undefined,
+          subject: `Weekly Performance Report for ${report.clientName}`,
+          html,
+          agencyName: report.agencyName
+        });
+
+        if (emailResult.success) {
+          // Record successful delivery
+          await supabase.from("client_report_deliveries").insert({
+            agency_id: client.agency_id,
+            client_id: client.id,
+            report_period_start: startStr,
+            report_period_end: endStr,
+            recipient_email: recipient,
+            status: "sent",
+            sent_at: new Date().toISOString()
+          });
+
+          results.push({ clientId: client.id, status: "sent" });
+        } else {
+          throw new Error(emailResult.error);
+        }
+      } catch (sendErr: any) {
+        console.error(`Failed to send report for client ${client.id}:`, sendErr.message);
+
+        // Record failed delivery attempt
+        await supabase.from("client_report_deliveries").insert({
+          agency_id: client.agency_id,
+          client_id: client.id,
+          report_period_start: startStr,
+          report_period_end: endStr,
+          recipient_email: recipient,
+          status: "failed",
+          error_message: sendErr.message
+        });
+
+        results.push({ clientId: client.id, status: "failed", error: sendErr.message });
+      }
+    }
+
+    res.json({ message: "Automated report batch run complete.", processed, results });
+  } catch (err: any) {
+    console.error("Cron batch reporting error:", err.message);
+    res.status(500).json({ error: "Automated batch run failed: " + err.message });
   }
 });
 

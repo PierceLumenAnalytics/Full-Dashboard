@@ -351,7 +351,14 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
           industry: clientData.industry,
           primaryGoal: clientData.primaryGoal,
           primaryMarket: clientData.primaryMarket,
-          logoUrl: clientData.logoUrl
+          logoUrl: clientData.logoUrl,
+          reportingEnabled: clientData.reportingEnabled,
+          reportEmail: clientData.reportEmail,
+          reportCc: clientData.reportCc,
+          reportDay: clientData.reportDay,
+          reportTime: clientData.reportTime,
+          reportTimezone: clientData.reportTimezone,
+          reportPeriod: clientData.reportPeriod
         })
       });
 

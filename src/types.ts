@@ -14,6 +14,13 @@ export interface ClientAccount {
   regionalDistribution?: any[] | null;
   primaryMarket?: string | null;
   logoUrl?: string | null;
+  reportingEnabled?: boolean;
+  reportEmail?: string | null;
+  reportCc?: string | null;
+  reportDay?: number;
+  reportTime?: string;
+  reportTimezone?: string;
+  reportPeriod?: "weekly" | "monthly";
 }
 
 export interface PerformanceMetric {

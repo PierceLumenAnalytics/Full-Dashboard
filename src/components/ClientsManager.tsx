@@ -66,6 +66,22 @@ export default function ClientsManager({
   const [formPrimaryMarket, setFormPrimaryMarket] = useState("Phoenix, AZ");
   const [formLogoUrl, setFormLogoUrl] = useState("");
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  
+  const [reportingEnabled, setReportingEnabled] = useState(false);
+  const [reportEmail, setReportEmail] = useState("");
+  const [reportCc, setReportCc] = useState("");
+  const [reportDay, setReportDay] = useState(1);
+  const [reportTime, setReportTime] = useState("08:00");
+  const [reportTimezone, setReportTimezone] = useState("UTC");
+  const [reportPeriod, setReportPeriod] = useState<any>("weekly");
+
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testEmailAddress, setTestEmailAddress] = useState("");
+  const [showTestInput, setShowTestInput] = useState(false);
+
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -106,6 +122,15 @@ export default function ClientsManager({
     setFormPrimaryGoal("Leads");
     setFormPrimaryMarket("Phoenix, AZ");
     setFormLogoUrl("");
+    setReportingEnabled(false);
+    setReportEmail("");
+    setReportCc("");
+    setReportDay(1);
+    setReportTime("08:00");
+    setReportTimezone("UTC");
+    setReportPeriod("weekly");
+    setShowTestInput(false);
+    setTestEmailAddress("");
     if (isAdmin && agenciesList.length > 0) {
       setFormAgencyId(agenciesList[0].id);
     } else {
@@ -127,6 +152,15 @@ export default function ClientsManager({
     setFormPrimaryGoal(client.primaryGoal || "Leads");
     setFormPrimaryMarket(client.primaryMarket || "Phoenix, AZ");
     setFormLogoUrl(client.logoUrl || "");
+    setReportingEnabled(client.reportingEnabled || false);
+    setReportEmail(client.reportEmail || "");
+    setReportCc(client.reportCc || "");
+    setReportDay(client.reportDay !== undefined ? client.reportDay : 1);
+    setReportTime(client.reportTime || "08:00");
+    setReportTimezone(client.reportTimezone || "UTC");
+    setReportPeriod(client.reportPeriod || "weekly");
+    setShowTestInput(false);
+    setTestEmailAddress(client.reportEmail || "");
     setFormAgencyId((client as any).agencyId || profile?.agencyId || "");
     setFormErrors({});
     setIsModalOpen(true);
@@ -174,6 +208,48 @@ export default function ClientsManager({
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handlePreviewReport = async () => {
+    if (!editingClient) return;
+    setLoadingPreview(true);
+    try {
+      const res = await authFetch(`/api/clients/${editingClient.id}/report/preview`);
+      if (!res.ok) throw new Error("Failed to load report preview HTML.");
+      const html = await res.text();
+      setPreviewHtml(html);
+      setIsPreviewModalOpen(true);
+    } catch (err: any) {
+      addToast("Preview Failed", err.message || "Failed to fetch HTML preview.", "error");
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!editingClient) return;
+    if (!testEmailAddress || !testEmailAddress.includes("@")) {
+      addToast("Invalid Email", "Please provide a valid test recipient email address.", "error");
+      return;
+    }
+    setSendingTest(true);
+    try {
+      const res = await authFetch(`/api/clients/${editingClient.id}/report/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ testEmail: testEmailAddress })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to dispatch test email.");
+      }
+      addToast("Email Dispatched", `Test report successfully sent to: ${testEmailAddress}`, "success");
+      setShowTestInput(false);
+    } catch (err: any) {
+      addToast("Dispatch Failed", err.message || "Error occurred during delivery attempt.", "error");
+    } finally {
+      setSendingTest(false);
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -348,7 +424,14 @@ export default function ClientsManager({
           industry: formIndustry.trim() || null,
           primaryGoal: formPrimaryGoal,
           primaryMarket: formPrimaryMarket,
-          logoUrl: formLogoUrl.trim() || null
+          logoUrl: formLogoUrl.trim() || null,
+          reportingEnabled,
+          reportEmail: reportEmail.trim() || null,
+          reportCc: reportCc.trim() || null,
+          reportDay,
+          reportTime: reportTime.trim(),
+          reportTimezone: reportTimezone.trim(),
+          reportPeriod
         });
       } else {
         await onAddClient({
@@ -362,7 +445,14 @@ export default function ClientsManager({
           industry: formIndustry.trim() || null,
           primaryGoal: formPrimaryGoal,
           primaryMarket: formPrimaryMarket,
-          logoUrl: formLogoUrl.trim() || null
+          logoUrl: formLogoUrl.trim() || null,
+          reportingEnabled,
+          reportEmail: reportEmail.trim() || null,
+          reportCc: reportCc.trim() || null,
+          reportDay,
+          reportTime: reportTime.trim(),
+          reportTimezone: reportTimezone.trim(),
+          reportPeriod
         });
       }
       setIsModalOpen(false);
@@ -767,6 +857,149 @@ export default function ClientsManager({
                 </div>
               </div>
 
+              {/* Weekly Client Performance Reporting Accordion */}
+              <div className="border border-slate-800 rounded-lg p-4 bg-slate-900/20 mb-4">
+                <div className="flex items-center justify-between cursor-pointer" onClick={() => setReportingEnabled(!reportingEnabled)}>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-slate-200">Weekly Performance Email Reports</span>
+                    <span className="text-[10px] text-slate-550">Automatically generate and email branded PDF-style reports to client.</span>
+                  </div>
+                  <div className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={reportingEnabled} 
+                      onChange={(e) => setReportingEnabled(e.target.checked)} 
+                      className="sr-only peer" 
+                    />
+                    <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-400 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-600"></div>
+                  </div>
+                </div>
+
+                {reportingEnabled && (
+                  <div className="mt-4 pt-4 border-t border-slate-800/80 space-y-4">
+                    {/* Recipient and CC */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col">
+                        <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Recipient Email</label>
+                        <input
+                          type="email"
+                          placeholder="client@example.com"
+                          value={reportEmail}
+                          onChange={(e) => setReportEmail(e.target.value)}
+                          className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
+                          required={reportingEnabled}
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">CC Email(s) (Comma separated)</label>
+                        <input
+                          type="text"
+                          placeholder="manager@example.com"
+                          value={reportCc}
+                          onChange={(e) => setReportCc(e.target.value)}
+                          className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Day, Time, Timezone, Period */}
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="flex flex-col">
+                        <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Schedule Day</label>
+                        <select
+                          value={reportDay}
+                          onChange={(e) => setReportDay(Number(e.target.value))}
+                          className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
+                        >
+                          <option value={1}>Monday</option>
+                          <option value={2}>Tuesday</option>
+                          <option value={3}>Wednesday</option>
+                          <option value={4}>Thursday</option>
+                          <option value={5}>Friday</option>
+                          <option value={6}>Saturday</option>
+                          <option value={0}>Sunday</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Schedule Time</label>
+                        <input
+                          type="text"
+                          placeholder="08:00"
+                          value={reportTime}
+                          onChange={(e) => setReportTime(e.target.value)}
+                          className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30 font-mono"
+                          required={reportingEnabled}
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Timezone</label>
+                        <input
+                          type="text"
+                          placeholder="UTC"
+                          value={reportTimezone}
+                          onChange={(e) => setReportTimezone(e.target.value)}
+                          className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30 font-mono"
+                          required={reportingEnabled}
+                        />
+                      </div>
+                      <div className="flex flex-col">
+                        <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Period</label>
+                        <select
+                          value={reportPeriod}
+                          onChange={(e) => setReportPeriod(e.target.value as any)}
+                          className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
+                        >
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Admin Test Send / Preview Actions (only display for existing saved clients) */}
+                    {editingClient && (
+                      <div className="flex flex-col gap-2 pt-2 border-t border-slate-800/80">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={handlePreviewReport}
+                            className="px-3 py-1.5 bg-violet-600/10 hover:bg-violet-600/20 text-violet-400 border border-violet-500/20 text-xs font-medium rounded-lg transition-colors"
+                          >
+                            {loadingPreview ? "Generating Preview..." : "Preview Report HTML"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowTestInput(!showTestInput)}
+                            className="px-3 py-1.5 bg-slate-850 hover:bg-slate-750 text-slate-300 border border-slate-700 text-xs font-medium rounded-lg transition-colors"
+                          >
+                            Send Test Email
+                          </button>
+                        </div>
+
+                        {showTestInput && (
+                          <div className="flex gap-2 items-center mt-2 bg-slate-900/55 p-2 rounded-lg border border-slate-800">
+                            <input
+                              type="email"
+                              placeholder="Send test email to..."
+                              value={testEmailAddress}
+                              onChange={(e) => setTestEmailAddress(e.target.value)}
+                              className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded p-1.5 outline-none flex-1"
+                            />
+                            <button
+                              type="button"
+                              disabled={sendingTest}
+                              onClick={handleSendTestEmail}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded transition-colors shrink-0"
+                            >
+                              {sendingTest ? "Sending..." : "Dispatch"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Submit Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/5 text-right">
                 <button
@@ -882,6 +1115,37 @@ export default function ClientsManager({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* HTML Report Preview Modal */}
+      {isPreviewModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-4xl h-[85vh] bg-[#101010] border border-slate-800 rounded-xl flex flex-col overflow-hidden shadow-2xl animate-scale-in">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-900 bg-[#121212]">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-100 font-display uppercase tracking-wider">Branded Email Report Preview</h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">Live preview compiled using real database data and agency styles.</p>
+              </div>
+              <button
+                onClick={() => setIsPreviewModalOpen(false)}
+                className="text-slate-400 hover:text-slate-200 transition-colors p-1 border border-slate-800 hover:border-slate-700 bg-slate-900 rounded"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Frame body */}
+            <div className="flex-1 bg-black p-4">
+              <iframe
+                title="Email Report Preview"
+                srcDoc={previewHtml}
+                className="w-full h-full border-0 rounded bg-[#080808]"
+                sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+              />
+            </div>
           </div>
         </div>
       )}

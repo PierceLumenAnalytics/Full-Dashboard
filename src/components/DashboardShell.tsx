@@ -157,9 +157,13 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
       const data = await res.json();
       setClients(data);
       
-      // Auto select first client if none selected
-      // Auto select Agency Overview if none selected
-      if (data.length > 0 && !selectedClientId) {
+      // Auto select client from URL query param if present
+      const params = new URLSearchParams(window.location.search);
+      const urlClientId = params.get("client");
+
+      if (urlClientId && data.some((c: any) => c.id === urlClientId)) {
+        setSelectedClientId(urlClientId);
+      } else if (data.length > 0 && !selectedClientId) {
         setSelectedClientId("agency-overview");
       }
     } catch (err: any) {
