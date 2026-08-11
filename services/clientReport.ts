@@ -14,7 +14,7 @@ export async function getOrCreatePortalToken(
 ): Promise<string | null> {
   const { data: existing } = await supabase
     .from("client_portal_access")
-    .select("encrypted_token, enabled")
+    .select("token_hash, encrypted_token, enabled")
     .eq("client_id", clientId)
     .single();
 
@@ -26,7 +26,9 @@ export async function getOrCreatePortalToken(
 
     if (existing.encrypted_token) {
       const decrypted = decryptPortalToken(existing.encrypted_token);
-      if (decrypted) return decrypted;
+      if (decrypted && hashPortalToken(decrypted) === existing.token_hash) {
+        return decrypted;
+      }
     }
   }
 

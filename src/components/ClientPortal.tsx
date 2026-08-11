@@ -517,10 +517,10 @@ export default function ClientPortal({ token }: ClientPortalProps) {
                         </div>
                         <div>
                           <div className="text-sm font-semibold text-white">
-                            Performance Report ({r.report_period_start} – {r.report_period_end})
+                            Performance Report ({r.reportPeriodStart || r.report_period_start} – {r.reportPeriodEnd || r.report_period_end})
                           </div>
                           <div className="text-xs text-slate-400 mt-0.5">
-                            Delivered to {r.recipient_email} • {new Date(r.sent_at).toLocaleDateString()}
+                            Published {new Date(r.sentAt || r.sent_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                           </div>
                         </div>
                       </div>

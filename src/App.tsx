@@ -28,15 +28,54 @@ export default function App() {
       const agencyMatch = path.match(/^\/agency\/([^/]+)/i);
       if (agencyMatch && agencyMatch[1]) {
         const slug = agencyMatch[1];
-        setAgencySlug(slug);
+        if (slug === "northstar-digital") {
+          // Public sales demo workspace
+          setAgencySlug(slug);
+          setIsAdminRoute(false);
+          const publicSession = {
+            access_token: null,
+            user: null,
+            agencySlug: slug
+          };
+          setSession(publicSession);
+          setGlobalSession(publicSession);
+          setLoading(false);
+          return;
+        }
+
+        // Real agency workspace: Require authenticated user session
+        try {
+          const { data: { session: activeSession } } = await supabase.auth.getSession();
+          if (activeSession) {
+            setGlobalSession(activeSession);
+            const res = await fetch("/api/profile", {
+              headers: { Authorization: `Bearer ${activeSession.access_token}` }
+            });
+            if (res.ok) {
+              const profile = await res.json();
+              if (profile.isAdmin || (profile.agencyId && profile.agencyName)) {
+                setAgencySlug(slug);
+                setIsAdminRoute(false);
+                setSession(activeSession);
+                setLoading(false);
+                return;
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Agency session check failed:", err);
+        }
+
+        // Unauthenticated or invalid session -> Fall back to public demo
+        setAgencySlug("northstar-digital");
         setIsAdminRoute(false);
-        const publicSession = {
+        const demoSession = {
           access_token: null,
           user: null,
-          agencySlug: slug
+          agencySlug: "northstar-digital"
         };
-        setSession(publicSession);
-        setGlobalSession(publicSession);
+        setSession(demoSession);
+        setGlobalSession(demoSession);
         setLoading(false);
         return;
       }

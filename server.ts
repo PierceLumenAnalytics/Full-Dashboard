@@ -220,7 +220,7 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
       }
     }
 
-    // 3. Check X-Agency-Slug header for public white-label dashboard requests (read-only)
+    // 3. Check X-Agency-Slug header ONLY for public demo agencies (is_demo === true)
     const agencySlug = req.headers["x-agency-slug"] || req.query.agencySlug;
     if (agencySlug && typeof agencySlug === "string") {
       const { data: agency, error: agencyError } = await supabase
@@ -229,7 +229,8 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
         .eq("slug", agencySlug)
         .single();
       
-      if (!agencyError && agency) {
+      // CRITICAL SECURITY RULE: Unauthenticated slug-based access is strictly prohibited for real agencies (is_demo !== true)
+      if (!agencyError && agency && agency.is_demo === true) {
         (req as any).user = {
           id: "public-reader",
           email: agency.contact_email || `agency@${agency.slug}.com`,
@@ -241,7 +242,7 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
           primaryColor: agency.primary_color || null,
           accentColor: agency.accent_color || null,
           clientLimit: agency.client_limit || 5,
-          isDemo: agency.is_demo || false
+          isDemo: true
         };
         return next();
       }
@@ -2077,21 +2078,34 @@ const requireClientPortalAccess = async (req: express.Request, res: express.Resp
 
     const tokenHash = hashPortalToken(token);
 
-    const { data: portalRecord, error: portalErr } = await supabase
+    const { data: portalRecords, error: portalErr } = await supabase
       .from("client_portal_access")
-      .select("*, clients(*), agencies(*)")
+      .select("*")
       .eq("token_hash", tokenHash)
       .eq("enabled", true)
-      .single();
+      .limit(1);
+
+    const portalRecord = portalRecords && portalRecords.length > 0 ? portalRecords[0] : null;
 
     if (portalErr || !portalRecord) {
+      console.error("requireClientPortalAccess failure — portalErr:", portalErr?.message || portalErr, "tokenHash:", tokenHash);
       return res.status(401).json({ error: "Unauthorized: Invalid, disabled, or revoked portal token." });
     }
 
-    const client = portalRecord.clients;
-    const agency = portalRecord.agencies;
+    const { data: client } = await supabase
+      .from("clients")
+      .select("*")
+      .eq("id", portalRecord.client_id)
+      .single();
+
+    const { data: agency } = await supabase
+      .from("agencies")
+      .select("*")
+      .eq("id", portalRecord.agency_id)
+      .single();
 
     if (!client || !agency || client.agency_id !== portalRecord.agency_id) {
+      console.error("requireClientPortalAccess binding failure — client:", client?.id, "agency:", agency?.id, "portalAgency:", portalRecord.agency_id);
       return res.status(401).json({ error: "Unauthorized: Invalid portal client binding." });
     }
 
@@ -2325,19 +2339,30 @@ app.get("/api/portal/validate/:token", rateLimiter(30, 60000), async (req, res) 
   if (!token) return res.status(400).json({ error: "Portal token parameter is required." });
 
   const tokenHash = hashPortalToken(token);
-  const { data: portalRecord, error: portalErr } = await supabase
+  const { data: portalRecords, error: portalErr } = await supabase
     .from("client_portal_access")
-    .select("*, clients(*), agencies(*)")
+    .select("*")
     .eq("token_hash", tokenHash)
     .eq("enabled", true)
-    .single();
+    .limit(1);
+
+  const portalRecord = portalRecords && portalRecords.length > 0 ? portalRecords[0] : null;
 
   if (portalErr || !portalRecord) {
     return res.status(401).json({ error: "Unauthorized: Invalid, disabled, or revoked portal token." });
   }
 
-  const client = portalRecord.clients;
-  const agency = portalRecord.agencies;
+  const { data: client } = await supabase
+    .from("clients")
+    .select("*")
+    .eq("id", portalRecord.client_id)
+    .single();
+
+  const { data: agency } = await supabase
+    .from("agencies")
+    .select("*")
+    .eq("id", portalRecord.agency_id)
+    .single();
 
   if (!client || !agency || client.agency_id !== portalRecord.agency_id) {
     return res.status(401).json({ error: "Unauthorized: Client portal context mismatch." });
@@ -2516,20 +2541,28 @@ app.get("/api/portal/summary", requireClientPortalAccess, rateLimiter(20, 60000)
   }
 });
 
-// 7. PUBLIC PORTAL: Scoped Reports List
+// 7. PUBLIC PORTAL: Scoped Reports List (Explicit Safe Projection)
 app.get("/api/portal/reports", requireClientPortalAccess, rateLimiter(20, 60000), async (req, res) => {
   const ctx = (req as any).portalContext;
 
   try {
     const { data: deliveries, error } = await supabase
       .from("client_report_deliveries")
-      .select("*")
+      .select("id, report_period_start, report_period_end, sent_at, status")
       .eq("client_id", ctx.clientId)
       .order("sent_at", { ascending: false });
 
     if (error) throw error;
 
-    res.json(deliveries || []);
+    const mapped = (deliveries || []).map((d: any) => ({
+      id: d.id,
+      reportPeriodStart: d.report_period_start,
+      reportPeriodEnd: d.report_period_end,
+      sentAt: d.sent_at,
+      status: d.status
+    }));
+
+    res.json(mapped);
   } catch (err: any) {
     res.status(500).json({ error: "Failed to load portal reports: " + err.message });
   }

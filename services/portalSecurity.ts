@@ -6,18 +6,25 @@ import crypto from "crypto";
  */
 function getEncryptionKey(): Buffer {
   const envKey = process.env.PORTAL_TOKEN_ENCRYPTION_KEY;
-  if (!envKey) {
-    if (process.env.NODE_ENV === "production") {
+
+  if (process.env.NODE_ENV === "production") {
+    if (!envKey) {
       throw new Error("CRITICAL SECURITY ERROR: PORTAL_TOKEN_ENCRYPTION_KEY environment variable is required in production.");
     }
-    // Safe development fallback derived key (only used in non-production local development)
-    return crypto.createHash("sha256").update("lumen_local_dev_portal_encryption_key_2026").digest();
-  }
-
-  if (envKey.length === 64 && /^[0-9a-fA-F]+$/.test(envKey)) {
+    if (envKey.length !== 64) {
+      throw new Error("CRITICAL SECURITY ERROR: PORTAL_TOKEN_ENCRYPTION_KEY must be exactly 64 hexadecimal characters (32 bytes).");
+    }
+    if (!/^[0-9a-fA-F]{64}$/.test(envKey)) {
+      throw new Error("CRITICAL SECURITY ERROR: PORTAL_TOKEN_ENCRYPTION_KEY must contain valid hexadecimal characters.");
+    }
     return Buffer.from(envKey, "hex");
   }
-  return crypto.createHash("sha256").update(envKey).digest();
+
+  // Non-production / Local development fallback handling
+  if (envKey && envKey.length === 64 && /^[0-9a-fA-F]{64}$/.test(envKey)) {
+    return Buffer.from(envKey, "hex");
+  }
+  return crypto.createHash("sha256").update(envKey || "lumen_local_dev_portal_encryption_key_2026").digest();
 }
 
 /**
