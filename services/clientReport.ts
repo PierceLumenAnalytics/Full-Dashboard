@@ -1,5 +1,66 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { isValidHex } from "../src/utils/themeHelpers.js";
+import { 
+  hashPortalToken, 
+  encryptPortalToken, 
+  decryptPortalToken, 
+  generateRawPortalToken 
+} from "./portalSecurity.js";
+
+export async function getOrCreatePortalToken(
+  clientId: string,
+  agencyId: string,
+  supabase: SupabaseClient
+): Promise<string | null> {
+  const { data: existing } = await supabase
+    .from("client_portal_access")
+    .select("encrypted_token, enabled")
+    .eq("client_id", clientId)
+    .single();
+
+  if (existing) {
+    // ISSUE 4 RULE: If portal access is explicitly disabled, DO NOT silently reactivate it
+    if (!existing.enabled) {
+      return null;
+    }
+
+    if (existing.encrypted_token) {
+      const decrypted = decryptPortalToken(existing.encrypted_token);
+      if (decrypted) return decrypted;
+    }
+  }
+
+  const plainToken = generateRawPortalToken();
+  const tokenHash = hashPortalToken(plainToken);
+  const encryptedToken = encryptPortalToken(plainToken);
+
+  if (existing) {
+    await supabase
+      .from("client_portal_access")
+      .update({
+        token_hash: tokenHash,
+        encrypted_token: encryptedToken,
+        enabled: true,
+        updated_at: new Date().toISOString(),
+        last_rotated_at: new Date().toISOString()
+      })
+      .eq("client_id", clientId);
+  } else {
+    await supabase
+      .from("client_portal_access")
+      .insert({
+        agency_id: agencyId,
+        client_id: clientId,
+        token_hash: tokenHash,
+        encrypted_token: encryptedToken,
+        enabled: true
+      });
+  }
+
+  return plainToken;
+}
+
+
 
 // Helper: Calculate comparison percent change safely
 export function calculateChange(current: number, previous: number): number | null {
@@ -162,7 +223,8 @@ export async function generateReportData(
   const accentColor = agency.accent_color && isValidHex(agency.accent_color) ? agency.accent_color : "#E05C2A";
 
   const finalBaseUrl = baseUrl || process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
-  const portalUrl = `${finalBaseUrl}/agency/${agency.slug}?client=${client.id}`;
+  const portalToken = await getOrCreatePortalToken(client.id, agency.id, supabase);
+  const portalUrl = portalToken ? `${finalBaseUrl}/portal/${portalToken}` : "";
 
   return {
     period: {

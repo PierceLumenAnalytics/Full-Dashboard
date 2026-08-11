@@ -307,15 +307,17 @@ export function renderReportHtml(report: any): string {
               ` : ""}
 
               <!-- CALL TO ACTION / VIEW FULL DASHBOARD -->
-              <table width="100%" border="0" cellspacing="0" cellpadding="0">
-                <tr>
-                  <td align="center" style="padding: 8px 0 0 0;">
-                    <a href="${portalUrl}" target="_blank" style="display: inline-block; padding: 12px 28px; background-color: ${themeAccent}; color: ${themeContrast}; text-decoration: none; font-weight: bold; border-radius: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; transition: background-color 150ms ease-in-out;">
-                      View Full Interactive Report
-                    </a>
-                  </td>
-                </tr>
-              </table>
+              ${portalUrl ? `
+                <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" style="padding: 8px 0 0 0;">
+                      <a href="${portalUrl}" target="_blank" style="display: inline-block; padding: 12px 28px; background-color: ${themeAccent}; color: ${themeContrast}; text-decoration: none; font-weight: bold; border-radius: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; transition: background-color 150ms ease-in-out;">
+                        View Full Interactive Report
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              ` : ""}
 
             </td>
           </tr>

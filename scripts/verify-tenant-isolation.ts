@@ -22,7 +22,7 @@ const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
   auth: { persistSession: false }
 });
 
-const PORT = 3050;
+const PORT = process.env.PORT || 3000;
 const BASE_URL = `http://localhost:${PORT}`;
 
 async function runTests() {

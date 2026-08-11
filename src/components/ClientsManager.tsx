@@ -13,7 +13,13 @@ import {
   Briefcase,
   Upload,
   FileSpreadsheet,
-  Loader2
+  Loader2,
+  Link as LinkIcon,
+  ExternalLink,
+  Copy,
+  RotateCw,
+  ShieldCheck,
+  Check
 } from "lucide-react";
 import { ClientAccount } from "../types";
 import { authFetch } from "../lib/supabaseClient";
@@ -84,6 +90,77 @@ export default function ClientsManager({
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Secure Client Portal Access States
+  const [portalAccessInfo, setPortalAccessInfo] = useState<{
+    enabled: boolean;
+    token?: string;
+    portalUrl?: string;
+    lastRotatedAt?: string;
+  } | null>(null);
+  const [loadingPortalInfo, setLoadingPortalInfo] = useState(false);
+  const [rotatingPortalToken, setRotatingPortalToken] = useState(false);
+
+  const fetchPortalAccessInfo = async (clientId: string) => {
+    setLoadingPortalInfo(true);
+    try {
+      const res = await authFetch(`/api/clients/${clientId}/portal-access`);
+      if (res.ok) {
+        const data = await res.json();
+        setPortalAccessInfo(data);
+      }
+    } catch (err) {
+      console.error("Failed to load portal info:", err);
+    } finally {
+      setLoadingPortalInfo(false);
+    }
+  };
+
+  const handleRotatePortalToken = async () => {
+    if (!editingClient) return;
+    if (!window.confirm(`Rotate secure portal link for ${editingClient.name}? The previous portal link will immediately stop working.`)) return;
+    setRotatingPortalToken(true);
+    try {
+      const res = await authFetch(`/api/clients/${editingClient.id}/portal-access/rotate`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to rotate portal link.");
+      const data = await res.json();
+      setPortalAccessInfo({
+        enabled: true,
+        token: data.token,
+        portalUrl: data.portalUrl,
+        lastRotatedAt: new Date().toISOString()
+      });
+      addToast("Portal Link Rotated", "Generated new secure portal link. Old link invalidated.", "success");
+    } catch (err: any) {
+      addToast("Rotation Failed", err.message || "Failed to rotate link.", "error");
+    } finally {
+      setRotatingPortalToken(false);
+    }
+  };
+
+  const handleTogglePortalAccess = async () => {
+    if (!editingClient || !portalAccessInfo) return;
+    const nextState = !portalAccessInfo.enabled;
+    try {
+      const res = await authFetch(`/api/clients/${editingClient.id}/portal-access/toggle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: nextState })
+      });
+      if (!res.ok) throw new Error("Failed to update portal status.");
+      setPortalAccessInfo(prev => prev ? { ...prev, enabled: nextState } : null);
+      addToast("Portal Status Updated", `Client portal status set to: ${nextState ? "ENABLED" : "DISABLED"}`, "success");
+    } catch (err: any) {
+      addToast("Toggle Failed", err.message || "Failed to toggle portal access.", "error");
+    }
+  };
+
+  const handleCopyPortalLink = () => {
+    if (portalAccessInfo?.portalUrl) {
+      navigator.clipboard.writeText(portalAccessInfo.portalUrl);
+      addToast("Link Copied", "Client portal production URL copied to clipboard!", "success");
+    }
+  };
 
   const [agenciesList, setAgenciesList] = useState<any[]>([]);
 
@@ -164,6 +241,7 @@ export default function ClientsManager({
     setFormAgencyId((client as any).agencyId || profile?.agencyId || "");
     setFormErrors({});
     setIsModalOpen(true);
+    fetchPortalAccessInfo(client.id);
   };
 
   const handleOpenImportModal = (client: ClientAccount) => {
@@ -949,6 +1027,81 @@ export default function ClientsManager({
                   </div>
                 </div>
               </div>
+
+              {/* SECURE CLIENT PORTAL ACCESS CARD */}
+              {editingClient && (
+                <div className="bg-slate-900/60 border border-emerald-500/30 rounded-xl p-4 space-y-3 mt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                        Client Portal Link Isolation
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                        portalAccessInfo?.enabled 
+                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                          : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                      }`}>
+                        {portalAccessInfo?.enabled ? "ENABLED" : "DISABLED"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleTogglePortalAccess}
+                        className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded transition-colors"
+                      >
+                        {portalAccessInfo?.enabled ? "Disable Portal" : "Enable Portal"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {loadingPortalInfo ? (
+                    <div className="text-xs text-slate-400 py-2 flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" /> Loading portal token...
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={portalAccessInfo?.portalUrl || "Generating portal URL..."}
+                          className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg p-2 flex-1 font-mono select-all outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleCopyPortalLink}
+                          disabled={!portalAccessInfo?.portalUrl}
+                          className="btn-secondary text-xs flex items-center gap-1 shrink-0 px-3 py-2"
+                        >
+                          <Copy className="w-3.5 h-3.5" /> Copy
+                        </button>
+                        <a
+                          href={portalAccessInfo?.portalUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn-primary text-xs flex items-center gap-1 shrink-0 px-3 py-2"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" /> Open
+                        </a>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                        <span>High-entropy cryptographically hashed token</span>
+                        <button
+                          type="button"
+                          onClick={handleRotatePortalToken}
+                          disabled={rotatingPortalToken}
+                          className="text-amber-400 hover:text-amber-300 flex items-center gap-1 font-medium hover:underline cursor-pointer"
+                        >
+                          <RotateCw className={`w-3 h-3 ${rotatingPortalToken ? "animate-spin" : ""}`} /> Rotate Secret Link
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Weekly Client Performance Reporting Accordion */}
               <div className="border border-slate-800 rounded-lg p-4 bg-slate-900/20">

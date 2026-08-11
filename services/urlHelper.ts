@@ -32,3 +32,15 @@ export function buildClientDashboardUrl({
   const baseUrl = getAppBaseUrl(req);
   return `${baseUrl}/agency/${agencySlug}?client=${clientId}`;
 }
+
+export function buildClientPortalUrl({
+  portalToken,
+  req
+}: {
+  portalToken: string;
+  req?: Request;
+}): string {
+  const baseUrl = getAppBaseUrl(req);
+  return `${baseUrl}/portal/${portalToken}`;
+}
+

@@ -6,6 +6,12 @@ import crypto from "crypto";
 import { generateReportData } from "./services/clientReport.js";
 import { sendEmail, renderReportHtml } from "./services/emailService.js";
 import { getAppBaseUrl } from "./services/urlHelper.js";
+import { 
+  hashPortalToken, 
+  encryptPortalToken, 
+  decryptPortalToken, 
+  generateRawPortalToken 
+} from "./services/portalSecurity.js";
 
 dotenv.config();
 
@@ -16,7 +22,13 @@ const PORT = Number(process.env.PORT) || 3000;
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  
+  if (req.path.startsWith("/portal") || req.path.startsWith("/api/portal")) {
+    res.setHeader("Referrer-Policy", "no-referrer");
+  } else {
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  }
+
   res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://wrbgbkmwusbeankitwex.supabase.co https://api.anthropic.com;");
   
   const origin = req.headers.origin;
@@ -235,31 +247,7 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
       }
     }
 
-    // 4. Default fallback lookup of Northstar Digital agency info for backward compatibility / public demo session
-    const { data: agency, error: agencyError } = await supabase
-      .from("agencies")
-      .select("*")
-      .eq("name", "Northstar Digital")
-      .single();
-
-    if (!agencyError && agency) {
-      (req as any).user = {
-        id: "public-demo-user-id",
-        email: "demo@northstar-digital.com",
-        agencyId: agency.id,
-        isAdmin: false,
-        agencyName: agency.name,
-        customCta: agency.custom_cta || null,
-        logoUrl: agency.logo_url || null,
-        primaryColor: agency.primary_color || null,
-        accentColor: agency.accent_color || null,
-        clientLimit: agency.client_limit || 5,
-        isDemo: agency.is_demo || false
-      };
-      return next();
-    }
-
-    return res.status(401).json({ error: "Unauthorized: Invalid credentials." });
+    return res.status(401).json({ error: "Unauthorized: Invalid or missing authorization credentials." });
   } catch (err: any) {
     console.error("Auth middleware error:", err.message);
     res.status(401).json({ error: "Unauthorized: Auth check failed." });
@@ -2067,6 +2055,486 @@ app.put("/api/clients/:id/public-dashboard", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Failed to publish client: " + err.message });
   }
 });
+
+// ============================================================================
+// ISOLATED SECURE CLIENT PORTAL ACCESS & AUTHORIZATION
+// ============================================================================
+
+// ============================================================================
+// ISOLATED SECURE CLIENT PORTAL ACCESS & AUTHORIZATION
+// ============================================================================
+
+const requireClientPortalAccess = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  try {
+    let token = (req.headers["x-portal-token"] as string) || (req.query.token as string) || (req.params.token as string);
+    if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    if (!token || typeof token !== "string") {
+      return res.status(401).json({ error: "Unauthorized: Missing secure client portal token." });
+    }
+
+    const tokenHash = hashPortalToken(token);
+
+    const { data: portalRecord, error: portalErr } = await supabase
+      .from("client_portal_access")
+      .select("*, clients(*), agencies(*)")
+      .eq("token_hash", tokenHash)
+      .eq("enabled", true)
+      .single();
+
+    if (portalErr || !portalRecord) {
+      return res.status(401).json({ error: "Unauthorized: Invalid, disabled, or revoked portal token." });
+    }
+
+    const client = portalRecord.clients;
+    const agency = portalRecord.agencies;
+
+    if (!client || !agency || client.agency_id !== portalRecord.agency_id) {
+      return res.status(401).json({ error: "Unauthorized: Invalid portal client binding." });
+    }
+
+    (req as any).portalContext = {
+      accessType: "client_portal",
+      agencyId: portalRecord.agency_id,
+      clientId: portalRecord.client_id,
+      clientName: client.name,
+      agencyName: agency.name,
+      logoUrl: agency.logo_url,
+      primaryColor: agency.primary_color,
+      accentColor: agency.accent_color,
+      domain: client.domain,
+      platform: client.platform,
+      status: client.status,
+      targetCpl: client.target_cpl ? Number(client.target_cpl) : null,
+      monthlyBudget: Number(client.monthly_budget),
+      industry: client.industry || null,
+      primaryGoal: client.primary_goal || null,
+      regionalDistribution: client.regional_distribution || null,
+      brandColor: client.brand_color || null
+    };
+
+    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("Cache-Control", "private, no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+
+    next();
+  } catch (err: any) {
+    console.error("Portal auth error:", err.message);
+    res.status(401).json({ error: "Unauthorized: Client portal verification failed." });
+  }
+};
+
+// 1. Management API: Get portal access details for a client (Agency/Admin authenticated)
+app.get("/api/clients/:id/portal-access", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const user = (req as any).user;
+
+  try {
+    const { data: client, error: fetchError } = await supabase
+      .from("clients")
+      .select("agency_id, name")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !client) {
+      return res.status(404).json({ error: "Client account not found." });
+    }
+
+    if (!user.isAdmin && client.agency_id !== user.agencyId) {
+      return res.status(403).json({ error: "Access Denied: You do not own this client account." });
+    }
+
+    let { data: portalRecord } = await supabase
+      .from("client_portal_access")
+      .select("*")
+      .eq("client_id", id)
+      .single();
+
+    let plainToken: string | null = null;
+    if (portalRecord && portalRecord.encrypted_token) {
+      plainToken = decryptPortalToken(portalRecord.encrypted_token);
+    }
+
+    if (!portalRecord || !plainToken) {
+      plainToken = generateRawPortalToken();
+      const tokenHash = hashPortalToken(plainToken);
+      const encryptedToken = encryptPortalToken(plainToken);
+
+      if (portalRecord) {
+        await supabase
+          .from("client_portal_access")
+          .update({
+            token_hash: tokenHash,
+            encrypted_token: encryptedToken,
+            enabled: true,
+            updated_at: new Date().toISOString(),
+            last_rotated_at: new Date().toISOString()
+          })
+          .eq("client_id", id);
+      } else {
+        const { data: newRecord, error: insertError } = await supabase
+          .from("client_portal_access")
+          .insert({
+            agency_id: client.agency_id,
+            client_id: id,
+            token_hash: tokenHash,
+            encrypted_token: encryptedToken,
+            enabled: true
+          })
+          .select()
+          .single();
+        if (insertError) throw insertError;
+        portalRecord = newRecord;
+      }
+    }
+
+    const baseUrl = getAppBaseUrl(req);
+    const portalUrl = `${baseUrl}/portal/${plainToken}`;
+
+    res.json({
+      enabled: portalRecord.enabled,
+      lastRotatedAt: portalRecord.last_rotated_at,
+      portalUrl
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to load client portal access info: " + err.message });
+  }
+});
+
+// 2. Management API: Rotate portal link for a client (Agency/Admin authenticated)
+app.post("/api/clients/:id/portal-access/rotate", requireAuth, rateLimiter(5, 60000), async (req, res) => {
+  const { id } = req.params;
+  const user = (req as any).user;
+
+  try {
+    const { data: client, error: fetchError } = await supabase
+      .from("clients")
+      .select("agency_id, name")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !client) {
+      return res.status(404).json({ error: "Client account not found." });
+    }
+
+    if (!user.isAdmin && client.agency_id !== user.agencyId) {
+      return res.status(403).json({ error: "Access Denied: You do not own this client account." });
+    }
+
+    const plainToken = generateRawPortalToken();
+    const tokenHash = hashPortalToken(plainToken);
+    const encryptedToken = encryptPortalToken(plainToken);
+    const nowIso = new Date().toISOString();
+
+    const { data: existing } = await supabase
+      .from("client_portal_access")
+      .select("id")
+      .eq("client_id", id)
+      .single();
+
+    let error;
+    if (existing) {
+      ({ error } = await supabase
+        .from("client_portal_access")
+        .update({
+          token_hash: tokenHash,
+          encrypted_token: encryptedToken,
+          enabled: true,
+          updated_at: nowIso,
+          last_rotated_at: nowIso
+        })
+        .eq("client_id", id));
+    } else {
+      ({ error } = await supabase
+        .from("client_portal_access")
+        .insert({
+          agency_id: client.agency_id,
+          client_id: id,
+          token_hash: tokenHash,
+          encrypted_token: encryptedToken,
+          enabled: true
+        }));
+    }
+
+    if (error) throw error;
+
+    await supabase.from("audit_logs").insert({
+      agency_id: client.agency_id,
+      action: "UPDATE",
+      entity: "Client Portal Token",
+      details: `Rotated portal access token for client ${client.name}`,
+      user: user.email || "system"
+    });
+
+    const baseUrl = getAppBaseUrl(req);
+    const portalUrl = `${baseUrl}/portal/${plainToken}`;
+
+    res.json({ success: true, token: plainToken, portalUrl });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to rotate client portal token: " + err.message });
+  }
+});
+
+// 3. Management API: Toggle portal access (Agency/Admin authenticated)
+app.post("/api/clients/:id/portal-access/toggle", requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const { enabled } = req.body;
+  const user = (req as any).user;
+
+  try {
+    const { data: client, error: fetchError } = await supabase
+      .from("clients")
+      .select("agency_id, name")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !client) {
+      return res.status(404).json({ error: "Client account not found." });
+    }
+
+    if (!user.isAdmin && client.agency_id !== user.agencyId) {
+      return res.status(403).json({ error: "Access Denied: You do not own this client account." });
+    }
+
+    const { error: updateError } = await supabase
+      .from("client_portal_access")
+      .update({ enabled: !!enabled, updated_at: new Date().toISOString() })
+      .eq("client_id", id);
+
+    if (updateError) throw updateError;
+
+    await supabase.from("audit_logs").insert({
+      agency_id: client.agency_id,
+      action: "UPDATE",
+      entity: "Client Portal Status",
+      details: `Client ${client.name} portal status set to: ${!!enabled ? "ENABLED" : "DISABLED"}`,
+      user: user.email || "system"
+    });
+
+    res.json({ success: true, enabled: !!enabled });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to toggle portal access: " + err.message });
+  }
+});
+
+// 4. PUBLIC PORTAL: Validate token & fetch portal branding/metadata
+app.get("/api/portal/validate/:token", rateLimiter(30, 60000), async (req, res) => {
+  const { token } = req.params;
+  if (!token) return res.status(400).json({ error: "Portal token parameter is required." });
+
+  const tokenHash = hashPortalToken(token);
+  const { data: portalRecord, error: portalErr } = await supabase
+    .from("client_portal_access")
+    .select("*, clients(*), agencies(*)")
+    .eq("token_hash", tokenHash)
+    .eq("enabled", true)
+    .single();
+
+  if (portalErr || !portalRecord) {
+    return res.status(401).json({ error: "Unauthorized: Invalid, disabled, or revoked portal token." });
+  }
+
+  const client = portalRecord.clients;
+  const agency = portalRecord.agencies;
+
+  if (!client || !agency || client.agency_id !== portalRecord.agency_id) {
+    return res.status(401).json({ error: "Unauthorized: Client portal context mismatch." });
+  }
+
+  res.setHeader("Cache-Control", "private, no-store, no-cache, must-revalidate");
+  res.json({
+    valid: true,
+    agency: {
+      id: agency.id,
+      name: agency.name,
+      slug: agency.slug,
+      logoUrl: agency.logo_url,
+      primaryColor: agency.primary_color,
+      accentColor: agency.accent_color,
+      customCta: agency.custom_cta
+    },
+    client: {
+      id: client.id,
+      name: client.name,
+      domain: client.domain,
+      platform: client.platform,
+      status: client.status,
+      brandColor: client.brand_color,
+      targetCpl: client.target_cpl ? Number(client.target_cpl) : null,
+      monthlyBudget: Number(client.monthly_budget),
+      industry: client.industry || null,
+      primaryGoal: client.primary_goal || null,
+      regionalDistribution: client.regional_distribution || null
+    }
+  });
+});
+
+// 5. PUBLIC PORTAL: Scoped Analytics Data
+app.get("/api/portal/analytics", requireClientPortalAccess, rateLimiter(30, 60000), async (req, res) => {
+  const ctx = (req as any).portalContext;
+  if (req.query.clientId && req.query.clientId !== ctx.clientId) {
+    return res.status(403).json({ error: "Access Denied: Requested clientId does not match validated portal context." });
+  }
+
+  const clientId = ctx.clientId;
+  const { startDate, endDate } = req.query;
+
+  try {
+    let metricsQuery = supabase
+      .from("campaign_metrics")
+      .select("date, spend, impressions, clicks, conversions, platform, campaign_name, revenue, conversion_value")
+      .eq("client_id", clientId);
+
+    if (startDate && typeof startDate === "string") {
+      metricsQuery = metricsQuery.gte("date", startDate);
+    }
+    if (endDate && typeof endDate === "string") {
+      metricsQuery = metricsQuery.lte("date", endDate);
+    }
+
+    const { data: dbMetrics, error: metricsError } = await metricsQuery.order("date", { ascending: true });
+    if (metricsError) throw metricsError;
+
+    let metrics: PerformanceMetric[] = [];
+    let campaignsList: any[] = [];
+
+    if (dbMetrics && dbMetrics.length > 0) {
+      const dailyGroup: { [date: string]: PerformanceMetric } = {};
+      const campaignsGroup: { [name: string]: any } = {};
+
+      for (const m of dbMetrics) {
+        const dateStr = m.date;
+        if (!dailyGroup[dateStr]) {
+          dailyGroup[dateStr] = {
+            date: dateStr,
+            spend: 0,
+            clicks: 0,
+            impressions: 0,
+            conversions: 0,
+            conversionValue: 0
+          };
+        }
+        dailyGroup[dateStr].spend += Number(m.spend);
+        dailyGroup[dateStr].clicks += Number(m.clicks);
+        dailyGroup[dateStr].impressions += Number(m.impressions);
+        dailyGroup[dateStr].conversions += Number(m.conversions);
+        dailyGroup[dateStr].conversionValue += Number(m.conversion_value || m.revenue || 0);
+
+        if (m.campaign_name && m.campaign_name !== "General") {
+          const cName = m.campaign_name;
+          if (!campaignsGroup[cName]) {
+            campaignsGroup[cName] = {
+              id: `camp-${cName.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+              name: cName,
+              platform: m.platform,
+              status: "Active",
+              spend: 0,
+              impressions: 0,
+              clicks: 0,
+              conversions: 0,
+              conversionValue: 0
+            };
+          }
+          campaignsGroup[cName].spend += Number(m.spend);
+          campaignsGroup[cName].impressions += Number(m.impressions);
+          campaignsGroup[cName].clicks += Number(m.clicks);
+          campaignsGroup[cName].conversions += Number(m.conversions);
+          campaignsGroup[cName].conversionValue += Number(m.conversion_value || m.revenue || 0);
+        }
+      }
+
+      metrics = Object.values(dailyGroup).sort((a, b) => a.date.localeCompare(b.date));
+
+      campaignsList = Object.values(campaignsGroup).map((c: any) => {
+        const cpl = c.conversions > 0 ? c.spend / c.conversions : 0;
+        const roas = c.spend > 0 ? c.conversionValue / c.spend : 0;
+        return {
+          id: c.id,
+          name: c.name,
+          platform: c.platform,
+          status: c.status,
+          spend: c.spend,
+          impressions: c.impressions,
+          clicks: c.clicks,
+          conversions: c.conversions,
+          cpl,
+          roas
+        };
+      });
+    }
+
+    res.json({
+      client: {
+        id: ctx.clientId,
+        name: ctx.clientName,
+        domain: ctx.domain,
+        platform: ctx.platform,
+        status: ctx.status,
+        agencyId: ctx.agencyId,
+        targetCpl: ctx.targetCpl,
+        brandColor: ctx.brandColor,
+        industry: ctx.industry,
+        primaryGoal: ctx.primaryGoal,
+        regionalDistribution: ctx.regionalDistribution
+      },
+      metrics,
+      campaigns: campaignsList,
+      status: metrics.length > 0 ? "OK" : "NO_DATA"
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to load portal analytics: " + err.message });
+  }
+});
+
+// 6. PUBLIC PORTAL: Scoped AI Summary
+app.get("/api/portal/summary", requireClientPortalAccess, rateLimiter(20, 60000), async (req, res) => {
+  const ctx = (req as any).portalContext;
+  if (req.query.clientId && req.query.clientId !== ctx.clientId) {
+    return res.status(403).json({ error: "Access Denied: Requested clientId does not match validated portal context." });
+  }
+
+  try {
+    const { data: summary, error: summaryErr } = await supabase
+      .from("ai_summaries")
+      .select("summary_data, created_at")
+      .eq("client_id", ctx.clientId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (summaryErr || !summary || summary.length === 0) {
+      return res.json({ insights: [], status: "NO_DATA" });
+    }
+
+    res.json({
+      insights: summary[0].summary_data,
+      createdAt: summary[0].created_at
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to load portal AI summary: " + err.message });
+  }
+});
+
+// 7. PUBLIC PORTAL: Scoped Reports List
+app.get("/api/portal/reports", requireClientPortalAccess, rateLimiter(20, 60000), async (req, res) => {
+  const ctx = (req as any).portalContext;
+
+  try {
+    const { data: deliveries, error } = await supabase
+      .from("client_report_deliveries")
+      .select("*")
+      .eq("client_id", ctx.clientId)
+      .order("sent_at", { ascending: false });
+
+    if (error) throw error;
+
+    res.json(deliveries || []);
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to load portal reports: " + err.message });
+  }
+});
+
 
 // ============================================================================
 // AUTOMATED CLIENT REPORTING + EMAIL ROUTING SYSTEM

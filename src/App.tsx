@@ -2,12 +2,14 @@ import React, { useEffect, useState } from "react";
 import DashboardShell from "./components/DashboardShell";
 import Login from "./components/Login";
 import AdminPanel from "./components/AdminPanel";
+import ClientPortal from "./components/ClientPortal";
 import { supabase, setGlobalSession } from "./lib/supabaseClient";
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isAdminRoute, setIsAdminRoute] = useState(false);
+  const [portalToken, setPortalToken] = useState<string | null>(null);
   const [agencySlug, setAgencySlug] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -15,6 +17,14 @@ export default function App() {
     const initApp = async () => {
       const path = window.location.pathname;
       
+      const portalMatch = path.match(/^\/portal\/([^/]+)/i);
+      if (portalMatch && portalMatch[1]) {
+        setPortalToken(portalMatch[1]);
+        setIsAdminRoute(false);
+        setLoading(false);
+        return;
+      }
+
       const agencyMatch = path.match(/^\/agency\/([^/]+)/i);
       if (agencyMatch && agencyMatch[1]) {
         const slug = agencyMatch[1];
@@ -136,7 +146,9 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-slate-950">
-      {isAdminRoute ? (
+      {portalToken ? (
+        <ClientPortal token={portalToken} />
+      ) : isAdminRoute ? (
         session && isAdmin ? (
           <AdminPanel session={session} onLogout={handleLogout} />
         ) : (
