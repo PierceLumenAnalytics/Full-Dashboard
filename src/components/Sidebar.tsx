@@ -33,6 +33,7 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
   if (!isClientView) {
     managementNavigation.push({ id: "clients" as ActiveTab, name: "Clients", icon: Users });
     if (profile?.isAdmin) {
+      managementNavigation.push({ id: "admin-panel" as ActiveTab, name: "Admin Panel", icon: Settings });
       managementNavigation.push({ id: "logs" as ActiveTab, name: "Security Audit Logs", icon: FileTerminal });
     }
     if (profile && !profile.isAdmin) {
@@ -141,6 +142,22 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
                   
+                  if (item.id === "admin-panel") {
+                    return (
+                      <li key={item.id}>
+                        <button
+                          onClick={() => {
+                            window.location.href = "/admin";
+                          }}
+                          className="w-full flex items-center py-2 text-xs font-medium text-[#8A8680] hover:text-[#F5F3EE] hover:bg-white/5 pl-3 cursor-pointer focus:outline-none"
+                        >
+                          <Icon className="w-3.5 h-3.5 mr-2.5 text-[#8A8680]/60 shrink-0" />
+                          <span>{item.name}</span>
+                        </button>
+                      </li>
+                    );
+                  }
+
                   if (item.id === "logs") {
                     return (
                       <li key={item.id}>
