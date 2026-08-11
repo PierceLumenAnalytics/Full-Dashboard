@@ -23,7 +23,8 @@ export async function generateReportData(
   agencyId: string,
   startDateStr: string,
   endDateStr: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  baseUrl?: string
 ): Promise<any> {
   // 1. Fetch Client Details
   const { data: client, error: clientErr } = await supabase
@@ -160,8 +161,8 @@ export async function generateReportData(
   const primaryColor = agency.primary_color && isValidHex(agency.primary_color) ? agency.primary_color : "#D6B77A";
   const accentColor = agency.accent_color && isValidHex(agency.accent_color) ? agency.accent_color : "#E05C2A";
 
-  const baseUrl = process.env.APP_URL || "http://localhost:3000";
-  const portalUrl = `${baseUrl}/agency/${agency.slug}?client=${client.id}`;
+  const finalBaseUrl = baseUrl || process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
+  const portalUrl = `${finalBaseUrl}/agency/${agency.slug}?client=${client.id}`;
 
   return {
     period: {

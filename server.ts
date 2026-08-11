@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { generateReportData } from "./services/clientReport.js";
 import { sendEmail, renderReportHtml } from "./services/emailService.js";
+import { getAppBaseUrl } from "./services/urlHelper.js";
 
 dotenv.config();
 
@@ -2109,7 +2110,8 @@ app.get("/api/clients/:clientId/report", requireAuth, async (req, res) => {
       endStr = end.toISOString().split("T")[0];
     }
 
-    const report = await generateReportData(clientId, client.agency_id, startStr, endStr, supabase);
+    const baseUrl = getAppBaseUrl(req);
+    const report = await generateReportData(clientId, client.agency_id, startStr, endStr, supabase, baseUrl);
     res.json(report);
   } catch (err: any) {
     console.error("Error generating report:", err.message);
@@ -2154,7 +2156,8 @@ app.get("/api/clients/:clientId/report/preview", requireAuth, async (req, res) =
       endStr = end.toISOString().split("T")[0];
     }
 
-    const report = await generateReportData(clientId, client.agency_id, startStr, endStr, supabase);
+    const baseUrl = getAppBaseUrl(req);
+    const report = await generateReportData(clientId, client.agency_id, startStr, endStr, supabase, baseUrl);
     const html = renderReportHtml(report);
     res.setHeader("Content-Type", "text/html");
     res.send(html);
@@ -2202,7 +2205,8 @@ app.post("/api/clients/:clientId/report/test", requireAuth, async (req, res) => 
     const startStr = start.toISOString().split("T")[0];
     const endStr = end.toISOString().split("T")[0];
 
-    const report = await generateReportData(clientId, client.agency_id, startStr, endStr, supabase);
+    const baseUrl = getAppBaseUrl(req);
+    const report = await generateReportData(clientId, client.agency_id, startStr, endStr, supabase, baseUrl);
     const html = renderReportHtml(report);
     
     const emailResult = await sendEmail({
@@ -2308,7 +2312,8 @@ app.post("/api/cron/client-reports", async (req, res) => {
 
       try {
         // Generate Report
-        const report = await generateReportData(client.id, client.agency_id, startStr, endStr, supabase);
+        const baseUrl = getAppBaseUrl(req);
+        const report = await generateReportData(client.id, client.agency_id, startStr, endStr, supabase, baseUrl);
         const html = renderReportHtml(report);
 
         // Send Email

@@ -36,7 +36,9 @@ async function run() {
   try {
     const res = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
+        "X-Forwarded-Host": "app.lumenanalytics.co",
+        "X-Forwarded-Proto": "https"
       }
     });
 

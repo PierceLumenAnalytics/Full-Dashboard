@@ -252,6 +252,88 @@ export default function ClientsManager({
     }
   };
 
+  const hasChanges = () => {
+    if (editingClient) {
+      const dbCpl = editingClient.targetCpl !== null && editingClient.targetCpl !== undefined ? editingClient.targetCpl.toString() : "";
+      const formCpl = formTargetCpl || "";
+      const dbBrand = editingClient.brandColor || "#3b82f6";
+      const formBrand = formBrandColor || "#3b82f6";
+      const dbIndustry = editingClient.industry || "";
+      const formInd = formIndustry || "";
+      const dbLogo = editingClient.logoUrl || "";
+      const formLogo = formLogoUrl || "";
+      const dbReportEmail = editingClient.reportEmail || "";
+      const formReportEmail = reportEmail || "";
+      const dbReportCc = editingClient.reportCc || "";
+      const formReportCc = reportCc || "";
+
+      return (
+        formName.trim() !== editingClient.name ||
+        formDomain.trim().toLowerCase() !== editingClient.domain ||
+        formPlatform !== editingClient.platform ||
+        formBudget !== editingClient.monthlyBudget.toString() ||
+        formCpl !== dbCpl ||
+        formBrand.toLowerCase() !== dbBrand.toLowerCase() ||
+        formInd.trim() !== dbIndustry ||
+        formPrimaryGoal !== (editingClient.primaryGoal || "Leads") ||
+        formPrimaryMarket !== (editingClient.primaryMarket || "Phoenix, AZ") ||
+        formLogo.trim() !== dbLogo ||
+        reportingEnabled !== (editingClient.reportingEnabled || false) ||
+        formReportEmail.trim() !== dbReportEmail ||
+        formReportCc.trim() !== dbReportCc ||
+        reportDay !== (editingClient.reportDay !== undefined ? editingClient.reportDay : 1) ||
+        reportTime.trim() !== (editingClient.reportTime || "08:00") ||
+        reportTimezone.trim() !== (editingClient.reportTimezone || "UTC") ||
+        reportPeriod !== (editingClient.reportPeriod || "weekly")
+      );
+    } else {
+      return (
+        formName.trim() !== "" ||
+        formDomain.trim() !== "" ||
+        formBudget !== "" ||
+        formTargetCpl !== "" ||
+        formBrandColor.toLowerCase() !== "#3b82f6" ||
+        formIndustry.trim() !== "" ||
+        reportingEnabled !== false
+      );
+    }
+  };
+
+  const handleCloseRequest = () => {
+    if (hasChanges()) {
+      if (!window.confirm("You have unsaved changes. Are you sure you want to discard them?")) {
+        return;
+      }
+    }
+    setIsModalOpen(false);
+  };
+
+  // Pinned refs for event listener stability
+  const closeRequestRef = React.useRef(handleCloseRequest);
+  React.useEffect(() => {
+    closeRequestRef.current = handleCloseRequest;
+  });
+
+  const closePreviewRef = React.useRef(() => setIsPreviewModalOpen(false));
+  React.useEffect(() => {
+    closePreviewRef.current = () => setIsPreviewModalOpen(false);
+  });
+
+  // Keyboard accessibility: Escape key listener
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (isPreviewModalOpen) {
+          closePreviewRef.current();
+        } else if (isModalOpen) {
+          closeRequestRef.current();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isModalOpen, isPreviewModalOpen]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setImportFile(e.target.files[0]);
@@ -647,103 +729,111 @@ export default function ClientsManager({
       {/* CREATE/EDIT CLIENT DIALOG MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-950 border border-slate-900 rounded-xl w-full max-w-md overflow-hidden shadow-2xl animate-scale-in">
+          <form 
+            onSubmit={handleSubmit}
+            className="bg-slate-950 border border-slate-900 rounded-xl w-full max-w-3xl max-h-[calc(100vh-32px)] flex flex-col overflow-hidden shadow-2xl animate-scale-in text-left"
+          >
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-5 border-b border-slate-900">
+            <div className="flex items-center justify-between p-5 border-b border-slate-900 shrink-0">
               <h3 className="text-sm font-bold font-display uppercase tracking-wider text-slate-200">
                 {editingClient ? "Modify Account Configuration" : "Integrate Client Portal"}
               </h3>
               <button
-                onClick={() => setIsModalOpen(false)}
+                type="button"
+                onClick={handleCloseRequest}
+                aria-label="Close Settings"
                 className="text-slate-500 hover:text-slate-300 p-1 rounded-md hover:bg-slate-900/50 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              {/* Account Name */}
-              <div className="flex flex-col">
-                <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1 flex items-center gap-1">
-                  <Briefcase className="w-3 h-3 text-violet-400" /> Client Account Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Luxe Apparel, AeroMedia"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className={`bg-slate-900/50 border ${
-                    formErrors.name ? "border-rose-500/50 focus:ring-rose-500/30" : "border-slate-800 focus:ring-violet-500/30"
-                  } text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2`}
-                />
-                {formErrors.name && (
-                  <span className="text-[10px] text-rose-400 font-semibold mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> {formErrors.name}
-                  </span>
-                )}
+            {/* Scrollable Modal Content */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0">
+              
+              {/* Row 1: Name and Domain */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1 flex items-center gap-1">
+                    <Briefcase className="w-3 h-3 text-violet-400" /> Client Account Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Luxe Apparel, AeroMedia"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    className={`bg-slate-900/50 border ${
+                      formErrors.name ? "border-rose-500/50 focus:ring-rose-500/30" : "border-slate-800 focus:ring-violet-500/30"
+                    } text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2`}
+                  />
+                  {formErrors.name && (
+                    <span className="text-[10px] text-rose-400 font-semibold mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> {formErrors.name}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1 flex items-center gap-1">
+                    <Globe className="w-3 h-3 text-violet-400" /> Corporate Domain URL
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. luxeapparel.co"
+                    value={formDomain}
+                    onChange={(e) => setFormDomain(e.target.value)}
+                    className={`bg-slate-900/50 border ${
+                      formErrors.domain ? "border-rose-500/50 focus:ring-rose-500/30" : "border-slate-800 focus:ring-violet-500/30"
+                    } text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2`}
+                  />
+                  {formErrors.domain && (
+                    <span className="text-[10px] text-rose-400 font-semibold mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> {formErrors.domain}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* TLD Domain */}
-              <div className="flex flex-col">
-                <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1 flex items-center gap-1">
-                  <Globe className="w-3 h-3 text-violet-400" /> Corporate Domain URL
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. luxeapparel.co"
-                  value={formDomain}
-                  onChange={(e) => setFormDomain(e.target.value)}
-                  className={`bg-slate-900/50 border ${
-                    formErrors.domain ? "border-rose-500/50 focus:ring-rose-500/30" : "border-slate-800 focus:ring-violet-500/30"
-                  } text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2`}
-                />
-                {formErrors.domain && (
-                  <span className="text-[10px] text-rose-400 font-semibold mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> {formErrors.domain}
-                  </span>
-                )}
+              {/* Row 2: Core Platform and Monthly Budget */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">
+                    Core Ad Network Channel
+                  </label>
+                  <select
+                    value={formPlatform}
+                    onChange={(e) => setFormPlatform(e.target.value as any)}
+                    className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
+                  >
+                    <option value="All Platforms">Omnichannel (All Platforms)</option>
+                    <option value="Google Ads">Google Ads Only</option>
+                    <option value="Meta Ads">Meta Ads Only</option>
+                    <option value="TikTok Ads">TikTok Ads Only</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1 flex items-center gap-1">
+                    <DollarSign className="w-3 h-3 text-violet-400" /> Monthly Advertising Budget ($)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 10000"
+                    value={formBudget}
+                    onChange={(e) => setFormBudget(e.target.value)}
+                    className={`bg-slate-900/50 border ${
+                      formErrors.budget ? "border-rose-500/50 focus:ring-rose-500/30" : "border-slate-800 focus:ring-violet-500/30"
+                    } text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2`}
+                  />
+                  {formErrors.budget && (
+                    <span className="text-[10px] text-rose-400 font-semibold mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> {formErrors.budget}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Platforms */}
-              <div className="flex flex-col">
-                <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">
-                  Core Ad Network Channel
-                </label>
-                <select
-                  value={formPlatform}
-                  onChange={(e) => setFormPlatform(e.target.value as any)}
-                  className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
-                >
-                  <option value="All Platforms">Omnichannel (All Platforms)</option>
-                  <option value="Google Ads">Google Ads Only</option>
-                  <option value="Meta Ads">Meta Ads Only</option>
-                  <option value="TikTok Ads">TikTok Ads Only</option>
-                </select>
-              </div>
-
-              {/* Monthly budget */}
-              <div className="flex flex-col">
-                <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1 flex items-center gap-1">
-                  <DollarSign className="w-3 h-3 text-violet-400" /> Monthly Advertising Budget ($)
-                </label>
-                <input
-                  type="number"
-                  placeholder="e.g. 10000"
-                  value={formBudget}
-                  onChange={(e) => setFormBudget(e.target.value)}
-                  className={`bg-slate-900/50 border ${
-                    formErrors.budget ? "border-rose-500/50 focus:ring-rose-500/30" : "border-slate-800 focus:ring-violet-500/30"
-                  } text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2`}
-                />
-                {formErrors.budget && (
-                  <span className="text-[10px] text-rose-400 font-semibold mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> {formErrors.budget}
-                  </span>
-                )}
-              </div>
-
-              {/* Associated Agency dropdown (Admin Only) */}
+              {/* Row 3: Associated Agency (Admin Only & Creating new client) */}
               {isAdmin && !editingClient && (
                 <div className="flex flex-col">
                   <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">
@@ -763,8 +853,8 @@ export default function ClientsManager({
                 </div>
               )}
 
-              {/* Target CPL & Brand Color */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Row 4: Target CPL and Brand Color */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex flex-col">
                   <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Target CPL ($)</label>
                   <input
@@ -775,6 +865,7 @@ export default function ClientsManager({
                     className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
                   />
                 </div>
+
                 <div className="flex flex-col">
                   <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Brand Color (Hex)</label>
                   <div className="flex gap-2">
@@ -794,8 +885,8 @@ export default function ClientsManager({
                 </div>
               </div>
 
-              {/* Industry & Primary Goal */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Row 5: Industry and Primary Goal */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex flex-col">
                   <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Industry</label>
                   <input
@@ -806,8 +897,9 @@ export default function ClientsManager({
                     className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
                   />
                 </div>
+
                 <div className="flex flex-col">
-                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Primary Goal</label>
+                  <label className="text-[10px] font-mono tracking-widest text-slate-550 uppercase mb-1">Primary Goal</label>
                   <select
                     value={formPrimaryGoal}
                     onChange={(e) => setFormPrimaryGoal(e.target.value)}
@@ -820,8 +912,8 @@ export default function ClientsManager({
                 </div>
               </div>
 
-              {/* Primary Market & Client Logo */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* Row 6: Primary Market and Client Logo */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex flex-col">
                   <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Primary Market</label>
                   <input
@@ -832,8 +924,9 @@ export default function ClientsManager({
                     className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
                   />
                 </div>
+
                 <div className="flex flex-col">
-                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Client Logo</label>
+                  <label className="text-[10px] font-mono tracking-widest text-slate-550 uppercase mb-1">Client Logo</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -858,11 +951,11 @@ export default function ClientsManager({
               </div>
 
               {/* Weekly Client Performance Reporting Accordion */}
-              <div className="border border-slate-800 rounded-lg p-4 bg-slate-900/20 mb-4">
+              <div className="border border-slate-800 rounded-lg p-4 bg-slate-900/20">
                 <div className="flex items-center justify-between cursor-pointer" onClick={() => setReportingEnabled(!reportingEnabled)}>
                   <div className="flex flex-col">
                     <span className="text-xs font-semibold text-slate-200">Weekly Performance Email Reports</span>
-                    <span className="text-[10px] text-slate-550">Automatically generate and email branded PDF-style reports to client.</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Automatically generate and email branded PDF-style reports to client.</span>
                   </div>
                   <div className="relative inline-flex items-center cursor-pointer">
                     <input 
@@ -878,7 +971,7 @@ export default function ClientsManager({
                 {reportingEnabled && (
                   <div className="mt-4 pt-4 border-t border-slate-800/80 space-y-4">
                     {/* Recipient and CC */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="flex flex-col">
                         <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Recipient Email</label>
                         <input
@@ -903,7 +996,7 @@ export default function ClientsManager({
                     </div>
 
                     {/* Day, Time, Timezone, Period */}
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div className="flex flex-col">
                         <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Schedule Day</label>
                         <select
@@ -921,7 +1014,7 @@ export default function ClientsManager({
                         </select>
                       </div>
                       <div className="flex flex-col">
-                        <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Schedule Time</label>
+                        <label className="text-[10px] font-mono tracking-widest text-slate-550 uppercase mb-1">Schedule Time</label>
                         <input
                           type="text"
                           placeholder="08:00"
@@ -932,7 +1025,7 @@ export default function ClientsManager({
                         />
                       </div>
                       <div className="flex flex-col">
-                        <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Timezone</label>
+                        <label className="text-[10px] font-mono tracking-widest text-slate-550 uppercase mb-1">Timezone</label>
                         <input
                           type="text"
                           placeholder="UTC"
@@ -943,7 +1036,7 @@ export default function ClientsManager({
                         />
                       </div>
                       <div className="flex flex-col">
-                        <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Period</label>
+                        <label className="text-[10px] font-mono tracking-widest text-slate-550 uppercase mb-1">Period</label>
                         <select
                           value={reportPeriod}
                           onChange={(e) => setReportPeriod(e.target.value as any)}
@@ -955,73 +1048,82 @@ export default function ClientsManager({
                       </div>
                     </div>
 
-                    {/* Admin Test Send / Preview Actions (only display for existing saved clients) */}
-                    {editingClient && (
-                      <div className="flex flex-col gap-2 pt-2 border-t border-slate-800/80">
-                        <div className="flex items-center gap-3">
+                    {/* Admin Test Send Recipient Area (Inside scrollable accordion content) */}
+                    {editingClient && showTestInput && (
+                      <div className="flex flex-col gap-1.5 mt-3 pt-3 border-t border-slate-800/50">
+                        <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase">Recipient for Test Email</label>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="email"
+                            placeholder="Send test email to..."
+                            value={testEmailAddress}
+                            onChange={(e) => setTestEmailAddress(e.target.value)}
+                            className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 flex-1 outline-none focus:ring-2 focus:ring-violet-500/30"
+                          />
                           <button
                             type="button"
-                            onClick={handlePreviewReport}
-                            className="px-3 py-1.5 bg-violet-600/10 hover:bg-violet-600/20 text-violet-400 border border-violet-500/20 text-xs font-medium rounded-lg transition-colors"
+                            disabled={sendingTest}
+                            onClick={handleSendTestEmail}
+                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-colors shrink-0"
                           >
-                            {loadingPreview ? "Generating Preview..." : "Preview Report HTML"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowTestInput(!showTestInput)}
-                            className="px-3 py-1.5 bg-slate-850 hover:bg-slate-750 text-slate-300 border border-slate-700 text-xs font-medium rounded-lg transition-colors"
-                          >
-                            Send Test Email
+                            {sendingTest ? "Sending..." : "Dispatch"}
                           </button>
                         </div>
-
-                        {showTestInput && (
-                          <div className="flex gap-2 items-center mt-2 bg-slate-900/55 p-2 rounded-lg border border-slate-800">
-                            <input
-                              type="email"
-                              placeholder="Send test email to..."
-                              value={testEmailAddress}
-                              onChange={(e) => setTestEmailAddress(e.target.value)}
-                              className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded p-1.5 outline-none flex-1"
-                            />
-                            <button
-                              type="button"
-                              disabled={sendingTest}
-                              onClick={handleSendTestEmail}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded transition-colors shrink-0"
-                            >
-                              {sendingTest ? "Sending..." : "Dispatch"}
-                            </button>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
                 )}
               </div>
 
-              {/* Submit Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/5 text-right">
+            </div>
+
+            {/* Sticky/Fixed Actions Footer */}
+            <div className="flex items-center justify-between p-5 border-t border-slate-900 bg-slate-950 shrink-0 gap-3">
+              {/* Left Action Buttons */}
+              <div className="flex items-center gap-2">
+                {editingClient && reportingEnabled && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handlePreviewReport}
+                      className="px-3 py-2 bg-violet-600/10 hover:bg-violet-600/20 text-violet-400 border border-violet-500/20 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                    >
+                      {loadingPreview ? "Generating..." : "Preview Report"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowTestInput(!showTestInput)}
+                      className="px-3 py-2 bg-slate-850 hover:bg-slate-750 text-slate-300 border border-slate-700 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                    >
+                      Send Test Email
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Right Action Buttons */}
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="btn-secondary"
+                  onClick={handleCloseRequest}
+                  className="btn-secondary px-4 py-2 text-xs font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="btn-primary flex items-center gap-1.5"
+                  className="btn-primary px-4 py-2 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
                 >
                   {isSubmitting ? (
                     <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin"></span>
                   ) : null}
-                  <span>{editingClient ? "Save Updates" : "Activate Integration"}</span>
+                  <span>{editingClient ? "Save Changes" : "Activate Integration"}</span>
                 </button>
               </div>
-            </form>
-          </div>
+            </div>
+
+          </form>
         </div>
       )}
       
@@ -1131,7 +1233,8 @@ export default function ClientsManager({
               </div>
               <button
                 onClick={() => setIsPreviewModalOpen(false)}
-                className="text-slate-400 hover:text-slate-200 transition-colors p-1 border border-slate-800 hover:border-slate-700 bg-slate-900 rounded"
+                aria-label="Close Preview"
+                className="text-slate-400 hover:text-slate-200 transition-colors p-1 border border-slate-800 hover:border-slate-700 bg-slate-900 rounded cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
