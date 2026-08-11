@@ -56,9 +56,16 @@ export default function ClientsManager({
   // Form State & Validation Error triggers (Simple Zod-like unified validation experience)
   const [formName, setFormName] = useState("");
   const [formDomain, setFormDomain] = useState("");
-  const [formPlatform, setFormPlatform] = useState<"Google Ads" | "Meta Ads" | "TikTok Ads" | "All Platforms">("All Platforms");
+  const [formPlatform, setFormPlatform] = useState<any>("All Platforms");
   const [formBudget, setFormBudget] = useState("");
   const [formAgencyId, setFormAgencyId] = useState("");
+  const [formTargetCpl, setFormTargetCpl] = useState("");
+  const [formBrandColor, setFormBrandColor] = useState("#3b82f6");
+  const [formIndustry, setFormIndustry] = useState("");
+  const [formPrimaryGoal, setFormPrimaryGoal] = useState("Leads");
+  const [formPrimaryMarket, setFormPrimaryMarket] = useState("Phoenix, AZ");
+  const [formLogoUrl, setFormLogoUrl] = useState("");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -93,6 +100,12 @@ export default function ClientsManager({
     setFormDomain("");
     setFormPlatform("All Platforms");
     setFormBudget("");
+    setFormTargetCpl("");
+    setFormBrandColor("#3b82f6");
+    setFormIndustry("");
+    setFormPrimaryGoal("Leads");
+    setFormPrimaryMarket("Phoenix, AZ");
+    setFormLogoUrl("");
     if (isAdmin && agenciesList.length > 0) {
       setFormAgencyId(agenciesList[0].id);
     } else {
@@ -108,6 +121,12 @@ export default function ClientsManager({
     setFormDomain(client.domain);
     setFormPlatform(client.platform);
     setFormBudget(client.monthlyBudget.toString());
+    setFormTargetCpl(client.targetCpl?.toString() || "");
+    setFormBrandColor(client.brandColor || "#3b82f6");
+    setFormIndustry(client.industry || "");
+    setFormPrimaryGoal(client.primaryGoal || "Leads");
+    setFormPrimaryMarket(client.primaryMarket || "Phoenix, AZ");
+    setFormLogoUrl(client.logoUrl || "");
     setFormAgencyId((client as any).agencyId || profile?.agencyId || "");
     setFormErrors({});
     setIsModalOpen(true);
@@ -119,6 +138,42 @@ export default function ClientsManager({
     setImportErrors(null);
     setImporting(false);
     setIsImportModalOpen(true);
+  };
+
+  const handleClientLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingLogo(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64 = (reader.result as string).split(",")[1];
+        const res = await authFetch("/api/admin/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.type,
+            fileData: base64
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Upload request failed.");
+        }
+
+        const data = await res.json();
+        setFormLogoUrl(data.publicUrl);
+        addToast("Success", "Client logo uploaded successfully!", "success");
+      } catch (err: any) {
+        addToast("Upload Failed", err.message, "error");
+      } finally {
+        setUploadingLogo(false);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -287,7 +342,13 @@ export default function ClientsManager({
           name: formName.trim(),
           domain: formDomain.trim().toLowerCase(),
           platform: formPlatform,
-          monthlyBudget: budgetNum
+          monthlyBudget: budgetNum,
+          targetCpl: formTargetCpl ? Number(formTargetCpl) : null,
+          brandColor: formBrandColor,
+          industry: formIndustry.trim() || null,
+          primaryGoal: formPrimaryGoal,
+          primaryMarket: formPrimaryMarket,
+          logoUrl: formLogoUrl.trim() || null
         });
       } else {
         await onAddClient({
@@ -295,7 +356,13 @@ export default function ClientsManager({
           domain: formDomain.trim().toLowerCase(),
           platform: formPlatform,
           monthlyBudget: budgetNum,
-          agencyId: formAgencyId || profile?.agencyId
+          agencyId: formAgencyId || profile?.agencyId,
+          targetCpl: formTargetCpl ? Number(formTargetCpl) : null,
+          brandColor: formBrandColor,
+          industry: formIndustry.trim() || null,
+          primaryGoal: formPrimaryGoal,
+          primaryMarket: formPrimaryMarket,
+          logoUrl: formLogoUrl.trim() || null
         });
       }
       setIsModalOpen(false);
@@ -606,8 +673,102 @@ export default function ClientsManager({
                 </div>
               )}
 
+              {/* Target CPL & Brand Color */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Target CPL ($)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 75"
+                    value={formTargetCpl}
+                    onChange={(e) => setFormTargetCpl(e.target.value)}
+                    className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Brand Color (Hex)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={formBrandColor}
+                      onChange={(e) => setFormBrandColor(e.target.value)}
+                      className="w-10 h-10 border border-slate-800 rounded bg-slate-950 p-1 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={formBrandColor}
+                      onChange={(e) => setFormBrandColor(e.target.value)}
+                      className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30 flex-1 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Industry & Primary Goal */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Industry</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Beauty, Dental"
+                    value={formIndustry}
+                    onChange={(e) => setFormIndustry(e.target.value)}
+                    className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Primary Goal</label>
+                  <select
+                    value={formPrimaryGoal}
+                    onChange={(e) => setFormPrimaryGoal(e.target.value)}
+                    className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
+                  >
+                    <option value="Leads">Leads</option>
+                    <option value="Sales">Sales</option>
+                    <option value="Appointments">Appointments</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Primary Market & Client Logo */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Primary Market</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Phoenix, AZ"
+                    value={formPrimaryMarket}
+                    onChange={(e) => setFormPrimaryMarket(e.target.value)}
+                    className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">Client Logo</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Logo URL"
+                      value={formLogoUrl}
+                      onChange={(e) => setFormLogoUrl(e.target.value)}
+                      className="bg-slate-900/50 border border-slate-800 text-slate-300 text-[10px] rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30 flex-1"
+                    />
+                    <label className="px-2 py-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 font-bold rounded text-[10px] cursor-pointer flex items-center gap-1 shrink-0">
+                      <Upload className="w-3 h-3" />
+                      <span>{uploadingLogo ? "..." : "Upload"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingLogo}
+                        className="hidden"
+                        onChange={handleClientLogoUpload}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
               {/* Submit Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/5">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/5 text-right">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}

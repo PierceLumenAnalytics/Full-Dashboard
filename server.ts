@@ -326,7 +326,7 @@ app.post("/api/admin/agencies/onboard", requireAuth, async (req, res) => {
     return res.status(403).json({ error: "Access Denied: Admin role required." });
   }
 
-  const { name, slug, logoUrl, primaryColor, accentColor, clientLimit, clients } = req.body;
+  const { name, slug, logoUrl, primaryColor, accentColor, clientLimit, clients, isDemo, timezone, industry } = req.body;
 
   if (!name || !slug) {
     return res.status(400).json({ error: "Agency name and slug are required." });
@@ -342,7 +342,10 @@ app.post("/api/admin/agencies/onboard", requireAuth, async (req, res) => {
         logo_url: logoUrl ? logoUrl.trim() : null,
         primary_color: primaryColor ? primaryColor.trim() : null,
         accent_color: accentColor ? accentColor.trim() : null,
-        client_limit: typeof clientLimit === "number" ? clientLimit : 5
+        client_limit: typeof clientLimit === "number" ? clientLimit : 5,
+        is_demo: isDemo === true,
+        timezone: timezone ? timezone.trim() : null,
+        industry: industry ? industry.trim() : null
       })
       .select()
       .single();
@@ -446,7 +449,7 @@ app.put("/api/admin/agencies/:id", requireAuth, async (req, res) => {
   }
 
   const { id } = req.params;
-  const { name, slug, logoUrl, primaryColor, accentColor, clientLimit } = req.body;
+  const { name, slug, logoUrl, primaryColor, accentColor, clientLimit, isDemo, timezone, industry } = req.body;
 
   try {
     const updates: any = {};
@@ -456,6 +459,9 @@ app.put("/api/admin/agencies/:id", requireAuth, async (req, res) => {
     if (primaryColor !== undefined) updates.primary_color = primaryColor ? primaryColor.trim() : null;
     if (accentColor !== undefined) updates.accent_color = accentColor ? accentColor.trim() : null;
     if (clientLimit !== undefined) updates.client_limit = Number(clientLimit);
+    if (isDemo !== undefined) updates.is_demo = isDemo === true;
+    if (timezone !== undefined) updates.timezone = timezone ? timezone.trim() : null;
+    if (industry !== undefined) updates.industry = industry ? industry.trim() : null;
 
     const { data: updatedAgency, error } = await supabase
       .from("agencies")
@@ -498,6 +504,383 @@ app.delete("/api/admin/agencies/:id", requireAuth, async (req, res) => {
   } catch (err: any) {
     console.error("Error deleting agency:", err.message);
     res.status(500).json({ error: "Failed to delete agency: " + err.message });
+  }
+});
+
+// API: File Upload Endpoint (Admin only)
+app.post("/api/admin/upload", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  if (!user.isAdmin) {
+    return res.status(403).json({ error: "Access Denied: Admin role required." });
+  }
+
+  const { fileName, fileType, fileData } = req.body;
+  if (!fileName || !fileType || !fileData) {
+    return res.status(400).json({ error: "Missing required upload parameters." });
+  }
+
+  try {
+    const buffer = Buffer.from(fileData, "base64");
+    
+    // Ensure bucket exists
+    await supabase.storage.createBucket("logos", {
+      public: true
+    }).catch(() => {}); // ignore error if it already exists
+
+    // Unique filename to prevent overwrites
+    const uniqueFileName = `${Date.now()}-${fileName}`;
+    const { error: uploadError } = await supabase.storage
+      .from("logos")
+      .upload(uniqueFileName, buffer, {
+        contentType: fileType,
+        upsert: true
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from("logos")
+      .getPublicUrl(uniqueFileName);
+
+    res.json({ publicUrl });
+  } catch (err: any) {
+    console.error("Upload failed:", err.message);
+    res.status(500).json({ error: "Failed to upload file: " + err.message });
+  }
+});
+
+// Deterministic Seeded Random helper
+class SeededRandom {
+  private seed: number;
+  constructor(seed: number) {
+    this.seed = seed;
+  }
+  next() {
+    this.seed = (this.seed * 1664525 + 1013904223) % 4294967296;
+    return this.seed / 4294967296;
+  }
+  range(min: number, max: number) {
+    return min + this.next() * (max - min);
+  }
+}
+
+// API: Deterministic Demo Data Generator (Admin only)
+app.post("/api/admin/generate-demo", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  if (!user.isAdmin) {
+    return res.status(403).json({ error: "Access Denied: Admin role required." });
+  }
+
+  const { clientId } = req.body;
+  if (!clientId) {
+    return res.status(400).json({ error: "Client ID is required." });
+  }
+
+  try {
+    // 1. Fetch Client and Agency details
+    const { data: client, error: clientErr } = await supabase
+      .from("clients")
+      .select("*, agencies(*)")
+      .eq("id", clientId)
+      .single();
+
+    if (clientErr || !client) {
+      return res.status(404).json({ error: "Client not found." });
+    }
+
+    const agency = (client as any).agencies;
+    if (!agency) {
+      return res.status(404).json({ error: "Associated agency not found." });
+    }
+
+    // 2. Block generation for production agencies
+    if (agency.is_demo !== true) {
+      return res.status(403).json({ error: "CRITICAL SECURITY BLOCK: Demo data generation is only allowed for demo tenants (is_demo = true)." });
+    }
+
+    // 3. Clear existing metrics & summaries
+    await supabase.from("campaign_metrics").delete().eq("client_id", clientId);
+    await supabase.from("ai_summaries").delete().eq("client_id", clientId);
+
+    // 4. Resolve geographic primary market & regional distributions
+    let chosenDist = [
+      { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.35, conversionShare: 0.37, bounceRate: "24.5%", timeOnPage: "3m 15s", type: "Organic" },
+      { location: "Mesa, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.21, bounceRate: "25.0%", timeOnPage: "2m 50s", type: "Organic" },
+      { location: "Chandler, AZ", code: "US", flag: "🌵", share: 0.15, conversionShare: 0.16, bounceRate: "23.8%", timeOnPage: "3m 05s", type: "Organic" },
+      { location: "Scottsdale, AZ", code: "US", flag: "🌵", share: 0.12, conversionShare: 0.13, bounceRate: "22.1%", timeOnPage: "3m 40s", type: "Referral" },
+      { location: "Tempe, AZ", code: "US", flag: "🌵", share: 0.10, conversionShare: 0.10, bounceRate: "26.4%", timeOnPage: "2m 30s", type: "Social" },
+      { location: "Gilbert, AZ", code: "US", flag: "🌵", share: 0.08, conversionShare: 0.03, bounceRate: "24.9%", timeOnPage: "2m 55s", type: "Direct" }
+    ];
+
+    const marketLower = (client.primary_market || "").toLowerCase();
+    if (marketLower.includes("los angeles") || marketLower.includes("la") || marketLower.includes("ca")) {
+      chosenDist = [
+        { location: "Los Angeles, CA", code: "US", flag: "🌴", share: 0.40, conversionShare: 0.42, bounceRate: "23.5%", timeOnPage: "3m 20s", type: "Organic" },
+        { location: "Pasadena, CA", code: "US", flag: "🌴", share: 0.20, conversionShare: 0.21, bounceRate: "24.0%", timeOnPage: "3m 02s", type: "Organic" },
+        { location: "Santa Monica, CA", code: "US", flag: "🌴", share: 0.15, conversionShare: 0.16, bounceRate: "21.5%", timeOnPage: "4m 10s", type: "Referral" },
+        { location: "Glendale, CA", code: "US", flag: "🌴", share: 0.13, conversionShare: 0.13, bounceRate: "25.2%", timeOnPage: "2m 45s", type: "Organic" },
+        { location: "Long Beach, CA", code: "US", flag: "🌴", share: 0.12, conversionShare: 0.08, bounceRate: "26.8%", timeOnPage: "2m 30s", type: "Social" }
+      ];
+    } else if (marketLower.includes("new york") || marketLower.includes("ny")) {
+      chosenDist = [
+        { location: "New York, NY", code: "US", flag: "🗽", share: 0.35, conversionShare: 0.36, bounceRate: "22.4%", timeOnPage: "3m 45s", type: "Organic" },
+        { location: "Brooklyn, NY", code: "US", flag: "🗽", share: 0.25, conversionShare: 0.27, bounceRate: "23.1%", timeOnPage: "3m 12s", type: "Organic" },
+        { location: "Queens, NY", code: "US", flag: "🗽", share: 0.20, conversionShare: 0.21, bounceRate: "24.8%", timeOnPage: "2m 55s", type: "Organic" },
+        { location: "Bronx, NY", code: "US", flag: "🗽", share: 0.12, conversionShare: 0.12, bounceRate: "27.0%", timeOnPage: "2m 20s", type: "Social" },
+        { location: "Staten Island, NY", code: "US", flag: "🗽", share: 0.08, conversionShare: 0.04, bounceRate: "25.5%", timeOnPage: "2m 35s", type: "Direct" }
+      ];
+    }
+
+    // Save regional distribution to client row
+    await supabase
+      .from("clients")
+      .update({ regional_distribution: chosenDist })
+      .eq("id", clientId);
+
+    // 5. Generate Campaign names
+    let campNames = ["Brand Search", "Product Prospecting", "Lead Gen Prospecting", "Retargeting"];
+    const indLower = (client.industry || "").toLowerCase();
+    if (indLower.includes("beauty") || indLower.includes("skin") || indLower.includes("retail") || indLower.includes("ecom")) {
+      campNames = ["Brand Search", "Product Prospecting", "Retargeting", "High Intent", "Lookalike"];
+    } else if (indLower.includes("roof") || indLower.includes("home") || indLower.includes("plumb")) {
+      campNames = ["Emergency Roofing", "Roof Replacement", "Local Roofing", "Retargeting"];
+    } else if (indLower.includes("dental") || indLower.includes("dentist") || indLower.includes("health")) {
+      campNames = ["Emergency Dentist", "General Dentistry", "Dental Implants", "Invisalign", "Retargeting"];
+    }
+
+    // Resolve platforms list
+    let platforms = ["Google Ads", "Meta Ads"];
+    const platformInput = client.platform || "";
+    if (platformInput.includes("Google Ads Only") || platformInput === "Google Ads") {
+      platforms = ["Google Ads"];
+    } else if (platformInput.includes("Meta Ads Only") || platformInput === "Meta Ads") {
+      platforms = ["Meta Ads"];
+    } else if (platformInput.includes("TikTok Ads Only") || platformInput === "TikTok Ads") {
+      platforms = ["TikTok Ads"];
+    }
+
+    // Setup base campaign metrics
+    const campaigns: { name: string; platform: string; baseSpend: number; baseCpl: number; baseCpc: number; baseCtr: number }[] = [];
+    const dailyBudget = (Number(client.monthly_budget) || 5000) / 30;
+    const targetCpl = Number(client.target_cpl) || 50;
+
+    campNames.forEach((name, idx) => {
+      let plat = platforms[0];
+      if (platforms.length > 1) {
+        plat = idx % 2 === 0 ? "Google Ads" : "Meta Ads";
+      }
+
+      const share = 1 / campNames.length;
+      campaigns.push({
+        name,
+        platform: plat,
+        baseSpend: dailyBudget * share,
+        baseCpl: name.includes("Brand") ? targetCpl * 0.5 : targetCpl * 1.1,
+        baseCpc: plat === "Google Ads" ? 3.0 : 1.5,
+        baseCtr: plat === "Google Ads" ? 0.035 : 0.018
+      });
+    });
+
+    // SeededRandom seeded by character code sum of client ID
+    const clientHash = clientId.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+    const rand = new SeededRandom(clientHash);
+    const storyType = clientHash % 5;
+
+    const endDate = new Date();
+    const dates: string[] = [];
+    for (let i = 89; i >= 0; i--) {
+      const d = new Date(endDate);
+      d.setDate(endDate.getDate() - i);
+      dates.push(d.toISOString().split("T")[0]);
+    }
+
+    const campaignMetricsBatch: any[] = [];
+    let totalSpendSum = 0;
+    let totalConversionsSum = 0;
+
+    for (let day = 0; day < 90; day++) {
+      const dateStr = dates[day];
+      const dayOfWeek = new Date(dateStr).getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+      for (const camp of campaigns) {
+        let spendTrend = 1.0;
+        let leadsEfficiencyTrend = 1.0;
+        let weekendFactor = 1.0;
+
+        if (isWeekend) {
+          weekendFactor = (clientHash % 2 === 0) ? 0.70 : 1.20;
+        }
+
+        // Apply story trends
+        if (storyType === 0) {
+          // Scaling/CPL improves (spend +25%, conversions +35%)
+          spendTrend = 1.0 + (day / 89) * 0.25;
+          leadsEfficiencyTrend = 1.0 + (day / 89) * 0.40;
+        } else if (storyType === 1) {
+          // CPL stable
+          spendTrend = 0.95 + rand.next() * 0.10;
+          leadsEfficiencyTrend = 1.0;
+        } else if (storyType === 2) {
+          // CPL deteriorating
+          spendTrend = 1.0 + (day / 89) * 0.40;
+          leadsEfficiencyTrend = 1.0 - (day / 89) * 0.40;
+        } else if (storyType === 3) {
+          // CPL falling
+          spendTrend = 1.0;
+          leadsEfficiencyTrend = 1.0 + (day / 89) * 0.45;
+        } else {
+          // Needs Attention (CPL rises)
+          spendTrend = 1.0 + (day / 89) * 0.20;
+          leadsEfficiencyTrend = 1.0 - (day / 89) * 0.45;
+        }
+
+        const noise = rand.range(0.85, 1.15);
+        const spend = Math.max(0, Math.round(camp.baseSpend * spendTrend * weekendFactor * noise * 100) / 100);
+        const currentCpl = camp.baseCpl / leadsEfficiencyTrend;
+        const conversions = Math.round(spend / currentCpl);
+
+        const avgCpc = camp.baseCpc * rand.range(0.90, 1.10);
+        const clicks = conversions + Math.round(spend / avgCpc);
+        const avgCtr = camp.baseCtr * rand.range(0.90, 1.10);
+        const impressions = clicks + Math.round(clicks / avgCtr);
+
+        // Sales goal / ROAS check
+        const isSales = (client.primary_goal || "").toLowerCase().includes("sale") || 
+                        (client.primary_goal || "").toLowerCase().includes("rev") ||
+                        indLower.includes("beauty") || indLower.includes("retail") || indLower.includes("ecom");
+        let conversionValue = 0.0;
+        if (isSales) {
+          const roas = rand.range(2.8, 5.0);
+          conversionValue = Math.round(spend * roas * 100) / 100;
+        }
+
+        totalSpendSum += spend;
+        totalConversionsSum += conversions;
+
+        campaignMetricsBatch.push({
+          client_id: client.id,
+          agency_id: agency.id,
+          date: dateStr,
+          platform: camp.platform,
+          spend,
+          impressions,
+          clicks,
+          conversions,
+          campaign_name: camp.name,
+          conversion_value: conversionValue,
+          revenue: conversionValue
+        });
+      }
+    }
+
+    const { error: insError } = await supabase.from("campaign_metrics").insert(campaignMetricsBatch);
+    if (insError) throw insError;
+
+    // 6. SeedCached AI summaries
+    const finalCpl = totalConversionsSum > 0 ? totalSpendSum / totalConversionsSum : 0;
+    
+    let summaryData = [
+      {
+        type: "scale",
+        label: "SCALE",
+        number: "01",
+        what: `Performance metrics for ${client.name} are tracking inside target guidelines.`,
+        why: `Average cost-per-lead (CPL) is $${finalCpl.toFixed(2)} vs target CPL $${targetCpl.toFixed(2)}.`,
+        action: "Maintain current budget pacing allocations."
+      },
+      {
+        type: "opportunity",
+        label: "OPPORTUNITY",
+        number: "02",
+        what: "High relevance and CTR on prospecting campaigns indicates strong creative appeal.",
+        why: "Prospecting click-through rates reached an optimized average this week.",
+        action: "Incorporate dedicated localized search copy landing pages."
+      },
+      {
+        type: "watch",
+        label: "WATCH",
+        number: "03",
+        what: "Competitor activity on branded keywords has increased.",
+        why: "Branded search cost-per-click experienced minor upward pacing pressures.",
+        action: "Audit branded bid ceilings to protect top impression shares."
+      }
+    ];
+
+    if (storyType === 0) {
+      summaryData = [
+        {
+          type: "scale",
+          label: "SCALE",
+          number: "01",
+          what: `Paid acquisition campaigns for ${client.name} show strong scalability.`,
+          why: `Conversions scaled by 35% while CPL dropped to $${finalCpl.toFixed(2)} (Target CPL: $${targetCpl.toFixed(2)}).`,
+          action: "Increase daily budgets on top two converting search campaigns by 15%."
+        },
+        {
+          type: "opportunity",
+          label: "OPPORTUNITY",
+          number: "02",
+          what: "Prospecting audiences are demonstrating very high conversion efficiency.",
+          why: "Recent creative optimizations led to a 20% CTR boost.",
+          action: "Test expanding lookalike audience filters by 1%."
+        },
+        {
+          type: "watch",
+          label: "WATCH",
+          number: "03",
+          what: "Branded search bid pacing became slightly more competitive.",
+          why: "Competitor branded impressions crept up by 3%.",
+          action: "Set automatic rules to maintain absolute top page bid positions."
+        }
+      ];
+    } else if (storyType === 2 || storyType === 4) {
+      summaryData = [
+        {
+          type: "alert",
+          label: "ALERT",
+          number: "01",
+          what: `Deteriorating conversion cost pacing for ${client.name}.`,
+          why: `Total spend expanded but conversions dropped, causing CPL to inflate to $${finalCpl.toFixed(2)} (Target: $${targetCpl.toFixed(2)}).`,
+          action: "Pause the lowest performing prospecting campaigns and audit landing page forms."
+        },
+        {
+          type: "watch",
+          label: "WATCH",
+          number: "02",
+          what: "Ad frequency reached elevated levels in warm audience segments.",
+          why: "Frequency rose to 4.5 in the last 14 days, indicating ad fatigue.",
+          action: "Immediately swap in three fresh creative design templates."
+        },
+        {
+          type: "opportunity",
+          label: "OPPORTUNITY",
+          number: "03",
+          what: "Local Google brand search campaigns remain highly cost-efficient.",
+          why: "Conversion rates on high-intent search terms remain at 14.2%.",
+          action: "Shift $25/day budget from low-performing Facebook ads to Google Brand search."
+        }
+      ];
+    }
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    await supabase.from("ai_summaries").insert({
+      client_id: clientId,
+      agency_id: agency.id,
+      date_range: "30days",
+      summary_data: summaryData
+    });
+    await supabase.from("ai_summaries").insert({
+      client_id: clientId,
+      agency_id: agency.id,
+      date_range: `30days-${todayStr}`,
+      summary_data: summaryData
+    });
+
+    res.json({ success: true, storyType, clientCpl: finalCpl });
+  } catch (err: any) {
+    console.error("Failed to generate demo data:", err.message);
+    res.status(500).json({ error: "Failed to generate demo data: " + err.message });
   }
 });
 
@@ -561,7 +944,9 @@ app.get("/api/clients", requireAuth, async (req, res) => {
       brandColor: c.brand_color || null,
       industry: c.industry || null,
       primaryGoal: c.primary_goal || null,
-      regionalDistribution: c.regional_distribution || null
+      regionalDistribution: c.regional_distribution || null,
+      primaryMarket: c.primary_market || null,
+      logoUrl: c.logo_url || null
     }));
 
     console.log(`GET /api/clients: Successfully retrieved and mapped ${mapped.length} clients.`);
@@ -574,7 +959,7 @@ app.get("/api/clients", requireAuth, async (req, res) => {
 
 // API: Create a client
 app.post("/api/clients", requireAuth, async (req, res) => {
-  const { name, domain, platform, monthlyBudget, agencyId: inputAgencyId } = req.body;
+  const { name, domain, platform, monthlyBudget, agencyId: inputAgencyId, targetCpl, brandColor, industry, primaryGoal, primaryMarket, logoUrl } = req.body;
   const user = (req as any).user;
   
   // Zod-like simple key validation for security/safety
@@ -584,8 +969,8 @@ app.post("/api/clients", requireAuth, async (req, res) => {
   if (!domain || typeof domain !== "string" || !domain.includes(".")) {
     return res.status(400).json({ error: "A valid domain (e.g., example.com) is required." });
   }
-  if (!platform || !["Google Ads", "Meta Ads", "TikTok Ads", "All Platforms"].includes(platform)) {
-    return res.status(400).json({ error: "Platform must be one of: Google Ads, Meta Ads, TikTok Ads, All Platforms." });
+  if (!platform || typeof platform !== "string" || platform.trim().length === 0) {
+    return res.status(400).json({ error: "Platform must be a valid string selection." });
   }
   if (monthlyBudget === undefined || typeof monthlyBudget !== "number" || monthlyBudget <= 0) {
     return res.status(400).json({ error: "Monthly budget must be a positive number." });
@@ -621,7 +1006,13 @@ app.post("/api/clients", requireAuth, async (req, res) => {
         monthly_budget: monthlyBudget,
         status: "Active",
         created_at: createdAt,
-        agency_id: targetAgencyId
+        agency_id: targetAgencyId,
+        target_cpl: targetCpl !== undefined ? Number(targetCpl) : null,
+        brand_color: brandColor || null,
+        industry: industry || null,
+        primary_goal: primaryGoal || null,
+        primary_market: primaryMarket || null,
+        logo_url: logoUrl || null
       })
       .select()
       .single();
@@ -656,7 +1047,14 @@ app.post("/api/clients", requireAuth, async (req, res) => {
       monthlyBudget: Number(newClientData.monthly_budget),
       status: newClientData.status,
       createdAt: newClientData.created_at,
-      agencyId: newClientData.agency_id
+      agencyId: newClientData.agency_id,
+      targetCpl: newClientData.target_cpl ? Number(newClientData.target_cpl) : null,
+      brandColor: newClientData.brand_color || null,
+      industry: newClientData.industry || null,
+      primaryGoal: newClientData.primary_goal || null,
+      regionalDistribution: newClientData.regional_distribution || null,
+      primaryMarket: newClientData.primary_market || null,
+      logoUrl: newClientData.logo_url || null
     };
 
     res.status(201).json(mappedClient);
@@ -692,9 +1090,16 @@ app.put("/api/clients/:id", requireAuth, async (req, res) => {
     const updates: any = {};
     if (name && typeof name === "string") updates.name = name.trim();
     if (domain && typeof domain === "string" && domain.includes(".")) updates.domain = domain.trim().toLowerCase();
-    if (platform && ["Google Ads", "Meta Ads", "TikTok Ads", "All Platforms"].includes(platform)) updates.platform = platform;
+    if (platform) updates.platform = platform;
     if (monthlyBudget !== undefined && typeof monthlyBudget === "number" && monthlyBudget > 0) updates.monthly_budget = monthlyBudget;
     if (status && ["Active", "Paused", "Needs Review"].includes(status)) updates.status = status;
+    if (req.body.targetCpl !== undefined) updates.target_cpl = req.body.targetCpl ? Number(req.body.targetCpl) : null;
+    if (req.body.brandColor !== undefined) updates.brand_color = req.body.brandColor || null;
+    if (req.body.industry !== undefined) updates.industry = req.body.industry || null;
+    if (req.body.primaryGoal !== undefined) updates.primary_goal = req.body.primaryGoal || null;
+    if (req.body.regionalDistribution !== undefined) updates.regional_distribution = req.body.regionalDistribution || null;
+    if (req.body.primaryMarket !== undefined) updates.primary_market = req.body.primaryMarket || null;
+    if (req.body.logoUrl !== undefined) updates.logo_url = req.body.logoUrl || null;
 
     // 3. Update client
     const { data: updatedClientData, error: updateError } = await supabase

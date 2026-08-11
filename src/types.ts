@@ -12,6 +12,8 @@ export interface ClientAccount {
   industry?: string | null;
   primaryGoal?: string | null;
   regionalDistribution?: any[] | null;
+  primaryMarket?: string | null;
+  logoUrl?: string | null;
 }
 
 export interface PerformanceMetric {
