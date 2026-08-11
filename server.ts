@@ -509,6 +509,7 @@ interface PerformanceMetric {
   clicks: number;
   impressions: number;
   conversions: number;
+  conversionValue?: number;
 }
 
 // Cleaned up client-side mock generators
@@ -555,7 +556,12 @@ app.get("/api/clients", requireAuth, async (req, res) => {
       monthlyBudget: Number(c.monthly_budget),
       status: c.status,
       createdAt: c.created_at,
-      agencyId: c.agency_id
+      agencyId: c.agency_id,
+      targetCpl: c.target_cpl ? Number(c.target_cpl) : null,
+      brandColor: c.brand_color || null,
+      industry: c.industry || null,
+      primaryGoal: c.primary_goal || null,
+      regionalDistribution: c.regional_distribution || null
     }));
 
     console.log(`GET /api/clients: Successfully retrieved and mapped ${mapped.length} clients.`);
@@ -822,7 +828,12 @@ app.get("/api/analytics/:clientId", requireAuth, async (req, res) => {
       monthlyBudget: Number(client.monthly_budget),
       status: client.status,
       createdAt: client.created_at,
-      agencyId: client.agency_id
+      agencyId: client.agency_id,
+      targetCpl: client.target_cpl ? Number(client.target_cpl) : null,
+      brandColor: client.brand_color || null,
+      industry: client.industry || null,
+      primaryGoal: client.primary_goal || null,
+      regionalDistribution: client.regional_distribution || null
     };
 
     // Check if there are any imported metrics in DB
@@ -1117,23 +1128,106 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
   const dateRangeKey = `30days-${todayStr}`;
 
   try {
-    // Check Cache first
+    // Check Cache first - support both exact dateRangeKey and generic "30days" (seeded) keys
     const { data: cachedSummary } = await supabase
       .from("ai_summaries")
-      .select("summary_data")
+      .select("summary_data, date_range")
       .eq("client_id", clientId)
-      .eq("date_range", dateRangeKey)
-      .single();
+      .in("date_range", [dateRangeKey, "30days"]);
 
-    if (cachedSummary) {
-      console.log(`Cache Hit: Serving stored AI summary for client ${clientId} on date ${todayStr}`);
+    if (cachedSummary && cachedSummary.length > 0) {
+      // Prefer exact date range key matching today, otherwise fall back to seeded general 30days
+      const bestMatch = cachedSummary.find(s => s.date_range === dateRangeKey) || cachedSummary[0];
+      console.log(`Cache Hit: Serving stored AI summary (${bestMatch.date_range}) for client ${clientId}`);
       return res.json({
-        insights: (cachedSummary as any).summary_data,
+        insights: bestMatch.summary_data,
         provider: "Cached"
       });
     }
   } catch (cacheErr: any) {
     console.warn("Summary cache check skipped/empty:", cacheErr.message);
+  }
+
+  // Dynamic ranking variables for agency-overviewfallback
+  let bestClientName = "Apex Roofing";
+  let secondBestClientName = "Summit Fitness";
+  let worstClientName = "Canyon Home Services";
+  let worstCpl = 102.50;
+  let worstTargetCpl = 70.00;
+
+  if (clientId === "agency-overview") {
+    try {
+      const { data: dbClients } = await supabase
+        .from("clients")
+        .select("id, name, target_cpl")
+        .eq("agency_id", user.agencyId);
+
+      if (dbClients && dbClients.length > 0) {
+        const clientMap = new Map<string, { name: string; targetCpl: number }>();
+        dbClients.forEach(c => clientMap.set(c.id, { name: c.name, targetCpl: Number(c.target_cpl || 0) }));
+
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+
+        const { data: recentMetrics } = await supabase
+          .from("campaign_metrics")
+          .select("client_id, spend, conversions, conversion_value")
+          .eq("agency_id", user.agencyId)
+          .gte("date", thirtyDaysAgoStr);
+
+        if (recentMetrics && recentMetrics.length > 0) {
+          const clientStats: { [id: string]: { spend: number; conversions: number; conversionValue: number } } = {};
+          recentMetrics.forEach(m => {
+            if (!clientStats[m.client_id]) {
+              clientStats[m.client_id] = { spend: 0, conversions: 0, conversionValue: 0 };
+            }
+            clientStats[m.client_id].spend += Number(m.spend);
+            clientStats[m.client_id].conversions += Number(m.conversions);
+            clientStats[m.client_id].conversionValue += Number(m.conversion_value || 0);
+          });
+
+          const clientPerformances = Object.keys(clientStats).map(id => {
+            const meta = clientMap.get(id) || { name: id, targetCpl: 0 };
+            const s = clientStats[id];
+            const cpl = s.conversions > 0 ? s.spend / s.conversions : 0;
+            const roas = s.spend > 0 ? s.conversionValue / s.spend : 0;
+            const cplRatio = meta.targetCpl > 0 ? cpl / meta.targetCpl : 0;
+            return {
+              id,
+              name: meta.name,
+              targetCpl: meta.targetCpl,
+              spend: s.spend,
+              conversions: s.conversions,
+              cpl,
+              roas,
+              cplRatio
+            };
+          });
+
+          // Sort by ROAS descending to find best performing clients
+          const sortedByRoas = [...clientPerformances].sort((a, b) => b.roas - a.roas);
+          if (sortedByRoas.length > 0) {
+            bestClientName = sortedByRoas[0].name;
+            if (sortedByRoas.length > 1) {
+              secondBestClientName = sortedByRoas[1].name;
+            } else {
+              secondBestClientName = "other campaigns";
+            }
+          }
+
+          // Sort by CPL ratio descending to find worst performing clients relative to target CPL
+          const sortedByCplRatio = [...clientPerformances].filter(c => c.targetCpl > 0).sort((a, b) => b.cplRatio - a.cplRatio);
+          if (sortedByCplRatio.length > 0) {
+            worstClientName = sortedByCplRatio[0].name;
+            worstCpl = sortedByCplRatio[0].cpl;
+            worstTargetCpl = sortedByCplRatio[0].targetCpl;
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error("Error calculating dynamic fallback insights:", err.message);
+    }
   }
 
   // Graceful fallback generator using actual client performance metrics
@@ -1158,17 +1252,17 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
           type: "opportunity",
           label: "OPPORTUNITY",
           number: "02",
-          what: "Overall agency performance improved, driven primarily by Apex Roofing and Summit Fitness.",
-          why: `Apex Roofing and Summit Fitness accounts generated high ROAS and efficient conversion volume, boosting average ROAS to ${roas.toFixed(2)}x.`,
+          what: `Overall agency performance improved, driven primarily by ${bestClientName} and ${secondBestClientName}.`,
+          why: `${bestClientName} and ${secondBestClientName} accounts generated high ROAS and efficient conversion volume, boosting average ROAS to ${roas.toFixed(2)}x.`,
           action: "Shift budget allocations from under-performing accounts to scale high-performing campaigns on these two clients."
         },
         {
           type: "alert",
           label: "ALERT",
           number: "03",
-          what: "Canyon Home Services is experiencing severe performance deterioration.",
-          why: "Canyon Home Services cost-per-lead rose 57% to $102.50 due to ad conversion pacing issues on plumbing search queries.",
-          action: "Audit the plumber landing page form and check match query report for negative search terms."
+          what: `${worstClientName} is experiencing performance deterioration.`,
+          why: `${worstClientName} cost-per-lead rose to $${worstCpl.toFixed(2)} (target CPL: $${worstTargetCpl.toFixed(2)}).`,
+          action: "Audit the landing page form and check match query report for negative search terms."
         }
       ];
     }
@@ -1562,7 +1656,7 @@ app.get("/api/public/dashboard/:token", rateLimiter(20, 60000), async (req, res)
 
     const { data: clients, error: clientsError } = await supabase
       .from("clients")
-      .select("id, name, domain, platform, monthly_budget, status")
+      .select("id, name, domain, platform, monthly_budget, status, target_cpl, brand_color, industry, primary_goal, regional_distribution")
       .eq("agency_id", agencyId)
       .eq("public_dashboard_enabled", true);
 
@@ -1576,7 +1670,12 @@ app.get("/api/public/dashboard/:token", rateLimiter(20, 60000), async (req, res)
         domain: c.domain,
         platform: c.platform,
         monthlyBudget: Number(c.monthly_budget),
-        status: c.status
+        status: c.status,
+        targetCpl: c.target_cpl ? Number(c.target_cpl) : null,
+        brandColor: c.brand_color || null,
+        industry: c.industry || null,
+        primaryGoal: c.primary_goal || null,
+        regionalDistribution: c.regional_distribution || null
       }))
     });
   } catch (err: any) {
@@ -1597,7 +1696,7 @@ app.get("/api/public/analytics/:clientId", rateLimiter(30, 60000), async (req, r
   try {
     const { data: client, error: clientErr } = await supabase
       .from("clients")
-      .select("id, name, domain, platform, monthly_budget, status, agency_id, public_dashboard_enabled")
+      .select("id, name, domain, platform, monthly_budget, status, agency_id, public_dashboard_enabled, target_cpl, brand_color, industry, primary_goal, regional_distribution")
       .eq("id", clientId)
       .single();
 
@@ -1612,12 +1711,17 @@ app.get("/api/public/analytics/:clientId", rateLimiter(30, 60000), async (req, r
       platform: client.platform,
       monthlyBudget: Number(client.monthly_budget),
       status: client.status,
-      agencyId: client.agency_id
+      agencyId: client.agency_id,
+      targetCpl: client.target_cpl ? Number(client.target_cpl) : null,
+      brandColor: client.brand_color || null,
+      industry: client.industry || null,
+      primaryGoal: client.primary_goal || null,
+      regionalDistribution: client.regional_distribution || null
     };
 
     const { data: dbMetrics, error: metricsError } = await supabase
       .from("campaign_metrics")
-      .select("date, spend, impressions, clicks, conversions, platform, campaign_name, revenue")
+      .select("date, spend, impressions, clicks, conversions, platform, campaign_name, revenue, conversion_value")
       .eq("client_id", clientId)
       .order("date", { ascending: true });
 
@@ -1637,13 +1741,15 @@ app.get("/api/public/analytics/:clientId", rateLimiter(30, 60000), async (req, r
             spend: 0,
             clicks: 0,
             impressions: 0,
-            conversions: 0
+            conversions: 0,
+            conversionValue: 0
           };
         }
         dailyGroup[dateStr].spend += Number(m.spend);
         dailyGroup[dateStr].clicks += Number(m.clicks);
         dailyGroup[dateStr].impressions += Number(m.impressions);
         dailyGroup[dateStr].conversions += Number(m.conversions);
+        dailyGroup[dateStr].conversionValue += Number(m.conversion_value || m.revenue || 0);
 
         if (m.campaign_name && m.campaign_name !== "General") {
           const cName = m.campaign_name;
@@ -1657,21 +1763,21 @@ app.get("/api/public/analytics/:clientId", rateLimiter(30, 60000), async (req, r
               impressions: 0,
               clicks: 0,
               conversions: 0,
-              revenue: 0
+              conversionValue: 0
             };
           }
           campaignsGroup[cName].spend += Number(m.spend);
           campaignsGroup[cName].impressions += Number(m.impressions);
           campaignsGroup[cName].clicks += Number(m.clicks);
           campaignsGroup[cName].conversions += Number(m.conversions);
-          campaignsGroup[cName].revenue += Number(m.revenue || 0);
+          campaignsGroup[cName].conversionValue += Number(m.conversion_value || m.revenue || 0);
         }
       }
       metrics = Object.values(dailyGroup).sort((a, b) => a.date.localeCompare(b.date));
 
       campaignsList = Object.values(campaignsGroup).map((c: any) => {
         const cpl = c.conversions > 0 ? c.spend / c.conversions : 0;
-        const roas = c.spend > 0 ? c.revenue / c.spend : 0;
+        const roas = c.spend > 0 ? c.conversionValue / c.spend : 0;
         return {
           id: c.id,
           name: c.name,

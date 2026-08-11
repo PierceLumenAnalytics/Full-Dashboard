@@ -7,11 +7,6 @@ export interface ClientAccount {
   status: "Active" | "Paused" | "Needs Review";
   createdAt: string;
   agencyId?: string | null;
-  targetCpl?: number | null;
-  brandColor?: string | null;
-  industry?: string | null;
-  primaryGoal?: string | null;
-  regionalDistribution?: any[] | null;
 }
 
 export interface PerformanceMetric {

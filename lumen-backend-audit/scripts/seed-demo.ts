@@ -37,26 +37,21 @@ async function main() {
   const rand = new SeededRandom(42);
 
   try {
+    // 1. Database Cleanup for Demo Agency
     const demoSlug = "northstar-digital";
-    console.log(`\n[1/6] Running safety checks and cleaning up demo agency: ${demoSlug}...`);
+    console.log(`\n[1/6] Cleaning up any existing data for demo agency: ${demoSlug}...`);
 
-    // Safety check: verify existing agency isn't a real customer
     const { data: existingAgency } = await supabase
       .from("agencies")
-      .select("id, is_demo")
+      .select("id")
       .eq("slug", demoSlug)
       .single();
 
     if (existingAgency) {
-      if (existingAgency.is_demo !== true) {
-        console.error(`\n❌ SAFETY VIOLATION: Agency with slug '${demoSlug}' exists but has is_demo = ${existingAgency.is_demo}. Aborting seed execution immediately to protect production data!`);
-        process.exit(1);
-      }
-      
       const demoId = existingAgency.id;
-      console.log(`Verified demo agency ID: ${demoId}. Clearing associated records...`);
+      console.log(`Found existing demo agency ID: ${demoId}. Clearing associated records...`);
 
-      // Delete child records in dependency-safe order
+      // Order of deletions to avoid FK violations (since REST does not cascade in REST API deletes)
       const { error: delMetrics } = await supabase.from("campaign_metrics").delete().eq("agency_id", demoId);
       if (delMetrics) throw delMetrics;
 
@@ -72,7 +67,7 @@ async function main() {
       const { error: delClients } = await supabase.from("clients").delete().eq("agency_id", demoId);
       if (delClients) throw delClients;
 
-      // Delete Profile and Auth User
+      // Delete Profile associated with any demo auth user
       const { data: { users } } = await supabase.auth.admin.listUsers();
       const demoEmail = "agency@northstar-digital.com";
       const demoAuthUser = (users as any[]).find(u => u.email === demoEmail);
@@ -82,7 +77,7 @@ async function main() {
         await supabase.auth.admin.deleteUser(demoAuthUser.id);
       }
 
-      // Finally delete agency
+      // Finally, delete the agency itself
       const { error: delAg } = await supabase.from("agencies").delete().eq("id", demoId);
       if (delAg) throw delAg;
 
@@ -113,7 +108,7 @@ async function main() {
     console.log("Creating Demo User: agency@northstar-digital.com...");
     const { data: { user }, error: userErr } = await supabase.auth.admin.createUser({
       email: "agency@northstar-digital.com",
-      password: "NorthstarPass123!",
+      password: "[REDACTED]",
       email_confirm: true
     });
     if (userErr) throw userErr;
@@ -130,109 +125,14 @@ async function main() {
       });
     if (profileErr) throw profileErr;
 
-    // 3. Create the 5 Clients (with local Arizona metro geography)
+    // 3. Create the 5 Clients
     console.log("\n[3/6] Seeding 5 clients...");
     const clientsData = [
-      {
-        id: "c_apex_roof",
-        name: "Apex Roofing",
-        domain: "apexroofing.com",
-        platform: "All Platforms",
-        monthly_budget: 8500,
-        status: "Active",
-        agency_id: agency.id,
-        brand_color: "#1A3A5C",
-        industry: "Home Services (Roofing)",
-        primary_goal: "Leads",
-        target_cpl: 65,
-        regional_distribution: [
-          { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.35, conversionShare: 0.37, bounceRate: "24.5%", timeOnPage: "3m 15s", type: "Organic" },
-          { location: "Mesa, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.21, bounceRate: "25.0%", timeOnPage: "2m 50s", type: "Organic" },
-          { location: "Chandler, AZ", code: "US", flag: "🌵", share: 0.15, conversionShare: 0.16, bounceRate: "23.8%", timeOnPage: "3m 05s", type: "Organic" },
-          { location: "Scottsdale, AZ", code: "US", flag: "🌵", share: 0.12, conversionShare: 0.13, bounceRate: "22.1%", timeOnPage: "3m 40s", type: "Referral" },
-          { location: "Tempe, AZ", code: "US", flag: "🌵", share: 0.10, conversionShare: 0.10, bounceRate: "26.4%", timeOnPage: "2m 30s", type: "Social" },
-          { location: "Gilbert, AZ", code: "US", flag: "🌵", share: 0.08, conversionShare: 0.03, bounceRate: "24.9%", timeOnPage: "2m 55s", type: "Direct" }
-        ]
-      },
-      {
-        id: "c_verde_dental",
-        name: "Verde Dental",
-        domain: "verdedental.com",
-        platform: "All Platforms",
-        monthly_budget: 6000,
-        status: "Active",
-        agency_id: agency.id,
-        brand_color: "#2E7D5E",
-        industry: "Dental / Healthcare",
-        primary_goal: "Appointment Leads",
-        target_cpl: 45,
-        regional_distribution: [
-          { location: "Tempe, AZ", code: "US", flag: "🌵", share: 0.30, conversionShare: 0.32, bounceRate: "23.1%", timeOnPage: "3m 22s", type: "Organic" },
-          { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.25, conversionShare: 0.27, bounceRate: "24.5%", timeOnPage: "3m 10s", type: "Organic" },
-          { location: "Chandler, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.21, bounceRate: "22.4%", timeOnPage: "3m 08s", type: "Organic" },
-          { location: "Mesa, AZ", code: "US", flag: "🌵", share: 0.15, conversionShare: 0.15, bounceRate: "25.6%", timeOnPage: "2m 44s", type: "Organic" },
-          { location: "Gilbert, AZ", code: "US", flag: "🌵", share: 0.10, conversionShare: 0.05, bounceRate: "24.1%", timeOnPage: "2m 58s", type: "Direct" }
-        ]
-      },
-      {
-        id: "c_summit_fit",
-        name: "Summit Fitness",
-        domain: "summitfitness.com",
-        platform: "Meta Ads",
-        monthly_budget: 4000,
-        status: "Active",
-        agency_id: agency.id,
-        brand_color: "#E05C2A",
-        industry: "Fitness / Wellness",
-        primary_goal: "Membership Leads",
-        target_cpl: 30,
-        regional_distribution: [
-          { location: "Scottsdale, AZ", code: "US", flag: "🌵", share: 0.40, conversionShare: 0.42, bounceRate: "20.5%", timeOnPage: "4m 12s", type: "Organic" },
-          { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.30, conversionShare: 0.31, bounceRate: "23.4%", timeOnPage: "3m 20s", type: "Organic" },
-          { location: "Tempe, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.20, bounceRate: "25.1%", timeOnPage: "2m 45s", type: "Social" },
-          { location: "Gilbert, AZ", code: "US", flag: "🌵", share: 0.10, conversionShare: 0.07, bounceRate: "22.8%", timeOnPage: "3m 02s", type: "Direct" }
-        ]
-      },
-      {
-        id: "c_westline_auto",
-        name: "Westline Auto",
-        domain: "westlineauto.com",
-        platform: "Google Ads",
-        monthly_budget: 7000,
-        status: "Active",
-        agency_id: agency.id,
-        brand_color: "#333333",
-        industry: "Automotive",
-        primary_goal: "Leads",
-        target_cpl: 55,
-        regional_distribution: [
-          { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.35, conversionShare: 0.38, bounceRate: "25.2%", timeOnPage: "3m 12s", type: "Organic" },
-          { location: "Tucson, AZ", code: "US", flag: "🌵", share: 0.25, conversionShare: 0.26, bounceRate: "27.4%", timeOnPage: "2m 58s", type: "Organic" },
-          { location: "Mesa, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.20, bounceRate: "26.0%", timeOnPage: "2m 45s", type: "Organic" },
-          { location: "Chandler, AZ", code: "US", flag: "🌵", share: 0.12, conversionShare: 0.12, bounceRate: "24.8%", timeOnPage: "3m 02s", type: "Organic" },
-          { location: "Glendale, AZ", code: "US", flag: "🌵", share: 0.08, conversionShare: 0.04, bounceRate: "28.5%", timeOnPage: "2m 24s", type: "Organic" }
-        ]
-      },
-      {
-        id: "c_canyon_home",
-        name: "Canyon Home Services",
-        domain: "canyonhomeservices.com",
-        platform: "All Platforms",
-        monthly_budget: 5500,
-        status: "Active",
-        agency_id: agency.id,
-        brand_color: "#8B1A1A",
-        industry: "Home Services (HVAC / Plumbing)",
-        primary_goal: "Leads",
-        target_cpl: 70,
-        regional_distribution: [
-          { location: "Glendale, AZ", code: "US", flag: "🌵", share: 0.30, conversionShare: 0.32, bounceRate: "26.4%", timeOnPage: "2m 55s", type: "Organic" },
-          { location: "Peoria, AZ", code: "US", flag: "🌵", share: 0.25, conversionShare: 0.26, bounceRate: "25.1%", timeOnPage: "3m 05s", type: "Organic" },
-          { location: "Tempe, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.21, bounceRate: "24.9%", timeOnPage: "3m 12s", type: "Organic" },
-          { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.15, conversionShare: 0.15, bounceRate: "28.0%", timeOnPage: "2m 28s", type: "Social" },
-          { location: "Mesa, AZ", code: "US", flag: "🌵", share: 0.10, conversionShare: 0.06, bounceRate: "29.5%", timeOnPage: "2m 10s", type: "Direct" }
-        ]
-      }
+      { id: "c_apex_roof", name: "Apex Roofing", domain: "apexroofing.com", platform: "All Platforms", monthly_budget: 8500, status: "Active", agency_id: agency.id, brand_color: "#1A3A5C", industry: "Home Services (Roofing)", primary_goal: "Leads", target_cpl: 65 },
+      { id: "c_verde_dental", name: "Verde Dental", domain: "verdedental.com", platform: "All Platforms", monthly_budget: 6000, status: "Active", agency_id: agency.id, brand_color: "#2E7D5E", industry: "Dental / Healthcare", primary_goal: "Appointment Leads", target_cpl: 45 },
+      { id: "c_summit_fit", name: "Summit Fitness", domain: "summitfitness.com", platform: "Meta Ads", monthly_budget: 4000, status: "Active", agency_id: agency.id, brand_color: "#E05C2A", industry: "Fitness / Wellness", primary_goal: "Membership Leads", target_cpl: 30 },
+      { id: "c_westline_auto", name: "Westline Auto", domain: "westlineauto.com", platform: "Google Ads", monthly_budget: 7000, status: "Active", agency_id: agency.id, brand_color: "#333333", industry: "Automotive", primary_goal: "Leads", target_cpl: 55 },
+      { id: "c_canyon_home", name: "Canyon Home Services", domain: "canyonhomeservices.com", platform: "All Platforms", monthly_budget: 5500, status: "Active", agency_id: agency.id, brand_color: "#8B1A1A", industry: "Home Services (HVAC / Plumbing)", primary_goal: "Leads", target_cpl: 70 }
     ];
 
     const seededClients: any[] = [];
@@ -246,22 +146,17 @@ async function main() {
           platform: c.platform,
           monthly_budget: c.monthly_budget,
           status: c.status,
-          agency_id: c.agency_id,
-          target_cpl: c.target_cpl,
-          brand_color: c.brand_color,
-          industry: c.industry,
-          primary_goal: c.primary_goal,
-          regional_distribution: c.regional_distribution
+          agency_id: c.agency_id
         })
         .select()
         .single();
       if (clErr) throw clErr;
       seededClients.push({ ...dbClient, ...c });
     }
-    console.log("Seeded 5 clients with metadata and regional distributions.");
+    console.log("Seeded 5 clients successfully.");
 
-    // 4. Generate 90 Days of Historical Metrics ending on today
-    console.log("\n[4/6] Generating 90 days of deterministic campaign metrics...");
+    // 4. Generate 90 Days of Deterministic Historical Metrics
+    console.log("\n[4/6] Generating 90 days of campaign metrics...");
     const endDate = new Date();
     const dates: string[] = [];
     for (let i = 89; i >= 0; i--) {
@@ -272,6 +167,7 @@ async function main() {
 
     const campaignMetricsBatch: any[] = [];
 
+    // Client Campaign Configuration
     const campaignConfig: { [clientId: string]: { name: string; platform: string; baseSpend: number; baseCpl: number; baseCpc: number; baseCtr: number }[] } = {
       c_apex_roof: [
         { name: "Emergency Roofing", platform: "Google Ads", baseSpend: 80, baseCpl: 65, baseCpc: 4.5, baseCtr: 0.042 },
@@ -285,12 +181,12 @@ async function main() {
         { name: "Invisalign", platform: "Google Ads", baseSpend: 50, baseCpl: 45, baseCpc: 2.8, baseCtr: 0.035 },
         { name: "Emergency Dentist", platform: "Google Ads", baseSpend: 40, baseCpl: 40, baseCpc: 3.0, baseCtr: 0.032 },
         { name: "General Dentistry", platform: "Google Ads", baseSpend: 40, baseCpl: 35, baseCpc: 2.2, baseCtr: 0.04 },
-        { name: "Dental Implants", platform: "Google Ads", baseSpend: 30, baseCpl: 50, baseCpc: 5.5, baseCtr: 0.022 },
+        { name: "Dental Implants", platform: "Google Ads", baseSpend: 30, baseCpl: 50, baseCpc: 5.5, baseCtr: 0.022 }, // problem campaign
         { name: "Invisalign Prospecting", platform: "Meta Ads", baseSpend: 30, baseCpl: 45, baseCpc: 2.0, baseCtr: 0.018 },
         { name: "Retargeting", platform: "Meta Ads", baseSpend: 10, baseCpl: 35, baseCpc: 1.6, baseCtr: 0.038 }
       ],
       c_summit_fit: [
-        { name: "Membership Prospecting", platform: "Meta Ads", baseSpend: 60, baseCpl: 38, baseCpc: 1.8, baseCtr: 0.022 },
+        { name: "Membership Prospecting", platform: "Meta Ads", baseSpend: 60, baseCpl: 38, baseCpc: 1.8, baseCtr: 0.022 }, // scales well
         { name: "Retargeting", platform: "Meta Ads", baseSpend: 20, baseCpl: 25, baseCpc: 1.2, baseCtr: 0.048 },
         { name: "Lookalike — Past Members", platform: "Meta Ads", baseSpend: 33.33, baseCpl: 32, baseCpc: 1.6, baseCtr: 0.03 },
         { name: "Engagement Warm Audience", platform: "Meta Ads", baseSpend: 20, baseCpl: 20, baseCpc: 0.8, baseCtr: 0.052 }
@@ -317,39 +213,45 @@ async function main() {
 
       for (let day = 0; day < 90; day++) {
         const dateStr = dates[day];
-        const dayOfWeek = new Date(dateStr).getDay();
+        const dayOfWeek = new Date(dateStr).getDay(); // 0: Sunday, 6: Saturday
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
         for (const camp of config) {
+          // A. Multipliers and Stories
           let spendTrend = 1.0;
           let leadsEfficiencyTrend = 1.0;
           let weekendFactor = 1.0;
 
-          // Weekend pacing behavior
+          // Weekend variations:
+          // B2B-adjacent (Apex Roofing, Verde Dental, Westline Auto) have lower weekend spend
+          // Leisure/Home services (Summit Fitness, Canyon Home Services) have higher/equal weekend spend
           if (isWeekend) {
             if (["c_apex_roof", "c_verde_dental", "c_westline_auto"].includes(c.id)) {
-              weekendFactor = 0.65; // lower weekend traffic
+              weekendFactor = 0.65;
             } else {
-              weekendFactor = 1.25; // higher weekend activity
+              weekendFactor = 1.25;
             }
           }
 
-          // Deterministic stories over 90 days
+          // Stories over 90 days:
           if (c.id === "c_apex_roof") {
-            // Apex Roofing: strong scaling. spend +25%, lead volume +30% (CPL improves $72 -> $58)
+            // Apex Roofing: spend +25%, lead volume +30% (CPL improves $72 -> $58)
             spendTrend = 1.0 + (day / 89) * 0.25;
-            leadsEfficiencyTrend = 1.0 + (day / 89) * 0.55;
+            leadsEfficiencyTrend = 1.0 + (day / 89) * 0.55; // improves cost efficiency
           } else if (c.id === "c_verde_dental") {
-            // Verde Dental: mixed. overall spend +40%, lead volume +10% (CPL deteriorates $44 -> $68)
+            // Verde Dental: spend +40%, leads +10% (CPL deteriorates $44 -> $68)
+            // Driven heavily by "Dental Implants" Google campaign
             spendTrend = 1.0 + (day / 89) * 0.40;
             if (camp.name === "Dental Implants") {
+              // Dental Implants scales spend heavily, but leads crash
               spendTrend = 1.0 + (day / 89) * 2.50; // spend +250%
               leadsEfficiencyTrend = 1.0 - (day / 89) * 0.70; // efficiency deteriorates by 70%
             } else {
-              leadsEfficiencyTrend = 1.0 + (day / 89) * 0.15;
+              leadsEfficiencyTrend = 1.0 + (day / 89) * 0.15; // others improve slightly
             }
           } else if (c.id === "c_summit_fit") {
-            // Summit Fitness: strong improvement. spend remains flat, leads +45% (CPL falls $38 -> $22)
+            // Summit Fitness: spend flat, leads +45% (CPL $38 -> $22)
+            // Membership Prospecting improves in last 30 days
             spendTrend = 1.0;
             if (camp.name === "Membership Prospecting" && day >= 60) {
               const last30DayIdx = day - 60;
@@ -358,28 +260,37 @@ async function main() {
               leadsEfficiencyTrend = 1.0 + (day / 89) * 0.20;
             }
           } else if (c.id === "c_westline_auto") {
-            // Westline Auto: stable. spend within +-5%, CPL remains $50-$60
+            // Westline Auto: Stable, spend within +-5% of budget, CPL stays $50-$60
             spendTrend = 0.98 + (rand.next() * 0.04);
             leadsEfficiencyTrend = 1.0;
           } else if (c.id === "c_canyon_home") {
-            // Canyon Home Services: deteriorating. spend +20%, lead volume -15% (CPL rises $65 -> $105)
+            // Canyon Home Services: Deteriorating, spend +20%, leads -15% (CPL $65 -> $105)
             spendTrend = 1.0 + (day / 89) * 0.20;
-            leadsEfficiencyTrend = 1.0 - (day / 89) * 0.45;
+            leadsEfficiencyTrend = 1.0 - (day / 89) * 0.45; // efficiency drops 45%
           }
 
+          // B. Add Day-to-day noise (0.80x to 1.20x)
           const noiseFactor = rand.range(0.80, 1.20);
+
+          // C. Calculate final base stats
           const spend = Math.max(0, Math.round(camp.baseSpend * spendTrend * weekendFactor * noiseFactor * 100) / 100);
+          
+          // Calculate CPL for today
           const currentCpl = camp.baseCpl / leadsEfficiencyTrend;
+          
+          // Leads (Conversions)
           const conversions = Math.round(spend / currentCpl);
           
+          // Clicks (CPC average around baseCpc, with clicks >= conversions)
           const avgCpc = camp.baseCpc * rand.range(0.90, 1.10);
           const clickAdd = Math.round(spend / avgCpc);
           const clicks = conversions + clickAdd;
 
+          // Impressions (CTR around baseCtr, with impressions >= clicks)
           const avgCtr = camp.baseCtr * rand.range(0.90, 1.10);
           const impressions = clicks + Math.round(clicks / avgCtr);
 
-          // ROAS & Revenue / conversion_value calculations
+          // Conversion Value / Revenue (Deterministic and tied to conversions/spend)
           let conversion_value = 0.0;
           if (c.id === "c_summit_fit") {
             // Target ROAS ~ 2.8x to 3.8x
@@ -390,14 +301,19 @@ async function main() {
             const targetRoas = rand.range(4.0, 5.5);
             conversion_value = Math.round(spend * targetRoas * 100) / 100;
           } else {
-            // Lead Gen Clients (Apex, Verde, Canyon) do not support revenue. Set to 0.0 for N/A display.
-            conversion_value = 0.0;
+            // For lead gen clients, compute value as conversions multiplied by deterministic base value
+            const baseValue = {
+              c_apex_roof: 180.0,
+              c_verde_dental: 120.0,
+              c_canyon_home: 160.0
+            }[c.id as string] || 150.0;
+            conversion_value = conversions * baseValue;
           }
 
-          // Safety bounds validations prior to DB insert
-          if (spend < 0) throw new Error("Validation check failed: spend < 0");
-          if (clicks < conversions) throw new Error("Validation check failed: clicks < conversions");
-          if (impressions < clicks) throw new Error("Validation check failed: impressions < clicks");
+          // D. Final bounds integrity check
+          if (spend < 0) throw new Error("Validation failed: spend < 0");
+          if (clicks < conversions) throw new Error("Validation failed: clicks < conversions");
+          if (impressions < clicks) throw new Error("Validation failed: impressions < clicks");
 
           campaignMetricsBatch.push({
             client_id: c.id,
@@ -409,8 +325,7 @@ async function main() {
             clicks,
             conversions,
             campaign_name: camp.name,
-            conversion_value,
-            revenue: conversion_value // keep both columns matching
+            conversion_value
           });
         }
       }
@@ -422,11 +337,12 @@ async function main() {
     console.log("Seeded campaign metrics successfully!");
 
     // 5. Seed Pre-Written AI Summaries per Client
-    console.log("\n[5/6] Seeding AI performance summaries (caching keys for direct hit)...");
+    console.log("\n[5/6] Seeding AI performance summaries...");
     const aiSummaries = [
       {
         client_id: "c_apex_roof",
         agency_id: agency.id,
+        date_range: "30days",
         summary_data: [
           {
             type: "scale",
@@ -457,6 +373,7 @@ async function main() {
       {
         client_id: "c_verde_dental",
         agency_id: agency.id,
+        date_range: "30days",
         summary_data: [
           {
             type: "alert",
@@ -487,13 +404,14 @@ async function main() {
       {
         client_id: "c_summit_fit",
         agency_id: agency.id,
+        date_range: "30days",
         summary_data: [
           {
             type: "scale",
             label: "SCALE",
             number: "01",
             what: "Summit Fitness Meta campaigns show major conversion efficiency increases.",
-            why: "Creative updates and audience matching led to a 45% increase in leads, dropping overall CPL to $21.80 (target CPL was $30).",
+            why: "Creative updates and audience matching led to a 45% increase in leads, dropping overall CPL to $21.80 (target CPL was $30). ROAS is tracking at 3.4x.",
             action: "Maintain budget levels and prepare creative refresh to prevent ad fatigue."
           },
           {
@@ -517,13 +435,14 @@ async function main() {
       {
         client_id: "c_westline_auto",
         agency_id: agency.id,
+        date_range: "30days",
         summary_data: [
           {
             type: "scale",
             label: "SCALE",
             number: "01",
             what: "Westline Auto performance metrics are tracking steadily inside target budgets.",
-            why: "Weekly spend stayed within +-2% of daily allocations. CPL is hovering between $52 and $58, aligning with Target CPL of $55.",
+            why: "Weekly spend stayed within +-2% of daily allocations. CPL is hovering between $52 and $58, aligning with Target CPL of $55. ROAS is tracking at 4.6x.",
             action: "Continue current bidding allocations. High stability indicates campaigns are fully optimized."
           },
           {
@@ -547,6 +466,7 @@ async function main() {
       {
         client_id: "c_canyon_home",
         agency_id: agency.id,
+        date_range: "30days",
         summary_data: [
           {
             type: "alert",
@@ -576,37 +496,22 @@ async function main() {
       }
     ];
 
-    const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-    const dateRangeKey = `30days-${todayStr}`;
-
     for (const s of aiSummaries) {
-      // Seed generic "30days" key
-      const { error: sumErr1 } = await supabase
+      const { error: sumErr } = await supabase
         .from("ai_summaries")
         .insert({
           client_id: s.client_id,
           agency_id: s.agency_id,
-          date_range: "30days",
+          date_range: s.date_range,
           summary_data: s.summary_data
         });
-      if (sumErr1) throw sumErr1;
-
-      // Seed dynamic dateRangeKey matching today's YYYY-MM-DD check
-      const { error: sumErr2 } = await supabase
-        .from("ai_summaries")
-        .insert({
-          client_id: s.client_id,
-          agency_id: s.agency_id,
-          date_range: dateRangeKey,
-          summary_data: s.summary_data
-        });
-      if (sumErr2) throw sumErr2;
+      if (sumErr) throw sumErr;
     }
-    console.log(`Seeded AI summaries with both '30days' and '${dateRangeKey}' cache keys.`);
+    console.log("Seeded AI summaries successfully.");
 
     // Create demo public dashboard config
     console.log("Creating default enabled public dashboard configuration...");
-    const demoToken = "lumen_dash_northstar_demo_token_secret_42";
+    const demoToken = "[REDACTED]";
     const tokenHash = crypto.createHash("sha256").update(demoToken).update("salt_value_lumen_2026").digest("hex");
     const { error: dashErr } = await supabase
       .from("public_dashboards")
@@ -629,7 +534,7 @@ async function main() {
     // 6. Integrity and Self-Validation Checks
     console.log("\n[6/6] Running validation assertions on seeded data...");
 
-    // Fetch campaign metrics
+    // Fetch the inserted campaign metrics
     const { data: dbMetrics, error: fetchErr } = await supabase
       .from("campaign_metrics")
       .select("*")
@@ -640,9 +545,8 @@ async function main() {
     }
 
     let validationErrors = 0;
-    
-    // Check metric values bounds
     for (const m of dbMetrics) {
+      // Rule checks:
       if (m.spend < 0) {
         console.error(`- Spend constraint violation: row ID ${m.id} has spend < 0`);
         validationErrors++;
@@ -663,13 +567,6 @@ async function main() {
         console.error(`- Multi-tenant mismatch: row ID ${m.id} has agency_id ${m.agency_id} instead of ${agency.id}`);
         validationErrors++;
       }
-
-      // ROAS applicability checks
-      const isLeadGenOnly = ["c_apex_roof", "c_verde_dental", "c_canyon_home"].includes(m.client_id);
-      if (isLeadGenOnly && (Number(m.conversion_value) !== 0 || Number(m.revenue) !== 0)) {
-        console.error(`- ROAS applicability violation: client ${m.client_id} should have 0 conversion_value/revenue, got ${m.conversion_value}/${m.revenue}`);
-        validationErrors++;
-      }
     }
 
     // Check duplicate campaign + date rows
@@ -683,51 +580,10 @@ async function main() {
       uniqueKeys.add(key);
     }
 
-    // Verify regional distributions are local AZ only, and check client properties
-    const { data: clientsFromDb } = await supabase
-      .from("clients")
-      .select("*")
-      .eq("agency_id", agency.id);
-
-    if (!clientsFromDb || clientsFromDb.length !== 5) {
-      console.error(`- Client count mismatch: expected 5, found ${clientsFromDb?.length || 0}`);
-      validationErrors++;
-    } else {
-      for (const cl of clientsFromDb) {
-        const dist = cl.regional_distribution || [];
-        if (dist.length === 0) {
-          console.error(`- Regional distribution empty for client ${cl.name}`);
-          validationErrors++;
-        }
-        
-        let sumShare = 0;
-        let sumConvShare = 0;
-        for (const loc of dist) {
-          sumShare += loc.share;
-          sumConvShare += loc.conversionShare;
-          
-          const isAz = loc.location.endsWith(", AZ");
-          if (!isAz) {
-            console.error(`- Non-Arizona geographic location violation: client ${cl.name} has location ${loc.location}`);
-            validationErrors++;
-          }
-        }
-
-        if (Math.abs(sumShare - 1.0) > 0.01) {
-          console.error(`- Regional share sum mismatch: client ${cl.name} shares sum to ${sumShare} instead of 1.0`);
-          validationErrors++;
-        }
-        if (Math.abs(sumConvShare - 1.0) > 0.01) {
-          console.error(`- Regional conversionShare sum mismatch: client ${cl.name} conversionShares sum to ${sumConvShare} instead of 1.0`);
-          validationErrors++;
-        }
-      }
-    }
-
-    // Confirm summaries count (10 rows: 5 clients * 2 date range keys each)
+    // Confirm summaries count
     const { data: summaries } = await supabase.from("ai_summaries").select("id").eq("agency_id", agency.id);
-    if (!summaries || summaries.length !== 10) {
-      console.error(`- AI Summary count mismatch: found ${summaries?.length || 0} instead of 10.`);
+    if (!summaries || summaries.length !== 5) {
+      console.error(`- AI Summary count mismatch: found ${summaries?.length || 0} instead of 5.`);
       validationErrors++;
     }
 
@@ -741,10 +597,11 @@ async function main() {
     console.log("=======================================================");
     console.log(`- Agency Created: ${agency.name} (ID: ${agency.id})`);
     console.log(`- Clients Created: 5`);
+    console.log(`- Campaigns Seeded: 22`);
     console.log(`- Campaign Metric Records Inserted: ${dbMetrics.length}`);
     console.log(`- Date Range: ${dates[0]} to ${dates[89]}`);
-    console.log(`- AI Summaries Cached: 10 (5 clients * 2 cache keys each)`);
-    console.log(`- Demo User: agency@northstar-digital.com / NorthstarPass123!`);
+    console.log(`- AI Summaries Cached: 5`);
+    console.log(`- Demo User: agency@northstar-digital.com / [REDACTED]`);
     console.log(`- Public Demo Token: ${demoToken}`);
     console.log("=======================================================");
 

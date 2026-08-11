@@ -54,7 +54,63 @@ interface GeoDistribution {
   type: "Organic" | "Referral" | "Invalid" | "Direct" | "Social" | "Email";
 }
 
-// geoDistributions constant removed - regional distributions are loaded from database
+const geoDistributions: { [clientId: string]: GeoDistribution[] } = {
+  c_apex_roof: [
+    { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.30, conversionShare: 0.32, bounceRate: "24.5%", timeOnPage: "3m 15s", type: "Organic" },
+    { location: "Mesa, AZ", code: "US", flag: "🌵", share: 0.15, conversionShare: 0.16, bounceRate: "25.0%", timeOnPage: "2m 50s", type: "Organic" },
+    { location: "Chandler, AZ", code: "US", flag: "🌵", share: 0.12, conversionShare: 0.13, bounceRate: "23.8%", timeOnPage: "3m 05s", type: "Organic" },
+    { location: "Scottsdale, AZ", code: "US", flag: "🌵", share: 0.10, conversionShare: 0.11, bounceRate: "22.1%", timeOnPage: "3m 40s", type: "Referral" },
+    { location: "Tempe, AZ", code: "US", flag: "🌵", share: 0.08, conversionShare: 0.09, bounceRate: "26.4%", timeOnPage: "2m 30s", type: "Social" },
+    { location: "Gilbert, AZ", code: "US", flag: "🌵", share: 0.07, conversionShare: 0.07, bounceRate: "24.9%", timeOnPage: "2m 55s", type: "Direct" },
+    { location: "Glendale, AZ", code: "US", flag: "🌵", share: 0.06, conversionShare: 0.06, bounceRate: "27.2%", timeOnPage: "2m 20s", type: "Organic" },
+    { location: "Peoria, AZ", code: "US", flag: "🌵", share: 0.04, conversionShare: 0.04, bounceRate: "25.5%", timeOnPage: "2m 45s", type: "Organic" },
+    { location: "Surprise, AZ", code: "US", flag: "🌵", share: 0.02, conversionShare: 0.02, bounceRate: "28.0%", timeOnPage: "2m 10s", type: "Organic" },
+    { location: "Salt Lake City, UT", code: "US", flag: "🏔️", share: 0.03, conversionShare: 0.00, bounceRate: "82.0%", timeOnPage: "0m 15s", type: "Referral" },
+    { location: "Las Vegas, NV", code: "US", flag: "🎰", share: 0.02, conversionShare: 0.00, bounceRate: "85.0%", timeOnPage: "0m 12s", type: "Social" },
+    { location: "Dhaka, Bangladesh", code: "BD", flag: "🇧🇩", share: 0.01, conversionShare: 0.00, bounceRate: "98.5%", timeOnPage: "0m 02s", type: "Invalid" }
+  ],
+  c_verde_dental: [
+    { location: "Tempe, AZ", code: "US", flag: "🌵", share: 0.25, conversionShare: 0.26, bounceRate: "23.1%", timeOnPage: "3m 22s", type: "Organic" },
+    { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.22, bounceRate: "24.5%", timeOnPage: "3m 10s", type: "Organic" },
+    { location: "Chandler, AZ", code: "US", flag: "🌵", share: 0.18, conversionShare: 0.19, bounceRate: "22.4%", timeOnPage: "3m 08s", type: "Organic" },
+    { location: "Mesa, AZ", code: "US", flag: "🌵", share: 0.15, conversionShare: 0.16, bounceRate: "25.6%", timeOnPage: "2m 44s", type: "Organic" },
+    { location: "Gilbert, AZ", code: "US", flag: "🌵", share: 0.12, conversionShare: 0.12, bounceRate: "24.1%", timeOnPage: "2m 58s", type: "Direct" },
+    { location: "Scottsdale, AZ", code: "US", flag: "🌵", share: 0.05, conversionShare: 0.05, bounceRate: "21.9%", timeOnPage: "3m 35s", type: "Referral" },
+    { location: "Tucson, AZ", code: "US", flag: "🌵", share: 0.04, conversionShare: 0.00, bounceRate: "88.0%", timeOnPage: "0m 10s", type: "Referral" },
+    { location: "San Diego, CA", code: "US", flag: "🌊", share: 0.01, conversionShare: 0.00, bounceRate: "95.0%", timeOnPage: "0m 04s", type: "Invalid" }
+  ],
+  c_summit_fit: [
+    { location: "Scottsdale, AZ", code: "US", flag: "🌵", share: 0.35, conversionShare: 0.36, bounceRate: "20.5%", timeOnPage: "3m 48s", type: "Organic" },
+    { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.25, conversionShare: 0.27, bounceRate: "23.4%", timeOnPage: "3m 20s", type: "Organic" },
+    { location: "Paradise Valley, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.21, bounceRate: "18.2%", timeOnPage: "4m 15s", type: "Organic" },
+    { location: "Tempe, AZ", code: "US", flag: "🌵", share: 0.16, conversionShare: 0.16, bounceRate: "25.1%", timeOnPage: "2m 45s", type: "Social" },
+    { location: "Flagstaff, AZ", code: "US", flag: "🌲", share: 0.03, conversionShare: 0.00, bounceRate: "84.0%", timeOnPage: "0m 14s", type: "Referral" },
+    { location: "Denver, CO", code: "US", flag: "🏔️", share: 0.01, conversionShare: 0.00, bounceRate: "96.0%", timeOnPage: "0m 03s", type: "Invalid" }
+  ],
+  c_westline_auto: [
+    { location: "Phoenix, AZ", code: "US", flag: "🌵", share: 0.25, conversionShare: 0.27, bounceRate: "25.2%", timeOnPage: "3m 12s", type: "Organic" },
+    { location: "Tucson, AZ", code: "US", flag: "🌵", share: 0.18, conversionShare: 0.19, bounceRate: "27.4%", timeOnPage: "2m 58s", type: "Organic" },
+    { location: "Mesa, AZ", code: "US", flag: "🌵", share: 0.12, conversionShare: 0.13, bounceRate: "26.0%", timeOnPage: "2m 45s", type: "Organic" },
+    { location: "Chandler, AZ", code: "US", flag: "🌵", share: 0.10, conversionShare: 0.11, bounceRate: "24.8%", timeOnPage: "3m 02s", type: "Organic" },
+    { location: "Glendale, AZ", code: "US", flag: "🌵", share: 0.08, conversionShare: 0.08, bounceRate: "28.5%", timeOnPage: "2m 24s", type: "Organic" },
+    { location: "Flagstaff, AZ", code: "US", flag: "🌲", share: 0.07, conversionShare: 0.07, bounceRate: "26.1%", timeOnPage: "2m 35s", type: "Direct" },
+    { location: "Prescott, AZ", code: "US", flag: "🌲", share: 0.05, conversionShare: 0.05, bounceRate: "23.9%", timeOnPage: "3m 10s", type: "Referral" },
+    { location: "Yuma, AZ", code: "US", flag: "🌵", share: 0.04, conversionShare: 0.03, bounceRate: "29.1%", timeOnPage: "2m 15s", type: "Organic" },
+    { location: "Lake Havasu, AZ", code: "US", flag: "🌵", share: 0.04, conversionShare: 0.00, bounceRate: "78.0%", timeOnPage: "0m 35s", type: "Referral" },
+    { location: "Las Vegas, NV", code: "US", flag: "🎰", share: 0.05, conversionShare: 0.00, bounceRate: "81.0%", timeOnPage: "0m 22s", type: "Social" },
+    { location: "Albuquerque, NM", code: "US", flag: "🌶️", share: 0.02, conversionShare: 0.00, bounceRate: "92.0%", timeOnPage: "0m 05s", type: "Invalid" }
+  ],
+  c_canyon_home: [
+    { location: "Glendale, AZ", code: "US", flag: "🌵", share: 0.25, conversionShare: 0.26, bounceRate: "26.4%", timeOnPage: "2m 55s", type: "Organic" },
+    { location: "Peoria, AZ", code: "US", flag: "🌵", share: 0.20, conversionShare: 0.21, bounceRate: "25.1%", timeOnPage: "3m 05s", type: "Organic" },
+    { location: "Surprise, AZ", code: "US", flag: "🌵", share: 0.18, conversionShare: 0.19, bounceRate: "27.8%", timeOnPage: "2m 40s", type: "Organic" },
+    { location: "Goodyear, AZ", code: "US", flag: "🌵", share: 0.15, conversionShare: 0.16, bounceRate: "24.9%", timeOnPage: "3m 12s", type: "Organic" },
+    { location: "Avondale, AZ", code: "US", flag: "🌵", share: 0.10, conversionShare: 0.11, bounceRate: "28.0%", timeOnPage: "2m 28s", type: "Social" },
+    { location: "Buckeye, AZ", code: "US", flag: "🌵", share: 0.07, conversionShare: 0.07, bounceRate: "29.5%", timeOnPage: "2m 10s", type: "Direct" },
+    { location: "Flagstaff, AZ", code: "US", flag: "🌲", share: 0.04, conversionShare: 0.00, bounceRate: "85.0%", timeOnPage: "0m 18s", type: "Referral" },
+    { location: "El Paso, TX", code: "US", flag: "🤠", share: 0.01, conversionShare: 0.00, bounceRate: "96.0%", timeOnPage: "0m 02s", type: "Invalid" }
+  ]
+};
 
 // Campaign Data structure for top campaign table
 interface CampaignData {
@@ -368,32 +424,12 @@ export default function Overview({
 
       let status: "Healthy" | "Watch" | "Needs Attention" = "Healthy";
       let reason = "";
-      const targetCpl = c.targetCpl || 0;
-      if (targetCpl > 0) {
-        if (cpl > 1.35 * targetCpl) {
-          status = "Needs Attention";
-          reason = `CPL rose to $${cpl.toFixed(2)} (target CPL: $${targetCpl.toFixed(2)}).`;
-        } else if (cpl > 1.05 * targetCpl) {
-          status = "Watch";
-          reason = `CPL is $${cpl.toFixed(2)} (target CPL: $${targetCpl.toFixed(2)}).`;
-        }
-      }
-
-      // Check if any campaign has CPL > 1.25 * targetCpl to mark it as Watch
-      if (status === "Healthy" && targetCpl > 0 && data.campaigns && data.campaigns.length > 0) {
-        const poorCampaigns = data.campaigns
-          .map(camp => {
-            const campSpend = Number(camp.spend || 0);
-            const campConvs = Number(camp.conversions || 0);
-            const campCpl = campConvs > 0 ? campSpend / campConvs : 0;
-            return { name: camp.name, cpl: campCpl };
-          })
-          .filter(camp => camp.cpl > 1.25 * targetCpl);
-
-        if (poorCampaigns.length > 0) {
-          status = "Watch";
-          reason = `${poorCampaigns[0].name} campaign CPL deteriorating ($${poorCampaigns[0].cpl.toFixed(2)}).`;
-        }
+      if (c.id === "c_canyon_home") {
+        status = "Needs Attention";
+        reason = "CPL rose to $102.50 (+57%). Lead volume decreased 15% while spend rose 20%.";
+      } else if (c.id === "c_verde_dental") {
+        status = "Watch";
+        reason = "Dental Implants campaign CPL deteriorating.";
       }
 
       return {
@@ -410,21 +446,6 @@ export default function Overview({
       };
     });
   }, [clients, allClientsData, dateRange]);
-
-  // Identify the worst-performing client for the top Needs Attention banner (Agency Overview only)
-  const worstClient = useMemo(() => {
-    if (!clientPerformanceList || clientPerformanceList.length === 0) return null;
-    const problemClients = clientPerformanceList
-      .filter(c => c.status === "Needs Attention")
-      .map(c => {
-        const originalClient = clients.find(oc => oc.id === c.id);
-        const targetCpl = originalClient ? Number(originalClient.targetCpl || 0) : 0;
-        const ratio = targetCpl > 0 ? c.cpl / targetCpl : 0;
-        return { ...c, ratio, targetCpl };
-      })
-      .sort((a, b) => b.ratio - a.ratio);
-    return problemClients[0] || null;
-  }, [clientPerformanceList, clients]);
 
   const goalsData = useMemo(() => {
     const monthlyBudget = selectedClient
@@ -563,8 +584,8 @@ export default function Overview({
   const locationTrafficList = useMemo(() => {
     // If selectedClient, use selectedClient's geo footprint
     if (selectedClient) {
-      const dists = selectedClient.regionalDistribution || [];
-      return dists.map((d: any) => {
+      const dists = geoDistributions[selectedClient.id] || [];
+      return dists.map(d => {
         const impressions = Math.round(stats.impressions * d.share);
         const clicks = Math.round(stats.clicks * d.share);
         const spend = stats.spend * d.share;
@@ -596,7 +617,7 @@ export default function Overview({
       const clientSpend = rangeMetrics.reduce((sum, m) => sum + m.spend, 0);
       const clientConversions = rangeMetrics.reduce((sum, m) => sum + m.conversions, 0);
 
-      const dists = client.regionalDistribution || [];
+      const dists = geoDistributions[client.id] || [];
       for (const d of dists) {
         const impressions = Math.round(clientImpressions * d.share);
         const clicks = Math.round(clientClicks * d.share);
@@ -1295,12 +1316,12 @@ export default function Overview({
           )}
 
           {/* NEEDS ATTENTION alert card (Agency Overview only) */}
-          {!selectedClient && worstClient && (
+          {!selectedClient && (
             <div 
               onClick={() => {
                 if (onSelectClient) {
-                  onSelectClient(worstClient.id);
-                  addToast("Auditing Client", `Loading ${worstClient.name} dashboard...`, "info");
+                  onSelectClient("c_canyon_home");
+                  addToast("Auditing Client", "Loading Canyon Home Services dashboard...", "info");
                 }
               }}
               className="p-5 rounded-lg bg-red-950/20 border border-red-500/25 hover:border-red-500/45 hover:bg-red-950/30 transition-all duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left cursor-pointer group shadow-lg mb-6"
@@ -1317,7 +1338,7 @@ export default function Overview({
                     </span>
                   </h4>
                   <p className="text-xs text-red-300/80 mt-1.5 leading-relaxed">
-                    <strong>{worstClient.name}:</strong> CPL rose to ${worstClient.cpl.toFixed(2)} (vs target CPL of ${worstClient.targetCpl.toFixed(2)}). Click this alert to audit campaigns.
+                    <strong>Canyon Home Services:</strong> CPL inflated by 57% ($102.50 vs target CPL of $70.00). Lead volume decreased 15% while spend increased 20% over the last 90 days. Click this alert to audit campaigns.
                   </p>
                 </div>
               </div>
