@@ -185,18 +185,33 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
 
         if (!profileError && profile) {
           if (profile.is_admin) {
+            const reqSlug = (req.headers["x-agency-slug"] as string) || (req.query.agencySlug as string);
+            let previewAgency: any = null;
+            if (reqSlug && typeof reqSlug === "string") {
+              const { data: targetAg } = await supabase
+                .from("agencies")
+                .select("*")
+                .eq("slug", reqSlug)
+                .single();
+              if (targetAg) {
+                previewAgency = targetAg;
+              }
+            }
+
             (req as any).user = {
               id: authUser.id,
               email: authUser.email,
               isAdmin: true,
-              isDemo: false,
-              agencyId: null,
-              agencyName: null,
-              customCta: null,
-              logoUrl: null,
-              primaryColor: null,
-              accentColor: null,
-              clientLimit: 9999
+              isDemo: previewAgency ? previewAgency.is_demo : false,
+              isAdminPreview: !!previewAgency,
+              previewAgencySlug: previewAgency?.slug || null,
+              agencyId: previewAgency ? previewAgency.id : null,
+              agencyName: previewAgency ? previewAgency.name : null,
+              customCta: previewAgency ? previewAgency.custom_cta : null,
+              logoUrl: previewAgency ? previewAgency.logo_url : null,
+              primaryColor: previewAgency ? previewAgency.primary_color : null,
+              accentColor: previewAgency ? previewAgency.accent_color : null,
+              clientLimit: previewAgency ? (previewAgency.client_limit || 5) : 9999
             };
             return next();
           } else {
@@ -254,6 +269,41 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
     res.status(401).json({ error: "Unauthorized: Auth check failed." });
   }
 };
+
+// API: Get agency details by slug (For System Admin Preview & Demo access)
+app.get("/api/agency/by-slug/:slug", requireAuth, async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { data: agency, error } = await supabase
+      .from("agencies")
+      .select("id, name, slug, logo_url, primary_color, accent_color, is_demo, custom_cta, client_limit")
+      .eq("slug", slug)
+      .single();
+
+    if (error || !agency) {
+      return res.status(404).json({ error: "Agency not found." });
+    }
+
+    const user = (req as any).user;
+    if (!agency.is_demo && !user.isAdmin && user.agencyId !== agency.id) {
+      return res.status(403).json({ error: "Forbidden: Access denied to this agency." });
+    }
+
+    res.json({
+      id: agency.id,
+      name: agency.name,
+      slug: agency.slug,
+      logoUrl: agency.logo_url,
+      primaryColor: agency.primary_color,
+      accentColor: agency.accent_color,
+      isDemo: agency.is_demo,
+      customCta: agency.custom_cta,
+      clientLimit: agency.client_limit || 5
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to fetch agency by slug: " + err.message });
+  }
+});
 
 // API: Get current user profile details
 app.get("/api/profile", requireAuth, (req, res) => {
@@ -896,8 +946,15 @@ app.get("/api/clients", requireAuth, async (req, res) => {
     console.log(`GET /api/clients: Querying clients table for ${user.email} (Admin: ${user.isAdmin})`);
     
     let query;
-    if (user.isAdmin) {
-      // Admin lists only clients belonging to real (non-demo) agencies
+    if (user.agencyId) {
+      // Specific agency view (agency user, public demo, or System Admin agency preview)
+      query = supabase
+        .from("clients")
+        .select("*")
+        .eq("agency_id", user.agencyId)
+        .order("created_at", { ascending: true });
+    } else if (user.isAdmin) {
+      // General Admin view across non-demo agencies
       const { data: nonDemoAgencies } = await supabase
         .from("agencies")
         .select("id")
@@ -906,13 +963,13 @@ app.get("/api/clients", requireAuth, async (req, res) => {
       query = supabase
         .from("clients")
         .select("*")
-        .in("agency_id", nonDemoIds)
+        .in("agency_id", nonDemoIds.length > 0 ? nonDemoIds : ["no-match"])
         .order("created_at", { ascending: true });
     } else {
       query = supabase
         .from("clients")
         .select("*")
-        .eq("agency_id", user.agencyId)
+        .eq("agency_id", "no-agency-assigned")
         .order("created_at", { ascending: true });
     }
 

@@ -353,6 +353,28 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
 
       {/* Main Container Area */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Admin Preview Top Indicator Bar */}
+        {profile?.isAdmin && (profile?.isAdminPreview || session?.agencySlug) && (
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2 flex items-center justify-between text-xs text-amber-300 font-mono z-40 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+              <span className="font-bold uppercase tracking-wider">ADMIN PREVIEW</span>
+              <span className="text-amber-200/70">— Viewing as System Admin ({profile?.agencyName || "Preview Agency"})</span>
+            </div>
+            <button
+              onClick={() => {
+                document.documentElement.style.setProperty("--agency-primary", "#D6B77A");
+                document.documentElement.style.setProperty("--agency-primary-hover", "#bfa063");
+                document.documentElement.style.setProperty("--agency-primary-contrast", "#080808");
+                window.location.href = "/admin";
+              }}
+              className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-200 rounded font-semibold transition-colors cursor-pointer"
+            >
+              Back to Admin
+            </button>
+          </div>
+        )}
+
         {/* Global Action Header Bar */}
         <header className="h-16 bg-[#101010] border-b border-white/5 px-6 flex items-center justify-between shrink-0 relative z-30">
           <div className="flex items-center gap-6">

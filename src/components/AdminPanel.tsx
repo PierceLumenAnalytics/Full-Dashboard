@@ -45,6 +45,15 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Reset theme back to default Lumen Gold when returning to System Admin Panel
+  useEffect(() => {
+    document.documentElement.style.setProperty("--agency-primary", "#D6B77A");
+    document.documentElement.style.setProperty("--agency-primary-hover", "#bfa063");
+    document.documentElement.style.setProperty("--agency-primary-contrast", "#080808");
+    document.documentElement.style.setProperty("--agency-primary-muted", "rgba(214, 183, 122, 0.12)");
+    document.documentElement.style.setProperty("--agency-primary-border", "rgba(214, 183, 122, 0.28)");
+  }, []);
   
   // Modals
   const [isOnboardModalOpen, setIsOnboardModalOpen] = useState(false);

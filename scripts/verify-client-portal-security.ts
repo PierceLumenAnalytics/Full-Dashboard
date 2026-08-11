@@ -39,6 +39,19 @@ async function runSecurityTests() {
   let oldApexToken: string;
   let newApexToken: string;
 
+  let passCount = 0;
+  let failCount = 0;
+
+  const assertTest = (name: string, condition: boolean, detail?: string) => {
+    if (condition) {
+      console.log(`[PASS] ${name}`);
+      passCount++;
+    } else {
+      console.error(`[FAIL] ${name} — ${detail || "Assertion failed"}`);
+      failCount++;
+    }
+  };
+
   try {
     // 1. Setup Test Agency and Clients
     console.log("[Setup] Finding or initializing test agency and clients...");
@@ -179,19 +192,6 @@ async function runSecurityTests() {
 
     console.log("✅ Test setup completed successfully.\n");
 
-    let passCount = 0;
-    let failCount = 0;
-
-    const assertTest = (name: string, condition: boolean, detail?: string) => {
-      if (condition) {
-        console.log(`[PASS] ${name}`);
-        passCount++;
-      } else {
-        console.error(`[FAIL] ${name} — ${detail || "Assertion failed"}`);
-        failCount++;
-      }
-    };
-
     // TEST 1: Apex portal token -> Apex client data
     console.log("Running TEST 1: Apex portal token -> Apex client data");
     const res1 = await fetch(`${BASE_URL}/api/portal/analytics`, {
@@ -330,8 +330,12 @@ async function runSecurityTests() {
     const { data: checkApexRecord } = await supabaseAdmin.from("client_portal_access").select("enabled").eq("client_id", clientApex.id).single();
     assertTest("TEST 16: Disabled portal is NOT silently re-enabled when generating a report", disabledToken === null && checkApexRecord?.enabled === false);
 
-    // Re-enable Apex portal after test
-    await supabaseAdmin.from("client_portal_access").update({ enabled: true }).eq("client_id", clientApex.id);
+  } catch (err: any) {
+    console.error("❌ Exception during security test run:", err.message);
+    failCount++;
+  } finally {
+    // Re-enable Apex portal after tests
+    await supabaseAdmin.from("client_portal_access").update({ enabled: true }).eq("client_id", "c_apex_roof");
 
     console.log("\n==================================================");
     console.log(`TEST SUITE COMPLETE: ${passCount} PASSED, ${failCount} FAILED`);
@@ -340,9 +344,6 @@ async function runSecurityTests() {
     if (failCount > 0) {
       process.exit(1);
     }
-  } catch (err: any) {
-    console.error("❌ Exception during security test run:", err.message);
-    process.exit(1);
   }
 }
 

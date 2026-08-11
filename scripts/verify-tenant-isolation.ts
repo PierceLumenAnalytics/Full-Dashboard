@@ -323,12 +323,31 @@ async function runTests() {
     // 8. Clean up seeded data from database
     console.log("\nCleaning up seeded database records...");
     try {
-      if (clientA) await supabaseAdmin.from("clients").delete().eq("id", clientA.id);
-      if (clientB) await supabaseAdmin.from("clients").delete().eq("id", clientB.id);
-      if (userA) await supabaseAdmin.auth.admin.deleteUser(userA.id);
-      if (userB) await supabaseAdmin.auth.admin.deleteUser(userB.id);
-      if (agencyA) await supabaseAdmin.from("agencies").delete().eq("id", agencyA.id);
-      if (agencyB) await supabaseAdmin.from("agencies").delete().eq("id", agencyB.id);
+      const clientIds = [clientA?.id, clientB?.id].filter(Boolean);
+      const agencyIds = [agencyA?.id, agencyB?.id].filter(Boolean);
+      const userIds = [userA?.id, userB?.id].filter(Boolean);
+
+      if (clientIds.length > 0) {
+        await supabaseAdmin.from("client_report_deliveries").delete().in("client_id", clientIds);
+        await supabaseAdmin.from("client_portal_access").delete().in("client_id", clientIds);
+        await supabaseAdmin.from("client_summaries").delete().in("client_id", clientIds);
+        await supabaseAdmin.from("campaigns").delete().in("client_id", clientIds);
+        await supabaseAdmin.from("clients").delete().in("id", clientIds);
+      }
+      if (agencyIds.length > 0) {
+        await supabaseAdmin.from("public_dashboards").delete().in("agency_id", agencyIds);
+        await supabaseAdmin.from("audit_logs").delete().in("agency_id", agencyIds);
+      }
+      if (userIds.length > 0) {
+        await supabaseAdmin.from("profiles").delete().in("id", userIds);
+        for (const uid of userIds) {
+          await supabaseAdmin.auth.admin.deleteUser(uid).catch(() => {});
+        }
+      }
+      if (agencyIds.length > 0) {
+        await supabaseAdmin.from("profiles").delete().in("agency_id", agencyIds);
+        await supabaseAdmin.from("agencies").delete().in("id", agencyIds);
+      }
       console.log("Cleanup finished.");
     } catch (err: any) {
       console.error("Cleanup failed:", err.message);

@@ -24,6 +24,10 @@ async function runAgencySlugSecurityTests() {
   console.log("LUMEN ANALYTICS — AGENCY SLUG ACCESS CONTROL TEST SUITE");
   console.log("==================================================\n");
 
+  const createdAgencyIds: string[] = [];
+  const createdClientIds: string[] = [];
+  const createdUserIds: string[] = [];
+
   let agencyDemo: any;
   let agencyA: any;
   let agencyB: any;
@@ -73,6 +77,7 @@ async function runAgencySlugSecurityTests() {
       .single();
     if (errA) throw errA;
     agencyA = agA;
+    createdAgencyIds.push(agencyA.id);
 
     // Real Agency B (is_demo = false)
     const { data: agB, error: errB } = await supabaseAdmin
@@ -86,6 +91,7 @@ async function runAgencySlugSecurityTests() {
       .single();
     if (errB) throw errB;
     agencyB = agB;
+    createdAgencyIds.push(agencyB.id);
 
     // Client for Agency A
     const { data: clA, error: errClA } = await supabaseAdmin
@@ -103,6 +109,7 @@ async function runAgencySlugSecurityTests() {
       .single();
     if (errClA) throw errClA;
     clientA = clA;
+    createdClientIds.push(clientA.id);
 
     // Client for Agency B
     const { data: clB, error: errClB } = await supabaseAdmin
@@ -120,6 +127,7 @@ async function runAgencySlugSecurityTests() {
       .single();
     if (errClB) throw errClB;
     clientB = clB;
+    createdClientIds.push(clientB.id);
 
     // Users for Agency A and Agency B
     const emailA = `user.a.${randSuffix}@agency-a.com`;
@@ -132,6 +140,7 @@ async function runAgencySlugSecurityTests() {
       email_confirm: true
     });
     if (errUA) throw errUA;
+    createdUserIds.push(uA.user.id);
 
     await supabaseAdmin.from("profiles").upsert({
       id: uA.user.id,
@@ -146,6 +155,7 @@ async function runAgencySlugSecurityTests() {
       email_confirm: true
     });
     if (errUB) throw errUB;
+    createdUserIds.push(uB.user.id);
 
     await supabaseAdmin.from("profiles").upsert({
       id: uB.user.id,
@@ -226,29 +236,36 @@ async function runAgencySlugSecurityTests() {
 
     assertTest("TEST 6: /api/portal/reports projects only safe fields and hides recipient_email", res6.status === 200 && Array.isArray(data6) && !hasRecipientEmail && !hasCcEmails && !hasErrorMessage);
 
-    // Clean up test records
+  } catch (err: any) {
+    console.error("❌ Exception during agency slug security test run:", err.message);
+    failCount++;
+  } finally {
     console.log("\n[Cleanup] Cleaning up seeded test records...");
-    await supabaseAdmin.from("client_report_deliveries").delete().eq("client_id", clientA.id);
-    await supabaseAdmin.from("client_portal_access").delete().eq("client_id", clientA.id);
-    await supabaseAdmin.from("clients").delete().eq("id", clientA.id);
-    await supabaseAdmin.from("clients").delete().eq("id", clientB.id);
-    await supabaseAdmin.from("profiles").delete().eq("id", uA.user.id);
-    await supabaseAdmin.from("profiles").delete().eq("id", uB.user.id);
-    await supabaseAdmin.auth.admin.deleteUser(uA.user.id);
-    await supabaseAdmin.auth.admin.deleteUser(uB.user.id);
-    await supabaseAdmin.from("agencies").delete().eq("id", agencyA.id);
-    await supabaseAdmin.from("agencies").delete().eq("id", agencyB.id);
+    if (createdClientIds.length > 0) {
+      await supabaseAdmin.from("client_report_deliveries").delete().in("client_id", createdClientIds);
+      await supabaseAdmin.from("client_portal_access").delete().in("client_id", createdClientIds);
+      await supabaseAdmin.from("client_summaries").delete().in("client_id", createdClientIds);
+      await supabaseAdmin.from("campaigns").delete().in("client_id", createdClientIds);
+      await supabaseAdmin.from("clients").delete().in("id", createdClientIds);
+    }
+    if (createdUserIds.length > 0) {
+      await supabaseAdmin.from("profiles").delete().in("id", createdUserIds);
+      for (const uid of createdUserIds) {
+        await supabaseAdmin.auth.admin.deleteUser(uid).catch(() => {});
+      }
+    }
+    if (createdAgencyIds.length > 0) {
+      await supabaseAdmin.from("profiles").delete().in("agency_id", createdAgencyIds);
+      await supabaseAdmin.from("agencies").delete().in("id", createdAgencyIds);
+    }
 
-    console.log("\n==================================================");
+    console.log("==================================================");
     console.log(`TEST SUITE COMPLETE: ${passCount} PASSED, ${failCount} FAILED`);
     console.log("==================================================");
 
     if (failCount > 0) {
       process.exit(1);
     }
-  } catch (err: any) {
-    console.error("❌ Exception during agency slug security test run:", err.message);
-    process.exit(1);
   }
 }
 
