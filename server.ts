@@ -185,13 +185,14 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
 
         if (!profileError && profile) {
           if (profile.is_admin) {
-            const reqSlug = (req.headers["x-agency-slug"] as string) || (req.query.agencySlug as string);
+            const rawSlug = (req.headers["x-admin-preview-agency-slug"] as string) || (req.headers["x-agency-slug"] as string) || (req.query.agencySlug as string);
             let previewAgency: any = null;
-            if (reqSlug && typeof reqSlug === "string") {
+            if (rawSlug && typeof rawSlug === "string" && rawSlug.trim()) {
+              const cleanSlug = rawSlug.trim().toLowerCase();
               const { data: targetAg } = await supabase
                 .from("agencies")
                 .select("*")
-                .eq("slug", reqSlug)
+                .eq("slug", cleanSlug)
                 .single();
               if (targetAg) {
                 previewAgency = targetAg;
@@ -215,11 +216,26 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
             };
             return next();
           } else {
+            const rawSlug = (req.headers["x-agency-slug"] as string) || (req.query.agencySlug as string) || (req.headers["x-admin-preview-agency-slug"] as string);
             const agency = (profile as any).agencies;
+
+            if (rawSlug && typeof rawSlug === "string" && rawSlug.trim()) {
+              const cleanSlug = rawSlug.trim().toLowerCase();
+              const { data: targetAg } = await supabase
+                .from("agencies")
+                .select("id, slug")
+                .eq("slug", cleanSlug)
+                .single();
+              if (targetAg && targetAg.id !== profile.agency_id) {
+                return res.status(403).json({ error: "Access Denied: Cross-tenant agency access is prohibited." });
+              }
+            }
+
             (req as any).user = {
               id: authUser.id,
               email: authUser.email,
               agencyId: profile.agency_id,
+              agencySlug: agency?.slug || null,
               isAdmin: false,
               agencyName: agency?.name || null,
               customCta: agency?.custom_cta || null,
@@ -269,6 +285,31 @@ const requireAuth = async (req: express.Request, res: express.Response, next: ex
     res.status(401).json({ error: "Unauthorized: Auth check failed." });
   }
 };
+
+// API: Unauthenticated public demo check for agency slug
+app.get("/api/agency/public-check/:slug", async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { data: agency, error } = await supabase
+      .from("agencies")
+      .select("id, name, slug, is_demo")
+      .eq("slug", slug)
+      .single();
+
+    if (error || !agency) {
+      return res.status(404).json({ error: "Agency not found.", isDemo: false });
+    }
+
+    res.json({
+      id: agency.id,
+      name: agency.name,
+      slug: agency.slug,
+      isDemo: agency.is_demo === true
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: "Public agency check failed: " + err.message, isDemo: false });
+  }
+});
 
 // API: Get agency details by slug (For System Admin Preview & Demo access)
 app.get("/api/agency/by-slug/:slug", requireAuth, async (req, res) => {

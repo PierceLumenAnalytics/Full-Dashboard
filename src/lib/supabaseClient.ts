@@ -16,6 +16,9 @@ export const authFetch = async (url: string, options: RequestInit = {}) => {
   if (globalSession?.access_token) {
     headers.set("Authorization", `Bearer ${globalSession.access_token}`);
   }
+  if (globalSession?.adminPreviewAgencySlug) {
+    headers.set("X-Admin-Preview-Agency-Slug", globalSession.adminPreviewAgencySlug);
+  }
   if (globalSession?.agencySlug) {
     headers.set("X-Agency-Slug", globalSession.agencySlug);
   }
@@ -23,7 +26,7 @@ export const authFetch = async (url: string, options: RequestInit = {}) => {
     ...options,
     headers
   });
-  if (res.status === 401 && !globalSession?.agencySlug) {
+  if (res.status === 401 && !globalSession?.agencySlug && !globalSession?.adminPreviewAgencySlug) {
     supabase.auth.signOut().catch(() => {});
   }
   return res;

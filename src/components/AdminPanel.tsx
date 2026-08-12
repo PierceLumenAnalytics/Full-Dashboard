@@ -70,7 +70,7 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
   const [agencyClientLimit, setAgencyClientLimit] = useState(5);
   const [agencyTimezone, setAgencyTimezone] = useState("America/Phoenix");
   const [agencyIndustry, setAgencyIndustry] = useState("Marketing Agency");
-  const [agencyIsDemo, setAgencyIsDemo] = useState(true);
+  const [agencyIsDemo, setAgencyIsDemo] = useState(false);
 
   // Prospect Wizard State
   const [wizardStep, setWizardStep] = useState(1); // 1: Info & Branding, 2: Client Details, 3: Generation & Preview
@@ -262,7 +262,7 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
       setAgencyClientLimit(5);
       setAgencyTimezone("America/Phoenix");
       setAgencyIndustry("Marketing Agency");
-      setAgencyIsDemo(true);
+      setAgencyIsDemo(false);
 
       fetchAgencies();
       fetchLogs();

@@ -27,55 +27,106 @@ export default function App() {
 
       const agencyMatch = path.match(/^\/agency\/([^/]+)/i);
       if (agencyMatch && agencyMatch[1]) {
-        const slug = agencyMatch[1];
-        if (slug === "northstar-digital") {
-          // Public sales demo workspace
-          setAgencySlug(slug);
-          setIsAdminRoute(false);
-          const publicSession = {
-            access_token: null,
-            user: null,
-            agencySlug: slug
-          };
-          setSession(publicSession);
-          setGlobalSession(publicSession);
-          setLoading(false);
-          return;
-        }
+        const slug = agencyMatch[1].trim().toLowerCase();
 
-        // Real agency workspace: Require authenticated user session
+        // STEP 1: ALWAYS check if an authenticated Supabase session exists FIRST!
         try {
           const { data: { session: activeSession } } = await supabase.auth.getSession();
-          if (activeSession) {
-            setGlobalSession(activeSession);
+          
+          if (activeSession && activeSession.access_token) {
+            // Validate session with backend using admin preview header
             const res = await fetch("/api/profile", {
-              headers: { Authorization: `Bearer ${activeSession.access_token}` }
+              headers: {
+                "Authorization": `Bearer ${activeSession.access_token}`,
+                "X-Admin-Preview-Agency-Slug": slug,
+                "X-Agency-Slug": slug
+              }
             });
+
             if (res.ok) {
               const profile = await res.json();
-              if (profile.isAdmin || (profile.agencyId && profile.agencyName)) {
+
+              // IF System Admin: establish secure ADMIN PREVIEW context for requested slug
+              if (profile.isAdmin) {
                 setAgencySlug(slug);
                 setIsAdminRoute(false);
-                setSession(activeSession);
+                setIsAdmin(true);
+                const previewSession = {
+                  ...activeSession,
+                  agencySlug: slug,
+                  adminPreviewAgencySlug: slug
+                };
+                setSession(previewSession);
+                setGlobalSession(previewSession);
                 setLoading(false);
                 return;
               }
+
+              // ELSE IF normal agency user: verify requested slug belongs to user's agency
+              if (profile.agencySlug === slug) {
+                setAgencySlug(slug);
+                setIsAdminRoute(false);
+                setIsAdmin(false);
+                const userSession = {
+                  ...activeSession,
+                  agencySlug: slug
+                };
+                setSession(userSession);
+                setGlobalSession(userSession);
+                setLoading(false);
+                return;
+              }
+
+              // Cross-tenant access attempt by normal agency user -> Deny!
+              await supabase.auth.signOut().catch(() => {});
+              setGlobalSession(null);
+              setSession(null);
+              setIsAdminRoute(true);
+              setLoading(false);
+              return;
+            } else {
+              // Authenticated request failed or was rejected (e.g. 403 cross-tenant error) -> Deny!
+              await supabase.auth.signOut().catch(() => {});
+              setGlobalSession(null);
+              setSession(null);
+              setIsAdminRoute(true);
+              setLoading(false);
+              return;
             }
           }
         } catch (err) {
-          console.error("Agency session check failed:", err);
+          console.error("Agency session auth check error:", err);
         }
 
-        // Unauthenticated or invalid session -> Fall back to public demo
-        setAgencySlug("northstar-digital");
-        setIsAdminRoute(false);
-        const demoSession = {
-          access_token: null,
-          user: null,
-          agencySlug: "northstar-digital"
-        };
-        setSession(demoSession);
-        setGlobalSession(demoSession);
+        // STEP 2: NO authenticated session exists -> Check if agency is a public demo
+        try {
+          const publicRes = await fetch(`/api/agency/public-check/${slug}`);
+          if (publicRes.ok) {
+            const publicData = await publicRes.json();
+            if (publicData.isDemo === true) {
+              setAgencySlug(slug);
+              setIsAdminRoute(false);
+              setIsAdmin(false);
+              const publicSession = {
+                access_token: null,
+                user: null,
+                agencySlug: slug,
+                isDemo: true
+              };
+              setSession(publicSession);
+              setGlobalSession(publicSession);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (err) {
+          console.error("Public agency check failed:", err);
+        }
+
+        // Unauthenticated access to private production agency -> Deny! Redirect to login/admin
+        setGlobalSession(null);
+        setSession(null);
+        setIsAdminRoute(true);
         setLoading(false);
         return;
       }

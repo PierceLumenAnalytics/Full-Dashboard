@@ -49,40 +49,38 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
       {/* Brand Header */}
       <div>
         <div className="p-5 flex items-center gap-2.5 border-b border-white/5 text-left">
-          {profile?.logoUrl ? (
-            <div className="flex flex-col gap-1">
-              {profile.logoUrl.startsWith("http") || profile.logoUrl.startsWith("data:") || profile.logoUrl.includes("/") ? (
-                <img 
-                  src={profile.logoUrl} 
-                  alt={profile.agencyName || "Agency Logo"} 
-                  className="max-h-8 max-w-[150px] object-contain" 
-                />
-              ) : (
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg border border-accent/20 bg-[#151515] flex items-center justify-center font-bold text-xs">
-                    <span className="text-accent font-display text-sm font-bold">
-                      {profile.logoUrl === "IGNITE_PPC" ? "IP" : profile.agencyName?.substring(0, 2).toUpperCase()}
+          {profile?.logoUrl && (profile.logoUrl.startsWith("http") || profile.logoUrl.startsWith("data:") || profile.logoUrl.includes("/")) ? (
+            <div className="flex items-center gap-2.5">
+              <img 
+                src={profile.logoUrl} 
+                alt={profile.agencyName || "Agency Logo"} 
+                className="max-h-8 max-w-[150px] object-contain" 
+              />
+            </div>
+          ) : profile?.agencyName ? (
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg border border-accent/20 bg-[#151515] flex items-center justify-center font-bold text-xs shrink-0">
+                <span className="text-accent font-display text-sm font-bold">
+                  {profile.agencyName.substring(0, 2).toUpperCase()}
+                </span>
+              </div>
+              <div className="overflow-hidden">
+                <h1 className="text-sm font-semibold tracking-tight text-[#F5F3EE] flex items-center gap-1.5 truncate">
+                  <span className="truncate">{profile.agencyName}</span>
+                  {profile?.isDemo && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-accent/10 text-accent border border-accent/20 uppercase tracking-widest font-mono shrink-0">
+                      Demo
                     </span>
-                  </div>
-                  <div>
-                    <h1 className="text-sm font-semibold tracking-tight text-[#F5F3EE] flex items-center gap-1.5">
-                      {profile.agencyName}
-                      {profile?.isDemo && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold bg-accent/10 text-accent border border-accent/20 uppercase tracking-widest font-mono shrink-0">
-                          Demo
-                        </span>
-                      )}
-                    </h1>
-                    <span className="text-[9px] text-[#8A8680] tracking-wider font-mono uppercase block">
-                      Marketing Intelligence
-                    </span>
-                  </div>
-                </div>
-              )}
+                  )}
+                </h1>
+                <span className="text-[9px] text-[#8A8680] tracking-wider font-mono uppercase block truncate">
+                  Marketing Intelligence
+                </span>
+              </div>
             </div>
           ) : (
-            <>
-              <div className="w-8 h-8 rounded-lg border border-accent/25 bg-[#151515] flex items-center justify-center font-bold text-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg border border-accent/25 bg-[#151515] flex items-center justify-center font-bold text-xs shrink-0">
                 <span className="text-accent font-display text-sm font-bold">L</span>
               </div>
               <div>
@@ -93,7 +91,7 @@ export default function Sidebar({ activeTab, setActiveTab, profile, onLogout, is
                   MARKETING INTELLIGENCE
                 </span>
               </div>
-            </>
+            </div>
           )}
         </div>
 

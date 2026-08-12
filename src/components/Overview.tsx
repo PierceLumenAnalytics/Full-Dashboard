@@ -1218,9 +1218,9 @@ export default function Overview({
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] p-8 text-center bg-[#101010] rounded-lg border border-white/5 font-sans">
         <SlidersHorizontal className="w-12 h-12 text-[#8A8680]/40 animate-pulse mb-4" />
-        <h3 className="text-lg font-bold text-[#F5F3EE]">No Connected Client Selected</h3>
+        <h3 className="text-lg font-bold text-[#F5F3EE]">No clients have been added yet.</h3>
         <p className="text-sm text-[#8A8680] max-w-md mt-1.5 font-display">
-          Connect a client account in the client portal to load ad campaign analytics.
+          Connect a client account in the client portal or add a client in Clients Manager to load campaign performance analytics.
         </p>
       </div>
     );
