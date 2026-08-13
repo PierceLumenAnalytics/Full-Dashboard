@@ -44,6 +44,13 @@ export default function ClientPortal({ token }: ClientPortalProps) {
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Unlock body scrolling for client portal
+  useEffect(() => {
+    document.documentElement.style.overflowY = "auto";
+    document.body.style.overflowY = "auto";
+    document.body.style.height = "auto";
+  }, []);
+
   // 1. Initial Validation & Metadata Lookup
   useEffect(() => {
     const validateToken = async () => {

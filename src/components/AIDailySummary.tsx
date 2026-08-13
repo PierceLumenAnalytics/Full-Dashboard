@@ -382,7 +382,7 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
           <div>
             <h4 className="text-sm font-semibold text-[#F5F3EE]">Compiling Ad Spend Insights...</h4>
             <p className="text-xs text-[#8A8680] mt-1 max-w-sm">
-              Lumen is communicating with Claude to compile highlights, bottlenecks, and campaign optimizations.
+              Lumen is analyzing campaign performance to compile highlights, bottlenecks, and optimizations.
             </p>
           </div>
         </div>
@@ -405,33 +405,58 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
       ) : (
         <div className="grid grid-cols-1 gap-6">
           {insights && insights.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {insights.map((ins, idx) => {
                 const colors = {
-                  scale: { border: "border-accent/20", bg: "bg-[#101010]", text: "text-accent" },
-                  watch: { border: "border-amber-500/20", bg: "bg-[#101010]", text: "text-amber-400" },
-                  opportunity: { border: "border-emerald-500/20", bg: "bg-[#101010]", text: "text-emerald-400" },
-                  alert: { border: "border-rose-500/20", bg: "bg-[#101010]", text: "text-rose-400" }
-                }[ins.type as 'scale'|'watch'|'opportunity'|'alert'] || { border: "border-white/5", bg: "bg-[#101010]", text: "text-[#F5F3EE]" };
+                  scale: { border: "border-accent/30", bg: "bg-[#101010]", text: "text-accent" },
+                  positive: { border: "border-emerald-500/30", bg: "bg-[#101010]", text: "text-emerald-400" },
+                  watch: { border: "border-amber-500/30", bg: "bg-[#101010]", text: "text-amber-400" },
+                  opportunity: { border: "border-blue-500/30", bg: "bg-[#101010]", text: "text-blue-400" },
+                  alert: { border: "border-rose-500/30", bg: "bg-[#101010]", text: "text-rose-400" },
+                  warning: { border: "border-amber-500/30", bg: "bg-[#101010]", text: "text-amber-400" }
+                }[ins.type as string] || { border: "border-white/10", bg: "bg-[#101010]", text: "text-[#F5F3EE]" };
+
+                const titleText = ins.title || ins.label || "Performance Analysis";
+                const insightText = ins.insight || ins.what || "";
+                const evidenceText = ins.evidence || ins.why || "";
+                const recommendationText = ins.recommendation || ins.action || "";
 
                 return (
-                  <div key={idx} className={`p-5 rounded-lg border ${colors.border} ${colors.bg} flex flex-col justify-between space-y-4 text-left animate-fade-in`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[10px] font-mono tracking-widest uppercase font-bold ${colors.text}`}>
-                        {ins.number} — {ins.label}
+                  <div key={idx} className={`p-5 rounded-xl border ${colors.border} ${colors.bg} flex flex-col justify-between space-y-4 text-left animate-fade-in shadow-sm hover:border-accent/40 transition-colors`}>
+                    <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+                      <span className={`text-[10px] font-mono tracking-wider uppercase font-bold px-2 py-0.5 rounded bg-white/5 ${colors.text}`}>
+                        {ins.label}
                       </span>
+                      {ins.number && (
+                        <span className="text-xs font-mono font-semibold text-slate-300">
+                          {ins.number}
+                        </span>
+                      )}
                     </div>
+
                     <div className="space-y-2 flex-1">
-                      <p className="text-xs text-[#F5F3EE] font-semibold leading-relaxed">
-                        {ins.what}
+                      <h4 className="text-sm font-bold text-[#F5F3EE] font-display leading-snug">
+                        {titleText}
+                      </h4>
+                      <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                        {insightText}
                       </p>
-                      <p className="text-[11px] text-[#8A8680] leading-relaxed">
-                        {ins.why}
-                      </p>
+                      {evidenceText && (
+                        <p className="text-[11px] text-[#8A8680] leading-relaxed italic pt-1 border-t border-white/5">
+                          <strong className="not-italic text-slate-400">Supporting Evidence:</strong> {evidenceText}
+                        </p>
+                      )}
+                      {ins.whyItMatters && (
+                        <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                          <strong className="text-slate-300">Why It Matters:</strong> {ins.whyItMatters}
+                        </p>
+                      )}
                     </div>
-                    <div className="pt-3 border-t border-white/5">
-                      <p className="text-[11px] text-[#F5F3EE]">
-                        <span className="font-semibold text-accent">Recommendation:</span> {ins.action}
+
+                    <div className="pt-3 border-t border-white/10 bg-accent/5 p-3 rounded-lg border border-accent/20">
+                      <p className="text-[11px] text-[#F5F3EE] leading-relaxed">
+                        <strong className="text-accent uppercase text-[10px] tracking-wider block mb-0.5">Recommended Action:</strong>
+                        {recommendationText}
                       </p>
                     </div>
                   </div>

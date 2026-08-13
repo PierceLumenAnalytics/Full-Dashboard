@@ -235,7 +235,7 @@ export default function App() {
   }
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-slate-950">
+    <div className={portalToken ? "w-screen min-h-screen bg-slate-950 overflow-y-auto" : "w-screen h-screen overflow-hidden bg-slate-950"}>
       {portalToken ? (
         <ClientPortal token={portalToken} />
       ) : isAdminRoute ? (

@@ -1674,9 +1674,178 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
       totalImpressions: Number(metricsSummary?.totalImpressions || 0)
     };
 
+    const analyticalContext: any = { isAgencyOverview: clientId === "agency-overview" };
+
+    if (clientId === "agency-overview") {
+      try {
+        const { data: dbClients } = await supabase
+          .from("clients")
+          .select("id, name, target_cpl")
+          .eq("agency_id", user.agencyId);
+
+        if (dbClients && dbClients.length > 0) {
+          const clientMap = new Map<string, { name: string; targetCpl: number }>();
+          dbClients.forEach(c => clientMap.set(c.id, { name: c.name, targetCpl: Number(c.target_cpl || 0) }));
+
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+
+          const { data: recentMetrics } = await supabase
+            .from("campaign_metrics")
+            .select("client_id, spend, conversions, conversion_value")
+            .eq("agency_id", user.agencyId)
+            .gte("date", thirtyDaysAgoStr);
+
+          if (recentMetrics && recentMetrics.length > 0) {
+            const totalAgencySpend = recentMetrics.reduce((acc, m) => acc + Number(m.spend || 0), 0);
+            const totalAgencyConversions = recentMetrics.reduce((acc, m) => acc + Number(m.conversions || 0), 0);
+
+            const clientStats: { [id: string]: { spend: number; conversions: number; conversionValue: number } } = {};
+            recentMetrics.forEach(m => {
+              if (!clientStats[m.client_id]) {
+                clientStats[m.client_id] = { spend: 0, conversions: 0, conversionValue: 0 };
+              }
+              clientStats[m.client_id].spend += Number(m.spend || 0);
+              clientStats[m.client_id].conversions += Number(m.conversions || 0);
+              clientStats[m.client_id].conversionValue += Number(m.conversion_value || 0);
+            });
+
+            const clientRankings = Object.keys(clientStats).map(id => {
+              const meta = clientMap.get(id) || { name: id, targetCpl: 0 };
+              const s = clientStats[id];
+              const cpl = s.conversions > 0 ? s.spend / s.conversions : 0;
+              const roas = s.spend > 0 ? s.conversionValue / s.spend : 0;
+              const spendShare = totalAgencySpend > 0 ? (s.spend / totalAgencySpend) * 100 : 0;
+              const leadShare = totalAgencyConversions > 0 ? (s.conversions / totalAgencyConversions) * 100 : 0;
+              const cplRatio = meta.targetCpl > 0 ? cpl / meta.targetCpl : 0;
+              return {
+                id,
+                name: meta.name,
+                targetCpl: meta.targetCpl,
+                spend: s.spend,
+                spendShare: Math.round(spendShare),
+                conversions: s.conversions,
+                leadShare: Math.round(leadShare),
+                cpl,
+                roas,
+                cplRatio
+              };
+            });
+
+            const sortedByLeads = [...clientRankings].sort((a, b) => b.conversions - a.conversions);
+            if (sortedByLeads.length > 0) {
+              analyticalContext.topGrowthDriver = { name: sortedByLeads[0].name, conversions: sortedByLeads[0].conversions, cpl: sortedByLeads[0].cpl };
+              if (sortedByLeads.length > 1) {
+                analyticalContext.secondGrowthDriver = { name: sortedByLeads[1].name, conversions: sortedByLeads[1].conversions, cpl: sortedByLeads[1].cpl };
+              }
+            }
+
+            const sortedByDrag = [...clientRankings].sort((a, b) => (b.spendShare - b.leadShare) - (a.spendShare - a.leadShare));
+            if (sortedByDrag.length > 0) {
+              analyticalContext.largestEfficiencyDrag = {
+                name: sortedByDrag[0].name,
+                spendShare: sortedByDrag[0].spendShare,
+                leadShare: sortedByDrag[0].leadShare,
+                cpl: sortedByDrag[0].cpl,
+                targetCpl: sortedByDrag[0].targetCpl
+              };
+            }
+
+            analyticalContext.clientRankings = clientRankings;
+          }
+        }
+      } catch (err: any) {
+        console.error("Error pre-computing agency overview context:", err.message);
+      }
+    } else {
+      // Individual Client Context (Apex Roofing, Canyon Home Services, etc.)
+      try {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+
+        const { data: campaignRows } = await supabase
+          .from("campaign_metrics")
+          .select("campaign_name, platform, spend, conversions, clicks, impressions")
+          .eq("client_id", clientId)
+          .gte("date", thirtyDaysAgoStr);
+
+        if (campaignRows && campaignRows.length > 0) {
+          const campStats: { [name: string]: { name: string; platform: string; spend: number; conversions: number; clicks: number; impressions: number } } = {};
+          let totalClientSpend = 0;
+          let totalClientLeads = 0;
+
+          campaignRows.forEach(c => {
+            const key = c.campaign_name || "Primary Campaign";
+            if (!campStats[key]) {
+              campStats[key] = { name: key, platform: c.platform || "Search", spend: 0, conversions: 0, clicks: 0, impressions: 0 };
+            }
+            const s = Number(c.spend || 0);
+            const conv = Number(c.conversions || 0);
+            campStats[key].spend += s;
+            campStats[key].conversions += conv;
+            campStats[key].clicks += Number(c.clicks || 0);
+            campStats[key].impressions += Number(c.impressions || 0);
+            totalClientSpend += s;
+            totalClientLeads += conv;
+          });
+
+          const campaignContributions = Object.values(campStats).map(c => {
+            const cpl = c.conversions > 0 ? c.spend / c.conversions : 0;
+            const leadShare = totalClientLeads > 0 ? Math.round((c.conversions / totalClientLeads) * 100) : 0;
+            const spendShare = totalClientSpend > 0 ? Math.round((c.spend / totalClientSpend) * 100) : 0;
+            return {
+              name: c.name,
+              platform: c.platform,
+              spend: c.spend,
+              conversions: c.conversions,
+              cpl,
+              leadShare,
+              spendShare
+            };
+          }).sort((a, b) => b.conversions - a.conversions);
+
+          analyticalContext.topCampaigns = campaignContributions;
+        }
+
+        // Funnel Pattern Diagnosis based on metrics
+        const ctr = Number(metricsSummary?.avgCtr || 0);
+        const cvr = Number(metricsSummary?.avgConvRate || 0);
+        if (ctr >= 2.0 && cvr < 5.0) {
+          analyticalContext.funnelPattern = "CTR_STABLE_CVR_DOWN";
+        } else if (ctr < 1.5) {
+          analyticalContext.funnelPattern = "CTR_DOWN_CPC_UP";
+        } else {
+          analyticalContext.funnelPattern = "SPEND_UP_LEADS_FASTER";
+        }
+
+        // Target CPL Variance
+        const { data: clientRow } = await supabase
+          .from("clients")
+          .select("target_cpl")
+          .eq("id", clientId)
+          .single();
+
+        if (clientRow && clientRow.target_cpl) {
+          const targetCpl = Number(clientRow.target_cpl);
+          const actualCpl = Number(metricsSummary?.costPerConversion || 0);
+          analyticalContext.targetCplVariance = {
+            targetCpl,
+            actualCpl,
+            varianceAmount: Math.abs(actualCpl - targetCpl),
+            isUnderTarget: actualCpl <= targetCpl
+          };
+        }
+      } catch (err: any) {
+        console.error("Error pre-computing individual client context:", err.message);
+      }
+    }
+
     const aiResult = await generateInsights({
       clientName,
       metrics: metricsPayload,
+      analyticalContext,
       tone
     });
 
