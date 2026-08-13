@@ -130,7 +130,8 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
         body: JSON.stringify({
           clientId: cId,
           clientName: cName,
-          metricsSummary
+          metricsSummary,
+          forceRegenerate: true
         })
       });
 

@@ -95,22 +95,28 @@ export default function ClientsManager({
   const [portalAccessInfo, setPortalAccessInfo] = useState<{
     enabled: boolean;
     token?: string;
-    portalUrl?: string;
-    lastRotatedAt?: string;
+    portalUrl?: string | null;
+    lastRotatedAt?: string | null;
   } | null>(null);
   const [loadingPortalInfo, setLoadingPortalInfo] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
   const [rotatingPortalToken, setRotatingPortalToken] = useState(false);
 
   const fetchPortalAccessInfo = async (clientId: string) => {
     setLoadingPortalInfo(true);
+    setPortalError(null);
     try {
       const res = await authFetch(`/api/clients/${clientId}/portal-access`);
       if (res.ok) {
         const data = await res.json();
         setPortalAccessInfo(data);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setPortalError(errData.error || "Unable to load portal access info.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load portal info:", err);
+      setPortalError(err.message || "Unable to load portal access info.");
     } finally {
       setLoadingPortalInfo(false);
     }
@@ -122,14 +128,17 @@ export default function ClientsManager({
     setRotatingPortalToken(true);
     try {
       const res = await authFetch(`/api/clients/${editingClient.id}/portal-access/rotate`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed to rotate portal link.");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to rotate portal link.");
+      }
       const data = await res.json();
-      setPortalAccessInfo({
-        enabled: true,
-        token: data.token,
+      setPortalAccessInfo(prev => ({
+        ...(prev || {}),
+        enabled: data.enabled,
         portalUrl: data.portalUrl,
-        lastRotatedAt: new Date().toISOString()
-      });
+        lastRotatedAt: data.lastRotatedAt || new Date().toISOString()
+      }));
       addToast("Portal Link Rotated", "Generated new secure portal link. Old link invalidated.", "success");
     } catch (err: any) {
       addToast("Rotation Failed", err.message || "Failed to rotate link.", "error");
@@ -139,16 +148,24 @@ export default function ClientsManager({
   };
 
   const handleTogglePortalAccess = async () => {
-    if (!editingClient || !portalAccessInfo) return;
-    const nextState = !portalAccessInfo.enabled;
+    if (!editingClient) return;
+    const nextState = !(portalAccessInfo?.enabled);
     try {
       const res = await authFetch(`/api/clients/${editingClient.id}/portal-access/toggle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: nextState })
       });
-      if (!res.ok) throw new Error("Failed to update portal status.");
-      setPortalAccessInfo(prev => prev ? { ...prev, enabled: nextState } : null);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to update portal status.");
+      }
+      const data = await res.json();
+      setPortalAccessInfo(prev => ({
+        ...(prev || {}),
+        enabled: data.enabled,
+        portalUrl: data.portalUrl
+      }));
       addToast("Portal Status Updated", `Client portal status set to: ${nextState ? "ENABLED" : "DISABLED"}`, "success");
     } catch (err: any) {
       addToast("Toggle Failed", err.message || "Failed to toggle portal access.", "error");
@@ -1058,7 +1075,23 @@ export default function ClientsManager({
 
                   {loadingPortalInfo ? (
                     <div className="text-xs text-slate-400 py-2 flex items-center gap-2">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" /> Loading portal token...
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-500" /> Loading portal info...
+                    </div>
+                  ) : portalError ? (
+                    <div className="flex items-center justify-between py-2 text-xs text-rose-400 bg-rose-500/10 p-3 rounded-lg border border-rose-500/20">
+                      <span>Unable to load portal access info</span>
+                      <button
+                        type="button"
+                        onClick={() => fetchPortalAccessInfo(editingClient.id)}
+                        className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded transition-colors"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : !portalAccessInfo?.enabled ? (
+                    <div className="py-2 text-xs text-slate-400 space-y-1">
+                      <p className="font-medium text-slate-300">Status: DISABLED</p>
+                      <p className="text-[11px] text-slate-500">Client portal access is currently disabled for this client.</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -1066,7 +1099,7 @@ export default function ClientsManager({
                         <input
                           type="text"
                           readOnly
-                          value={portalAccessInfo?.portalUrl || "Generating portal URL..."}
+                          value={portalAccessInfo?.portalUrl || ""}
                           className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg p-2 flex-1 font-mono select-all outline-none"
                         />
                         <button
@@ -1078,10 +1111,10 @@ export default function ClientsManager({
                           <Copy className="w-3.5 h-3.5" /> Copy
                         </button>
                         <a
-                          href={portalAccessInfo?.portalUrl}
+                          href={portalAccessInfo?.portalUrl || "#"}
                           target="_blank"
                           rel="noreferrer"
-                          className="btn-primary text-xs flex items-center gap-1 shrink-0 px-3 py-2"
+                          className={`btn-primary text-xs flex items-center gap-1 shrink-0 px-3 py-2 ${!portalAccessInfo?.portalUrl ? 'pointer-events-none opacity-50' : ''}`}
                         >
                           <ExternalLink className="w-3.5 h-3.5" /> Open
                         </a>

@@ -109,7 +109,8 @@ export default function ReportsPage({ clients, dateRange, addToast }: ReportsPag
           clientId: selectedReport.clientId,
           clientName: selectedReport.clientName,
           metricsSummary,
-          tone: selectedTone
+          tone: selectedTone,
+          forceRegenerate: true
         })
       });
 

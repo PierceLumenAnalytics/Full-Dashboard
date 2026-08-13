@@ -73,7 +73,7 @@ app.use(express.json());
 // Global read-only protection for public demo mode (bypassable for admin/windsor)
 app.use(async (req, res, next) => {
   const isWriteMethod = ["POST", "PUT", "DELETE", "PATCH"].includes(req.method);
-  const isMutation = isWriteMethod && !req.path.endsWith("/summary") && !req.path.endsWith("/config") && !req.path.includes("/dashboard-config");
+  const isMutation = isWriteMethod && !req.path.endsWith("/summary") && !req.path.endsWith("/config") && !req.path.includes("/dashboard-config") && !req.path.includes("/portal-access");
   
   if (isMutation) {
     // 1. Check if authenticated as Windsor.ai (only if key is defined in env)
@@ -1561,32 +1561,7 @@ app.post("/api/clients/:id/import", requireAuth, async (req, res) => {
   }
 });
 
-// API: Update agency custom CTA message
-app.put("/api/agency/cta", requireAuth, async (req, res) => {
-  const { customCta } = req.body;
-  const user = (req as any).user;
 
-  if (user.isAdmin) {
-    return res.status(400).json({ error: "Admin role cannot set an agency custom CTA." });
-  }
-  if (!user.agencyId) {
-    return res.status(400).json({ error: "User is not linked to any agency." });
-  }
-
-  try {
-    const { error } = await supabase
-      .from("agencies")
-      .update({ custom_cta: customCta ? customCta.trim() : null })
-      .eq("id", user.agencyId);
-
-    if (error) throw error;
-
-    res.json({ success: true, customCta });
-  } catch (err: any) {
-    console.error("Update CTA Error:", err.message);
-    res.status(500).json({ error: "Failed to update agency CTA: " + err.message });
-  }
-});
 
 // API: List audit logs
 app.get("/api/logs", requireAuth, async (req, res) => {
@@ -1626,7 +1601,7 @@ app.get("/api/logs", requireAuth, async (req, res) => {
 
 // API: Generate AI summary report using Claude API (secured on server)
 app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) => {
-  const { clientId, clientName, metricsSummary, tone = "Executive" } = req.body;
+  const { clientId, clientName, metricsSummary, tone = "Executive", forceRegenerate = false } = req.body;
   const user = (req as any).user;
   
   if (!clientId || !clientName || !metricsSummary) {
@@ -1662,30 +1637,31 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
   }
 
   const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-  const dateRangeKey = `30days-${todayStr}`;
+  const dateRangeKey = `30days-${todayStr}-${tone}`;
 
-  try {
-    // Check Cache first - support both exact dateRangeKey and generic "30days" (seeded) keys
-    const { data: cachedSummary } = await supabase
-      .from("ai_summaries")
-      .select("summary_data, date_range")
-      .eq("client_id", clientId)
-      .in("date_range", [dateRangeKey, "30days"]);
+  if (!forceRegenerate) {
+    try {
+      // Check Cache first - tone-specific date_range keying
+      const { data: cachedSummary } = await supabase
+        .from("ai_summaries")
+        .select("summary_data, date_range")
+        .eq("client_id", clientId)
+        .in("date_range", [dateRangeKey, `30days-${tone}`]);
 
-    if (cachedSummary && cachedSummary.length > 0) {
-      // Prefer exact date range key matching today, otherwise fall back to seeded general 30days
-      const bestMatch = cachedSummary.find(s => s.date_range === dateRangeKey) || cachedSummary[0];
-      console.log(`Cache Hit: Serving stored AI summary (${bestMatch.date_range}) for client ${clientId}`);
-      return res.json({
-        insights: bestMatch.summary_data,
-        provider: "Cached"
-      });
+      if (cachedSummary && cachedSummary.length > 0) {
+        const bestMatch = cachedSummary.find(s => s.date_range === dateRangeKey) || cachedSummary[0];
+        console.log(`Cache Hit: Serving stored AI summary (${bestMatch.date_range}) for client ${clientId} (${tone})`);
+        return res.json({
+          insights: bestMatch.summary_data,
+          provider: "Cached"
+        });
+      }
+    } catch (cacheErr: any) {
+      console.warn("Summary cache check skipped/empty:", cacheErr.message);
     }
-  } catch (cacheErr: any) {
-    console.warn("Summary cache check skipped/empty:", cacheErr.message);
   }
 
-  // Dynamic ranking variables for agency-overviewfallback
+  // Dynamic ranking variables for agency-overview fallback
   let bestClientName = "Apex Roofing";
   let secondBestClientName = "Summit Fitness";
   let worstClientName = "Canyon Home Services";
@@ -1767,13 +1743,17 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
     }
   }
 
-  // Graceful fallback generator using actual client performance metrics
+  // Graceful fallback generator using actual client performance metrics and requested tone
   const generateDynamicFallbackInsights = (name: string, summary: any) => {
+    const totalSpend = summary.totalSpend || 0;
+    const totalConversions = summary.totalConversions || 0;
+    const avgConvRate = summary.avgConvRate || 0;
+    const totalClicks = summary.totalClicks || 0;
+    const avgCtr = summary.avgCtr || 0;
+    const costPerConv = summary.costPerConversion || (totalConversions > 0 ? totalSpend / totalConversions : 0);
+
     if (clientId === "agency-overview") {
-      const totalSpend = summary.totalSpend || 0;
-      const totalConversions = summary.totalConversions || 0;
       const totalConversionValue = summary.totalConversionValue || 0;
-      const avgCpl = totalConversions > 0 ? totalSpend / totalConversions : 0;
       const roas = totalSpend > 0 ? totalConversionValue / totalSpend : 0;
 
       return [
@@ -1782,7 +1762,7 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
           label: "AGENCY SUMMARY",
           number: "01",
           what: `Agency-wide spend is tracking at $${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })} producing ${totalConversions.toLocaleString()} leads overall.`,
-          why: `Overall agency CPL is tracking efficiently at $${avgCpl.toFixed(2)}, indicating a stable performance baseline across all marketing channels.`,
+          why: `Overall agency CPL is tracking efficiently at $${costPerConv.toFixed(2)}, indicating a stable performance baseline across all marketing channels.`,
           action: "Maintain current target bid caps. Continue monitoring campaign fatigue on lower-performing accounts."
         },
         {
@@ -1804,45 +1784,90 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
       ];
     }
 
-    const totalSpend = summary.totalSpend || 0;
-    const totalConversions = summary.totalConversions || 0;
-    const avgConvRate = summary.avgConvRate || 0;
-    const totalClicks = summary.totalClicks || 0;
-    const avgCtr = summary.avgCtr || 0;
-
-    const toneText = tone.toLowerCase();
-    const greetings = {
-      casual: `Hey, quick update on ${name}. things look solid.`,
-      "data-driven": `Analyzing key performative indicators for ${name}. Variance metrics follow.`,
-      executive: `Executive overview for ${name}. High-level indicators show sound efficiency.`
-    }[toneText] || `Executive performance highlights for ${name}.`;
-
-    return [
-      {
-        type: "scale",
-        label: "SCALE",
-        number: "01",
-        what: `${greetings} Meta Ads generated efficient conversion volume.`,
-        why: `Total spend reached $${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })} producing ${totalConversions.toLocaleString()} conversions.`,
-        action: "Increase daily budget by 10-15% on best performing asset."
-      },
-      {
-        type: "watch",
-        label: "WATCH",
-        number: "02",
-        what: `Average conversion rate settled at ${avgConvRate.toFixed(2)}%.`,
-        why: `Low conversion rate on specific ad variations is increasing overall CPL.`,
-        action: "Review search query match and exclude low-intent variations."
-      },
-      {
-        type: "opportunity",
-        label: "OPPORTUNITY",
-        number: "03",
-        what: `Overall click-through rate of ${avgCtr.toFixed(2)}% shows strong engagement.`,
-        why: `Creative styling aligns well with target audience demographics.`,
-        action: "Deploy new creative variations of current top-performing copy."
-      }
-    ];
+    const toneText = (tone || "Executive").toLowerCase();
+    if (toneText === "data-driven") {
+      return [
+        {
+          type: "scale",
+          label: "SCALE",
+          number: "01",
+          what: `Ad acquisition efficiency recorded at $${costPerConv.toFixed(2)} CPL with ${totalConversions.toLocaleString()} conversion events for ${name}.`,
+          why: `Total expenditure of $${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })} against ${totalClicks.toLocaleString()} click events yielded a ${avgConvRate.toFixed(2)}% conversion rate.`,
+          action: "Reallocate spend budget toward campaigns operating below target cost-per-lead thresholds."
+        },
+        {
+          type: "watch",
+          label: "WATCH",
+          number: "02",
+          what: `Click-through rate benchmark tracking at ${avgCtr.toFixed(2)}% across active ad sets.`,
+          why: `Variation in ad creative CTR indicates sub-optimal engagement on high-cost placements.`,
+          action: "Perform statistical split tests on lower-performing ad creative variations."
+        },
+        {
+          type: "opportunity",
+          label: "OPPORTUNITY",
+          number: "03",
+          what: `Conversion efficiency ratio increased with ${totalClicks.toLocaleString()} high-intent visitors.`,
+          why: `Target audience response rates demonstrate stronger ad relevancy on core campaigns.`,
+          action: "Expand target audience reach parameters while maintaining strict bid caps."
+        }
+      ];
+    } else if (toneText === "casual") {
+      return [
+        {
+          type: "scale",
+          label: "SCALE",
+          number: "01",
+          what: `Great week for ${name}! We brought in ${totalConversions.toLocaleString()} leads at around $${costPerConv.toFixed(2)} each.`,
+          why: `Total spend was $${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}, and the conversion rate held up nicely at ${avgConvRate.toFixed(2)}%.`,
+          action: "Let's put a bit more budget behind what's working best to keep the momentum going."
+        },
+        {
+          type: "watch",
+          label: "WATCH",
+          number: "02",
+          what: `Click-through rate is sitting right at ${avgCtr.toFixed(2)}%.`,
+          why: `A couple of older ads are starting to fade a little in audience response.`,
+          action: "We'll swap out a few ad images and test fresh headline variations this week."
+        },
+        {
+          type: "opportunity",
+          label: "OPPORTUNITY",
+          number: "03",
+          what: `Lead volume remains strong and cost per acquisition is heading in the right direction.`,
+          why: `The core targeting setup is connecting well with potential customers.`,
+          action: "Test a slightly wider audience to discover new qualified prospects."
+        }
+      ];
+    } else {
+      // Executive
+      return [
+        {
+          type: "scale",
+          label: "SCALE",
+          number: "01",
+          what: `Executive performance summary for ${name}: Campaign generated ${totalConversions.toLocaleString()} conversions at $${costPerConv.toFixed(2)} CPL.`,
+          why: `Strategic spend allocation of $${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })} maintained strong conversion rate efficiency at ${avgConvRate.toFixed(2)}%.`,
+          action: "Scale investment on high-ROI campaign assets to maximize total lead acquisition."
+        },
+        {
+          type: "watch",
+          label: "WATCH",
+          number: "02",
+          what: `Click-through efficiency currently averages ${avgCtr.toFixed(2)}%.`,
+          why: `Ad fatigue across top placements requires scheduled creative refresh.`,
+          action: "Authorize rollout of updated ad messaging to protect brand positioning and performance."
+        },
+        {
+          type: "opportunity",
+          label: "OPPORTUNITY",
+          number: "03",
+          what: `Strong baseline ROI provides expansion leverage across core channels.`,
+          why: `Consistent acquisition metrics signal market capacity for strategic scaling.`,
+          action: "Approve campaign expansion plan for upcoming period."
+        }
+      ];
+    }
   };
 
   const systemPrompt = `You are an elite digital marketing performance analyst and executive reporting expert.
@@ -1861,7 +1886,13 @@ interface Response {
   }>;
 }
 
-IMPORTANT: Only reference ad channels and platforms that have data in the metrics provided to you. Never mention Google Ads, Meta Ads, TikTok Ads, or any specific platform unless that platform's data is explicitly included in the metrics summary.`;
+IMPORTANT:
+- Only reference ad channels and platforms that have data in the metrics provided to you.
+- Tailor vocabulary and phrasing to the requested tone: ${tone}.
+  * Executive: Concise, leadership focused, business impact, clear strategic recommendations.
+  * Data-driven: Metric-heavy, explicit percentages, comparisons, efficiency ratios.
+  * Casual: Plain English, client-friendly, natural, accessible, conversational.
+- All numbers must come from the metrics provided.`;
 
   const prompt = `Please analyze the performance metrics over the last 30 days for our client "${clientName}":
 Metrics summary:
@@ -1870,9 +1901,9 @@ Metrics summary:
 - Avg Conversion Rate: ${metricsSummary.avgConvRate.toFixed(2)}%
 - Total Clicks: ${metricsSummary.totalClicks.toLocaleString()}
 - Avg Click-Through Rate: ${metricsSummary.avgCtr.toFixed(2)}%
-- Cost per Conversion: $${metricsSummary.costPerConversion.toFixed(2)}
+- Cost per Conversion: $${(metricsSummary.costPerConversion || 0).toFixed(2)}
 
-Please write three structured insights matching the JSON schema. Use tone: ${tone}.
+Please write three structured insights matching the JSON schema using tone: ${tone}.
 Make the insights feel highly strategic, calm, and tailored to "${clientName}".`;
 
   const claudeApiKey = process.env.ANTHROPIC_API_KEY;
@@ -1880,7 +1911,7 @@ Make the insights feel highly strategic, calm, and tailored to "${clientName}".`
   try {
     if (claudeApiKey) {
       try {
-        console.log("Attempting to compile structured insights with Claude...");
+        console.log(`Attempting to compile structured insights with Claude (${tone})...`);
         const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -1889,7 +1920,7 @@ Make the insights feel highly strategic, calm, and tailored to "${clientName}".`
             "anthropic-version": "2023-06-01"
           },
           body: JSON.stringify({
-            model: "claude-sonnet-5",
+            model: "claude-3-5-sonnet-20241022",
             max_tokens: 1500,
             system: systemPrompt,
             messages: [
@@ -1919,8 +1950,7 @@ Make the insights feel highly strategic, calm, and tailored to "${clientName}".`
             try {
               const parsed = JSON.parse(summaryText);
               if (parsed.insights && Array.isArray(parsed.insights)) {
-                // Delete old summaries and cache the new summary
-                await supabase.from("ai_summaries").delete().eq("client_id", clientId);
+                await supabase.from("ai_summaries").delete().eq("client_id", clientId).eq("date_range", dateRangeKey);
                 await supabase.from("ai_summaries").insert({
                   client_id: clientId,
                   agency_id: clientData.agency_id,
@@ -1951,7 +1981,7 @@ Make the insights feel highly strategic, calm, and tailored to "${clientName}".`
     // Fallback to structured insights sandbox
     const mockInsights = generateDynamicFallbackInsights(clientName, metricsSummary);
     try {
-      await supabase.from("ai_summaries").delete().eq("client_id", clientId);
+      await supabase.from("ai_summaries").delete().eq("client_id", clientId).eq("date_range", dateRangeKey);
       await supabase.from("ai_summaries").insert({
         client_id: clientId,
         agency_id: clientData.agency_id,
@@ -1971,7 +2001,7 @@ Make the insights feel highly strategic, calm, and tailored to "${clientName}".`
     console.error("General error in server summary endpoint:", error);
     const mockInsights = generateDynamicFallbackInsights(clientName, metricsSummary);
     try {
-      await supabase.from("ai_summaries").delete().eq("client_id", clientId);
+      await supabase.from("ai_summaries").delete().eq("client_id", clientId).eq("date_range", dateRangeKey);
       await supabase.from("ai_summaries").insert({
         client_id: clientId,
         agency_id: clientData.agency_id,
@@ -2258,56 +2288,31 @@ app.get("/api/clients/:id/portal-access", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "Access Denied: You do not own this client account." });
     }
 
-    let { data: portalRecord } = await supabase
+    const { data: portalRecord } = await supabase
       .from("client_portal_access")
       .select("*")
       .eq("client_id", id)
       .single();
 
+    if (!portalRecord) {
+      return res.json({
+        enabled: false,
+        lastRotatedAt: null,
+        portalUrl: null
+      });
+    }
+
     let plainToken: string | null = null;
-    if (portalRecord && portalRecord.encrypted_token) {
+    if (portalRecord.encrypted_token) {
       plainToken = decryptPortalToken(portalRecord.encrypted_token);
     }
 
-    if (!portalRecord || !plainToken) {
-      plainToken = generateRawPortalToken();
-      const tokenHash = hashPortalToken(plainToken);
-      const encryptedToken = encryptPortalToken(plainToken);
-
-      if (portalRecord) {
-        await supabase
-          .from("client_portal_access")
-          .update({
-            token_hash: tokenHash,
-            encrypted_token: encryptedToken,
-            enabled: true,
-            updated_at: new Date().toISOString(),
-            last_rotated_at: new Date().toISOString()
-          })
-          .eq("client_id", id);
-      } else {
-        const { data: newRecord, error: insertError } = await supabase
-          .from("client_portal_access")
-          .insert({
-            agency_id: client.agency_id,
-            client_id: id,
-            token_hash: tokenHash,
-            encrypted_token: encryptedToken,
-            enabled: true
-          })
-          .select()
-          .single();
-        if (insertError) throw insertError;
-        portalRecord = newRecord;
-      }
-    }
-
     const baseUrl = getAppBaseUrl(req);
-    const portalUrl = `${baseUrl}/portal/${plainToken}`;
+    const portalUrl = (portalRecord.enabled && plainToken) ? `${baseUrl}/portal/${plainToken}` : null;
 
     res.json({
       enabled: portalRecord.enabled,
-      lastRotatedAt: portalRecord.last_rotated_at,
+      lastRotatedAt: portalRecord.last_rotated_at || null,
       portalUrl
     });
   } catch (err: any) {
@@ -2335,16 +2340,18 @@ app.post("/api/clients/:id/portal-access/rotate", requireAuth, rateLimiter(5, 60
       return res.status(403).json({ error: "Access Denied: You do not own this client account." });
     }
 
+    const { data: existing } = await supabase
+      .from("client_portal_access")
+      .select("*")
+      .eq("client_id", id)
+      .single();
+
     const plainToken = generateRawPortalToken();
     const tokenHash = hashPortalToken(plainToken);
     const encryptedToken = encryptPortalToken(plainToken);
     const nowIso = new Date().toISOString();
 
-    const { data: existing } = await supabase
-      .from("client_portal_access")
-      .select("id")
-      .eq("client_id", id)
-      .single();
+    const isEnabled = existing ? existing.enabled : false;
 
     let error;
     if (existing) {
@@ -2353,7 +2360,6 @@ app.post("/api/clients/:id/portal-access/rotate", requireAuth, rateLimiter(5, 60
         .update({
           token_hash: tokenHash,
           encrypted_token: encryptedToken,
-          enabled: true,
           updated_at: nowIso,
           last_rotated_at: nowIso
         })
@@ -2366,7 +2372,8 @@ app.post("/api/clients/:id/portal-access/rotate", requireAuth, rateLimiter(5, 60
           client_id: id,
           token_hash: tokenHash,
           encrypted_token: encryptedToken,
-          enabled: true
+          enabled: false,
+          last_rotated_at: nowIso
         }));
     }
 
@@ -2381,9 +2388,9 @@ app.post("/api/clients/:id/portal-access/rotate", requireAuth, rateLimiter(5, 60
     });
 
     const baseUrl = getAppBaseUrl(req);
-    const portalUrl = `${baseUrl}/portal/${plainToken}`;
+    const portalUrl = isEnabled ? `${baseUrl}/portal/${plainToken}` : null;
 
-    res.json({ success: true, token: plainToken, portalUrl });
+    res.json({ success: true, enabled: isEnabled, lastRotatedAt: nowIso, portalUrl });
   } catch (err: any) {
     res.status(500).json({ error: "Failed to rotate client portal token: " + err.message });
   }
@@ -2410,22 +2417,70 @@ app.post("/api/clients/:id/portal-access/toggle", requireAuth, async (req, res) 
       return res.status(403).json({ error: "Access Denied: You do not own this client account." });
     }
 
-    const { error: updateError } = await supabase
+    const { data: existing } = await supabase
       .from("client_portal_access")
-      .update({ enabled: !!enabled, updated_at: new Date().toISOString() })
-      .eq("client_id", id);
+      .select("*")
+      .eq("client_id", id)
+      .single();
 
-    if (updateError) throw updateError;
+    let plainToken: string | null = null;
+    const nextEnabled = !!enabled;
+
+    if (!existing) {
+      plainToken = generateRawPortalToken();
+      const tokenHash = hashPortalToken(plainToken);
+      const encryptedToken = encryptPortalToken(plainToken);
+
+      const { error: insertError } = await supabase
+        .from("client_portal_access")
+        .insert({
+          agency_id: client.agency_id,
+          client_id: id,
+          token_hash: tokenHash,
+          encrypted_token: encryptedToken,
+          enabled: nextEnabled
+        });
+      if (insertError) throw insertError;
+    } else {
+      if (existing.encrypted_token) {
+        plainToken = decryptPortalToken(existing.encrypted_token);
+      }
+      if (!plainToken) {
+        plainToken = generateRawPortalToken();
+        const tokenHash = hashPortalToken(plainToken);
+        const encryptedToken = encryptPortalToken(plainToken);
+
+        const { error: updateTokenErr } = await supabase
+          .from("client_portal_access")
+          .update({
+            token_hash: tokenHash,
+            encrypted_token: encryptedToken,
+            enabled: nextEnabled,
+            updated_at: new Date().toISOString()
+          })
+          .eq("client_id", id);
+        if (updateTokenErr) throw updateTokenErr;
+      } else {
+        const { error: updateError } = await supabase
+          .from("client_portal_access")
+          .update({ enabled: nextEnabled, updated_at: new Date().toISOString() })
+          .eq("client_id", id);
+        if (updateError) throw updateError;
+      }
+    }
 
     await supabase.from("audit_logs").insert({
       agency_id: client.agency_id,
       action: "UPDATE",
       entity: "Client Portal Status",
-      details: `Client ${client.name} portal status set to: ${!!enabled ? "ENABLED" : "DISABLED"}`,
+      details: `Client ${client.name} portal status set to: ${nextEnabled ? "ENABLED" : "DISABLED"}`,
       user: user.email || "system"
     });
 
-    res.json({ success: true, enabled: !!enabled });
+    const baseUrl = getAppBaseUrl(req);
+    const portalUrl = (nextEnabled && plainToken) ? `${baseUrl}/portal/${plainToken}` : null;
+
+    res.json({ success: true, enabled: nextEnabled, portalUrl });
   } catch (err: any) {
     res.status(500).json({ error: "Failed to toggle portal access: " + err.message });
   }

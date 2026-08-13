@@ -12,8 +12,12 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
   const [ctaText, setCtaText] = useState(profile?.customCta || "");
   const [loading, setLoading] = useState(false);
 
+  // Read-only in public demo mode, UNLESS System Admin is actively previewing
+  const isPublicDemoReadOnly = !!(profile?.isDemo && !profile?.isAdminPreview);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isPublicDemoReadOnly) return;
     setLoading(true);
 
     try {
@@ -57,6 +61,13 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <form onSubmit={handleSave} className="lg:col-span-2 p-6 rounded-xl bg-[#101010] border border-white/5 space-y-6">
           <div>
+            {isPublicDemoReadOnly && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-400 font-medium flex items-center gap-2 mb-4">
+                <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 bg-amber-500/20 rounded uppercase">DEMO PREVIEW</span>
+                <span>Settings are read-only in the public demo.</span>
+              </div>
+            )}
+
             <h3 className="text-sm font-bold text-slate-200 font-display uppercase tracking-wider mb-2">
               Custom Client CTA Message
             </h3>
@@ -67,17 +78,20 @@ export default function AgencySettings({ profile, refreshProfile, addToast }: Ag
             <textarea
               rows={4}
               value={ctaText}
+              disabled={isPublicDemoReadOnly}
+              readOnly={isPublicDemoReadOnly}
               onChange={(e) => setCtaText(e.target.value)}
               placeholder="e.g., Ready to scale? Ask us about our new SEO & Content packages to double organic traffic!"
-              className="w-full form-input h-auto leading-relaxed focus:border-accent/50 p-4"
+              className={`w-full form-input h-auto leading-relaxed focus:border-accent/50 p-4 ${isPublicDemoReadOnly ? "opacity-75 cursor-not-allowed bg-slate-950/50" : ""}`}
             />
           </div>
  
           <div className="flex justify-end pt-4 border-t border-white/5">
             <button
               type="submit"
-              disabled={loading}
-              className="btn-primary flex items-center gap-1.5"
+              disabled={loading || isPublicDemoReadOnly}
+              className={`btn-primary flex items-center gap-1.5 ${isPublicDemoReadOnly ? "opacity-50 cursor-not-allowed" : ""}`}
+              title={isPublicDemoReadOnly ? "Settings are read-only in public demo mode" : "Save Settings"}
             >
               {loading ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />

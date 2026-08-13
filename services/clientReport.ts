@@ -12,54 +12,24 @@ export async function getOrCreatePortalToken(
   agencyId: string,
   supabase: SupabaseClient
 ): Promise<string | null> {
-  const { data: existing } = await supabase
-    .from("client_portal_access")
-    .select("token_hash, encrypted_token, enabled")
-    .eq("client_id", clientId)
-    .single();
+  try {
+    const { data: existing } = await supabase
+      .from("client_portal_access")
+      .select("token_hash, encrypted_token, enabled")
+      .eq("client_id", clientId)
+      .single();
 
-  if (existing) {
-    // ISSUE 4 RULE: If portal access is explicitly disabled, DO NOT silently reactivate it
-    if (!existing.enabled) {
-      return null;
-    }
-
-    if (existing.encrypted_token) {
+    if (existing && existing.enabled && existing.encrypted_token) {
       const decrypted = decryptPortalToken(existing.encrypted_token);
       if (decrypted && hashPortalToken(decrypted) === existing.token_hash) {
         return decrypted;
       }
     }
+  } catch (err) {
+    console.warn("[getOrCreatePortalToken] Could not fetch portal access:", err);
   }
 
-  const plainToken = generateRawPortalToken();
-  const tokenHash = hashPortalToken(plainToken);
-  const encryptedToken = encryptPortalToken(plainToken);
-
-  if (existing) {
-    await supabase
-      .from("client_portal_access")
-      .update({
-        token_hash: tokenHash,
-        encrypted_token: encryptedToken,
-        enabled: true,
-        updated_at: new Date().toISOString(),
-        last_rotated_at: new Date().toISOString()
-      })
-      .eq("client_id", clientId);
-  } else {
-    await supabase
-      .from("client_portal_access")
-      .insert({
-        agency_id: agencyId,
-        client_id: clientId,
-        token_hash: tokenHash,
-        encrypted_token: encryptedToken,
-        enabled: true
-      });
-  }
-
-  return plainToken;
+  return null;
 }
 
 
@@ -302,7 +272,7 @@ Please write the JSON response.`;
           "anthropic-version": "2023-06-01"
         },
         body: JSON.stringify({
-          model: "claude-sonnet-5",
+          model: "claude-3-5-sonnet-20241022",
           max_tokens: 1000,
           system: systemPrompt,
           messages: [
