@@ -1496,7 +1496,19 @@ app.post("/api/clients/:id/import", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Invalid payload: 'rows' must be a non-empty array." });
     }
 
-    const validatedRows: any[] = [];
+    // 1. Validate & Deduplicate/Aggregate CSV rows by (date + platform)
+    const rowMap = new Map<string, {
+      client_id: string;
+      agency_id: string;
+      date: string;
+      platform: string;
+      campaign_name: string;
+      spend: number;
+      impressions: number;
+      clicks: number;
+      conversions: number;
+    }>();
+
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index];
       const rowNum = index + 1;
@@ -1505,8 +1517,8 @@ app.post("/api/clients/:id/import", requireAuth, async (req, res) => {
         return res.status(400).json({ error: `Validation error at row ${rowNum}: 'date' must be YYYY-MM-DD.` });
       }
 
-      if (!row.platform || typeof row.platform !== "string") {
-        return res.status(400).json({ error: `Validation error at row ${rowNum}: 'platform' must be a string.` });
+      if (!row.platform || typeof row.platform !== "string" || !row.platform.trim()) {
+        return res.status(400).json({ error: `Validation error at row ${rowNum}: 'platform' must be a non-empty string.` });
       }
 
       const spend = Number(row.spend);
@@ -1529,26 +1541,74 @@ app.post("/api/clients/:id/import", requireAuth, async (req, res) => {
         return res.status(400).json({ error: `Validation error at row ${rowNum}: 'conversions' must be a non-negative integer.` });
       }
 
-      validatedRows.push({
-        client_id: id,
-        agency_id: client.agency_id,
-        date: row.date,
-        platform: row.platform.trim(),
-        spend,
-        impressions,
-        clicks,
-        conversions
-      });
+      const platformTrimmed = row.platform.trim();
+      const key = `${row.date}___${platformTrimmed}`;
+
+      if (rowMap.has(key)) {
+        const existing = rowMap.get(key)!;
+        existing.spend += spend;
+        existing.impressions += impressions;
+        existing.clicks += clicks;
+        existing.conversions += conversions;
+      } else {
+        rowMap.set(key, {
+          client_id: id,
+          agency_id: client.agency_id,
+          date: row.date,
+          platform: platformTrimmed,
+          campaign_name: "CSV Import",
+          spend,
+          impressions,
+          clicks,
+          conversions
+        });
+      }
     }
 
-    // Idempotent upsert of campaign metrics (unique constraint on client_id, date, platform handles duplicates)
+    const validatedRows = Array.from(rowMap.values());
+
+    // 2. Group by platform to clear conflicting/overridden metrics for those platforms & dates
+    const platformDatesMap = new Map<string, Set<string>>();
+    for (const vRow of validatedRows) {
+      if (!platformDatesMap.has(vRow.platform)) {
+        platformDatesMap.set(vRow.platform, new Set());
+      }
+      platformDatesMap.get(vRow.platform)!.add(vRow.date);
+    }
+
+    for (const [platform, datesSet] of platformDatesMap.entries()) {
+      const dates = Array.from(datesSet);
+      const { error: delError } = await supabase
+        .from("campaign_metrics")
+        .delete()
+        .eq("client_id", id)
+        .eq("platform", platform)
+        .in("date", dates);
+
+      if (delError) {
+        console.error(`Error clearing existing metrics for platform ${platform}:`, delError.message);
+        return res.status(500).json({ error: `Failed to clear existing campaign metrics for ${platform}: ` + delError.message });
+      }
+    }
+
+    // 3. Upsert using the 4-column unique constraint (client_id, date, platform, campaign_name)
     const { error: upsertError } = await supabase
       .from("campaign_metrics")
-      .upsert(validatedRows, { onConflict: "client_id,date,platform" });
-    if (upsertError) throw upsertError;
+      .upsert(validatedRows, { onConflict: "client_id,date,platform,campaign_name" });
+
+    if (upsertError) {
+      console.error("CSV Import Upsert Error:", upsertError.message);
+      return res.status(500).json({ error: "Failed to import campaign metrics: " + upsertError.message });
+    }
+
+    // 4. Calculate import summary details
+    const platforms = Array.from(platformDatesMap.keys());
+    const allDates = validatedRows.map(r => r.date).sort();
+    const startDate = allDates[0];
+    const endDate = allDates[allDates.length - 1];
 
     // Audit log
-    const details = `Imported ${validatedRows.length} campaign metrics from CSV for client ${client.name}`;
+    const details = `Imported ${validatedRows.length} campaign metrics from CSV for client ${client.name} across platforms: ${platforms.join(", ")}`;
     const logId = `log-${Date.now()}`;
     await supabase.from("audit_logs").insert({
       id: logId,
@@ -1560,7 +1620,13 @@ app.post("/api/clients/:id/import", requireAuth, async (req, res) => {
       agency_id: client.agency_id
     });
 
-    res.json({ success: true, count: validatedRows.length });
+    res.json({
+      success: true,
+      count: validatedRows.length,
+      platforms,
+      startDate,
+      endDate
+    });
   } catch (err: any) {
     console.error("CSV Import Error:", err.message);
     res.status(500).json({ error: "Failed to import campaign metrics: " + err.message });
