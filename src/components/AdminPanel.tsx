@@ -32,6 +32,7 @@ import ClientsManager from "./ClientsManager";
 import LogsViewer from "./LogsViewer";
 import ToastContainer, { ToastMessage } from "./Toast";
 import { ClientAccount, AuditLog } from "../types";
+import { DEFAULT_CHANNEL_CATALOG, DEFAULT_ENABLED_CHANNELS, parsePlatformString, serializePlatformChannels } from "../constants/channels";
 
 interface AdminPanelProps {
   session: any;
@@ -71,6 +72,12 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
   const [agencyTimezone, setAgencyTimezone] = useState("America/Phoenix");
   const [agencyIndustry, setAgencyIndustry] = useState("Marketing Agency");
   const [agencyIsDemo, setAgencyIsDemo] = useState(false);
+  const [agencyEnabledChannels, setAgencyEnabledChannels] = useState<string[]>([...DEFAULT_ENABLED_CHANNELS]);
+  const [customChannelInput, setCustomChannelInput] = useState("");
+
+  // Edit Agency Form Channels State
+  const [editingAgencyChannels, setEditingAgencyChannels] = useState<string[]>([]);
+  const [editingCustomChannelInput, setEditingCustomChannelInput] = useState("");
 
   // Prospect Wizard State
   const [wizardStep, setWizardStep] = useState(1); // 1: Info & Branding, 2: Client Details, 3: Generation & Preview
@@ -81,6 +88,8 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
   const [wAccentColor, setWAccentColor] = useState("#ec4899");
   const [wTimezone, setWTimezone] = useState("America/Phoenix");
   const [wIndustry, setWIndustry] = useState("Marketing Agency");
+  const [wAgencyChannels, setWAgencyChannels] = useState<string[]>([...DEFAULT_ENABLED_CHANNELS]);
+  const [wCustomChannelInput, setWCustomChannelInput] = useState("");
   
   const [wClientName, setWClientName] = useState("");
   const [wClientIndustry, setWClientIndustry] = useState("E-commerce");
@@ -241,6 +250,7 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
           isDemo: agencyIsDemo,
           timezone: agencyTimezone,
           industry: agencyIndustry,
+          enabledChannels: agencyEnabledChannels,
           clients: []
         })
       });
@@ -263,12 +273,21 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
       setAgencyTimezone("America/Phoenix");
       setAgencyIndustry("Marketing Agency");
       setAgencyIsDemo(false);
+      setAgencyEnabledChannels([...DEFAULT_ENABLED_CHANNELS]);
+      setCustomChannelInput("");
 
       fetchAgencies();
       fetchLogs();
     } catch (err: any) {
       addToast("Onboarding Failed", err.message, "error");
     }
+  };
+
+  const handleOpenEditAgencyModal = (agency: any) => {
+    setEditingAgency(agency);
+    setEditingAgencyChannels(agency.enabled_channels || agency.enabledChannels || [...DEFAULT_ENABLED_CHANNELS]);
+    setEditingCustomChannelInput("");
+    setIsEditAgencyModalOpen(true);
   };
 
   // Edit agency settings
@@ -289,7 +308,8 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
           clientLimit: Number(editingAgency.client_limit),
           isDemo: editingAgency.is_demo,
           timezone: editingAgency.timezone,
-          industry: editingAgency.industry
+          industry: editingAgency.industry,
+          enabledChannels: editingAgencyChannels
         })
       });
 
@@ -450,6 +470,9 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
     setWTimezone("America/Phoenix");
     setWIndustry("Marketing Agency");
     
+    setWAgencyChannels([...DEFAULT_ENABLED_CHANNELS]);
+    setWCustomChannelInput("");
+    
     setWClientName("");
     setWClientIndustry("Beauty");
     setWClientMarket("Phoenix, AZ");
@@ -491,6 +514,7 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
           isDemo: true,
           timezone: wTimezone,
           industry: wIndustry,
+          enabledChannels: wAgencyChannels,
           clients: []
         })
       });
@@ -986,6 +1010,84 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
                 </div>
               </div>
 
+              {/* Marketing Channels Configuration */}
+              <div className="flex flex-col space-y-2 text-left pt-2 border-t border-slate-900">
+                <label className="text-[10px] font-mono tracking-wider text-slate-500 uppercase flex items-center justify-between">
+                  <span>Enabled Agency Marketing Channels</span>
+                  <span className="text-[9px] text-slate-400 font-sans font-normal">Clients of this agency can only pick from these</span>
+                </label>
+                <div className="flex flex-wrap gap-1.5 p-3 bg-slate-900/50 border border-slate-800 rounded-lg max-h-[140px] overflow-y-auto">
+                  {DEFAULT_CHANNEL_CATALOG.map((cat) => {
+                    const isSelected = agencyEnabledChannels.includes(cat.name);
+                    return (
+                      <button
+                        key={cat.key}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setAgencyEnabledChannels(agencyEnabledChannels.filter(c => c !== cat.name));
+                          } else {
+                            setAgencyEnabledChannels([...agencyEnabledChannels, cat.name]);
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded text-xs font-semibold cursor-pointer border transition-colors flex items-center gap-1 ${
+                          isSelected
+                            ? "bg-violet-600/20 border-violet-500/50 text-violet-300"
+                            : "bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        <span>{isSelected ? "✓" : "+"}</span>
+                        <span>{cat.name}</span>
+                      </button>
+                    );
+                  })}
+                  {agencyEnabledChannels.filter(c => !DEFAULT_CHANNEL_CATALOG.some(cat => cat.name === c)).map((customName) => (
+                    <button
+                      key={customName}
+                      type="button"
+                      onClick={() => setAgencyEnabledChannels(agencyEnabledChannels.filter(c => c !== customName))}
+                      className="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer border transition-colors flex items-center gap-1 bg-violet-600/20 border-violet-500/50 text-violet-300"
+                    >
+                      <span>✓</span>
+                      <span>{customName}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2 pt-0.5">
+                  <input
+                    type="text"
+                    placeholder="+ Add Custom Channel (e.g. Linear TV, Direct Mail)"
+                    value={customChannelInput}
+                    onChange={(e) => setCustomChannelInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const trimmed = customChannelInput.trim();
+                        if (trimmed && !agencyEnabledChannels.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+                          setAgencyEnabledChannels([...agencyEnabledChannels, trimmed]);
+                          setCustomChannelInput("");
+                        }
+                      }
+                    }}
+                    className="bg-slate-900/50 border border-slate-800 text-slate-200 text-xs rounded-lg p-2 outline-none focus:ring-1 focus:ring-violet-500 flex-1 font-sans"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = customChannelInput.trim();
+                      if (trimmed && !agencyEnabledChannels.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+                        setAgencyEnabledChannels([...agencyEnabledChannels, trimmed]);
+                        setCustomChannelInput("");
+                      }
+                    }}
+                    disabled={!customChannelInput.trim()}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer shrink-0"
+                  >
+                    Add Channel
+                  </button>
+                </div>
+              </div>
+
               {/* Brand colors selection */}
               <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-900">
                 <div className="flex flex-col">
@@ -1166,6 +1268,84 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
                   <option value="true">Demo Tenant (Allow seed data generation)</option>
                   <option value="false">Production (Protected customer context)</option>
                 </select>
+              </div>
+
+              {/* Marketing Channels Configuration */}
+              <div className="flex flex-col space-y-2 text-left pt-2 border-t border-slate-900">
+                <label className="text-[10px] font-mono tracking-wider text-slate-500 uppercase flex items-center justify-between">
+                  <span>Enabled Agency Marketing Channels</span>
+                  <span className="text-[9px] text-slate-400 font-sans font-normal">Clients of this agency can only pick from these</span>
+                </label>
+                <div className="flex flex-wrap gap-1.5 p-3 bg-slate-900/50 border border-slate-800 rounded-lg max-h-[140px] overflow-y-auto">
+                  {DEFAULT_CHANNEL_CATALOG.map((cat) => {
+                    const isSelected = editingAgencyChannels.includes(cat.name);
+                    return (
+                      <button
+                        key={cat.key}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setEditingAgencyChannels(editingAgencyChannels.filter(c => c !== cat.name));
+                          } else {
+                            setEditingAgencyChannels([...editingAgencyChannels, cat.name]);
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded text-xs font-semibold cursor-pointer border transition-colors flex items-center gap-1 ${
+                          isSelected
+                            ? "bg-violet-600/20 border-violet-500/50 text-violet-300"
+                            : "bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        <span>{isSelected ? "✓" : "+"}</span>
+                        <span>{cat.name}</span>
+                      </button>
+                    );
+                  })}
+                  {editingAgencyChannels.filter(c => !DEFAULT_CHANNEL_CATALOG.some(cat => cat.name === c)).map((customName) => (
+                    <button
+                      key={customName}
+                      type="button"
+                      onClick={() => setEditingAgencyChannels(editingAgencyChannels.filter(c => c !== customName))}
+                      className="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer border transition-colors flex items-center gap-1 bg-violet-600/20 border-violet-500/50 text-violet-300"
+                    >
+                      <span>✓</span>
+                      <span>{customName}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2 pt-0.5">
+                  <input
+                    type="text"
+                    placeholder="+ Add Custom Channel (e.g. Linear TV, Direct Mail)"
+                    value={editingCustomChannelInput}
+                    onChange={(e) => setEditingCustomChannelInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const trimmed = editingCustomChannelInput.trim();
+                        if (trimmed && !editingAgencyChannels.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+                          setEditingAgencyChannels([...editingAgencyChannels, trimmed]);
+                          setEditingCustomChannelInput("");
+                        }
+                      }
+                    }}
+                    className="bg-slate-900/50 border border-slate-800 text-slate-200 text-xs rounded-lg p-2 outline-none focus:ring-1 focus:ring-violet-500 flex-1 font-sans"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const trimmed = editingCustomChannelInput.trim();
+                      if (trimmed && !editingAgencyChannels.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+                        setEditingAgencyChannels([...editingAgencyChannels, trimmed]);
+                        setEditingCustomChannelInput("");
+                      }
+                    }}
+                    disabled={!editingCustomChannelInput.trim()}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer shrink-0"
+                  >
+                    Add Channel
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1442,6 +1622,84 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
                       </div>
                     </div>
 
+                    {/* Agency Channels Configuration */}
+                    <div className="flex flex-col space-y-2 text-left pt-2 border-t border-slate-900">
+                      <label className="text-[9px] font-mono text-slate-500 uppercase flex items-center justify-between">
+                        <span>Enabled Agency Marketing Channels</span>
+                        <span className="text-[9px] text-slate-400 font-sans font-normal">Client can only choose from these</span>
+                      </label>
+                      <div className="flex flex-wrap gap-1.5 p-3 bg-slate-900/50 border border-slate-800 rounded-lg max-h-[140px] overflow-y-auto">
+                        {DEFAULT_CHANNEL_CATALOG.map((cat) => {
+                          const isSelected = wAgencyChannels.includes(cat.name);
+                          return (
+                            <button
+                              key={cat.key}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setWAgencyChannels(wAgencyChannels.filter(c => c !== cat.name));
+                                } else {
+                                  setWAgencyChannels([...wAgencyChannels, cat.name]);
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded text-xs font-semibold cursor-pointer border transition-colors flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-violet-600/20 border-violet-500/50 text-violet-300"
+                                  : "bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200"
+                              }`}
+                            >
+                              <span>{isSelected ? "✓" : "+"}</span>
+                              <span>{cat.name}</span>
+                            </button>
+                          );
+                        })}
+                        {wAgencyChannels.filter(c => !DEFAULT_CHANNEL_CATALOG.some(cat => cat.name === c)).map((customName) => (
+                          <button
+                            key={customName}
+                            type="button"
+                            onClick={() => setWAgencyChannels(wAgencyChannels.filter(c => c !== customName))}
+                            className="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer border transition-colors flex items-center gap-1 bg-violet-600/20 border-violet-500/50 text-violet-300"
+                          >
+                            <span>✓</span>
+                            <span>{customName}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 pt-0.5">
+                        <input
+                          type="text"
+                          placeholder="+ Add Custom Channel (e.g. Linear TV, OTT / CTV)"
+                          value={wCustomChannelInput}
+                          onChange={(e) => setWCustomChannelInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const trimmed = wCustomChannelInput.trim();
+                              if (trimmed && !wAgencyChannels.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+                                setWAgencyChannels([...wAgencyChannels, trimmed]);
+                                setWCustomChannelInput("");
+                              }
+                            }
+                          }}
+                          className="bg-slate-900/50 border border-slate-800 text-slate-200 text-xs rounded-lg p-2 outline-none focus:ring-1 focus:ring-violet-500 flex-1 font-sans"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const trimmed = wCustomChannelInput.trim();
+                            if (trimmed && !wAgencyChannels.some(c => c.toLowerCase() === trimmed.toLowerCase())) {
+                              setWAgencyChannels([...wAgencyChannels, trimmed]);
+                              setWCustomChannelInput("");
+                            }
+                          }}
+                          disabled={!wCustomChannelInput.trim()}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer shrink-0"
+                        >
+                          Add Channel
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4 pt-2">
                       <div className="flex flex-col">
                         <label className="text-[9px] font-mono text-slate-500 uppercase mb-1">Primary Color (Hex)</label>
@@ -1567,15 +1825,21 @@ export default function AdminPanel({ session, onLogout }: AdminPanelProps) {
                     </div>
 
                     <div className="flex flex-col">
-                      <label className="text-[9px] font-mono text-slate-500 uppercase mb-1">Ad Platforms (Multi-Select)</label>
-                      <div className="flex gap-2">
-                        {["Google Ads", "Meta Ads", "TikTok Ads", "Microsoft Ads"].map((plat) => {
+                      <label className="text-[9px] font-mono text-slate-500 uppercase mb-1">Ad Platforms (Multi-Select from Agency Channels)</label>
+                      <div className="flex flex-wrap gap-2">
+                        {wAgencyChannels.map((plat) => {
                           const active = wClientPlatform.includes(plat);
                           return (
                             <button
                               key={plat}
                               type="button"
-                              onClick={() => togglePlatform(plat)}
+                              onClick={() => {
+                                if (active) {
+                                  setWClientPlatform(wClientPlatform.filter(p => p !== plat));
+                                } else {
+                                  setWClientPlatform([...wClientPlatform, plat]);
+                                }
+                              }}
                               className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                                 active
                                   ? "bg-violet-600/10 border-violet-500 text-violet-300"

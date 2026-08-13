@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { ClientAccount } from "../types";
 import { authFetch } from "../lib/supabaseClient";
+import { DEFAULT_CHANNEL_CATALOG, DEFAULT_ENABLED_CHANNELS, parsePlatformString, serializePlatformChannels } from "../constants/channels";
 
 interface ClientsManagerProps {
   clients: ClientAccount[];
@@ -63,6 +64,8 @@ export default function ClientsManager({
   const [formName, setFormName] = useState("");
   const [formDomain, setFormDomain] = useState("");
   const [formPlatform, setFormPlatform] = useState<any>("All Platforms");
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [customClientChannelInput, setCustomClientChannelInput] = useState("");
   const [formBudget, setFormBudget] = useState("");
   const [formAgencyId, setFormAgencyId] = useState("");
   const [formTargetCpl, setFormTargetCpl] = useState("");
@@ -199,7 +202,11 @@ export default function ClientsManager({
   const filteredClients = clients.filter((client) => {
     const matchesSearch = client.name.toLowerCase().includes(search.toLowerCase()) || 
                           client.domain.toLowerCase().includes(search.toLowerCase());
-    const matchesPlatform = platformFilter === "All" || client.platform === platformFilter;
+    const clientChannels = parsePlatformString(client.platform);
+    const matchesPlatform = platformFilter === "All" || 
+                            client.platform === "All Platforms" || 
+                            client.platform === platformFilter || 
+                            clientChannels.includes(platformFilter);
     return matchesSearch && matchesPlatform;
   });
 
@@ -225,11 +232,15 @@ export default function ClientsManager({
     setReportPeriod("weekly");
     setShowTestInput(false);
     setTestEmailAddress("");
-    if (isAdmin && agenciesList.length > 0) {
-      setFormAgencyId(agenciesList[0].id);
-    } else {
-      setFormAgencyId(profile?.agencyId || "");
-    }
+
+    const targetAgencyIdVal = isAdmin && agenciesList.length > 0 ? agenciesList[0].id : (profile?.agencyId || "");
+    setFormAgencyId(targetAgencyIdVal);
+
+    const targetAgencyObj = isAdmin ? agenciesList.find(a => a.id === targetAgencyIdVal) : null;
+    const initialChans = targetAgencyObj?.enabledChannels || targetAgencyObj?.enabled_channels || profile?.enabledChannels || profile?.enabled_channels || [...DEFAULT_ENABLED_CHANNELS];
+    setSelectedChannels([...initialChans]);
+    setCustomClientChannelInput("");
+
     setFormErrors({});
     setIsModalOpen(true);
   };
@@ -255,7 +266,20 @@ export default function ClientsManager({
     setReportPeriod(client.reportPeriod || "weekly");
     setShowTestInput(false);
     setTestEmailAddress(client.reportEmail || "");
-    setFormAgencyId((client as any).agencyId || profile?.agencyId || "");
+
+    const clientAgencyId = (client as any).agencyId || profile?.agencyId || "";
+    setFormAgencyId(clientAgencyId);
+
+    const targetAgencyObj = isAdmin ? agenciesList.find(a => a.id === clientAgencyId) : null;
+    const agencyChans = targetAgencyObj?.enabledChannels || targetAgencyObj?.enabled_channels || profile?.enabledChannels || profile?.enabled_channels || [...DEFAULT_ENABLED_CHANNELS];
+
+    let parsed = parsePlatformString(client.platform);
+    if (parsed.length === 0 || client.platform === "All Platforms") {
+      parsed = [...agencyChans];
+    }
+    setSelectedChannels(parsed);
+    setCustomClientChannelInput("");
+
     setFormErrors({});
     setIsModalOpen(true);
     fetchPortalAccessInfo(client.id);
@@ -581,12 +605,17 @@ export default function ClientsManager({
       errors.budget = "Please define a valid positive monthly ad budget.";
     }
 
+    if (selectedChannels.length === 0) {
+      errors.channels = "At least one marketing channel must be selected.";
+    }
+
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       addToast("Validation failed", "Please resolve form errors before saving.", "error");
       return;
     }
 
+    const finalPlatform = serializePlatformChannels(selectedChannels);
     setIsSubmitting(true);
 
     try {
@@ -594,7 +623,7 @@ export default function ClientsManager({
         await onUpdateClient(editingClient.id, {
           name: formName.trim(),
           domain: formDomain.trim().toLowerCase(),
-          platform: formPlatform,
+          platform: finalPlatform,
           monthlyBudget: budgetNum,
           targetCpl: formTargetCpl ? Number(formTargetCpl) : null,
           brandColor: formBrandColor,
@@ -614,7 +643,7 @@ export default function ClientsManager({
         await onAddClient({
           name: formName.trim(),
           domain: formDomain.trim().toLowerCase(),
-          platform: formPlatform,
+          platform: finalPlatform,
           monthlyBudget: budgetNum,
           agencyId: formAgencyId || profile?.agencyId,
           targetCpl: formTargetCpl ? Number(formTargetCpl) : null,
@@ -891,20 +920,101 @@ export default function ClientsManager({
 
               {/* Row 2: Core Platform and Monthly Budget */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex flex-col">
-                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1">
-                    Core Ad Network Channel
+                <div className="flex flex-col col-span-1 md:col-span-2">
+                  <label className="text-[10px] font-mono tracking-widest text-slate-500 uppercase mb-1 flex items-center justify-between">
+                    <span>Active Marketing Channels (Multi-Select)</span>
+                    <span className="text-[9px] text-slate-400 font-sans font-normal">Select active channels for this client</span>
                   </label>
-                  <select
-                    value={formPlatform}
-                    onChange={(e) => setFormPlatform(e.target.value as any)}
-                    className="bg-slate-900/50 border border-slate-800 text-slate-300 text-xs rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-violet-500/30"
-                  >
-                    <option value="All Platforms">Omnichannel (All Platforms)</option>
-                    <option value="Google Ads">Google Ads Only</option>
-                    <option value="Meta Ads">Meta Ads Only</option>
-                    <option value="TikTok Ads">TikTok Ads Only</option>
-                  </select>
+                  
+                  {(() => {
+                    const currentAgencyObj = isAdmin ? agenciesList.find(a => a.id === formAgencyId) : null;
+                    const agencyChans: string[] = currentAgencyObj?.enabledChannels || currentAgencyObj?.enabled_channels || profile?.enabledChannels || profile?.enabled_channels || [...DEFAULT_ENABLED_CHANNELS];
+                    const legacyChans = selectedChannels.filter(c => !agencyChans.some(a => a.toLowerCase() === c.toLowerCase()));
+
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-1.5 p-3 bg-slate-900/50 border border-slate-800 rounded-lg max-h-[140px] overflow-y-auto">
+                          {agencyChans.map((chan) => {
+                            const isSelected = selectedChannels.includes(chan);
+                            return (
+                              <button
+                                key={chan}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedChannels(selectedChannels.filter(c => c !== chan));
+                                  } else {
+                                    setSelectedChannels([...selectedChannels, chan]);
+                                  }
+                                }}
+                                className={`px-2.5 py-1 rounded text-xs font-semibold cursor-pointer border transition-colors flex items-center gap-1 ${
+                                  isSelected
+                                    ? "bg-violet-600/20 border-violet-500/50 text-violet-300"
+                                    : "bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200"
+                                }`}
+                              >
+                                <span>{isSelected ? "✓" : "+"}</span>
+                                <span>{chan}</span>
+                              </button>
+                            );
+                          })}
+
+                          {legacyChans.map((legacyChan) => (
+                            <button
+                              key={legacyChan}
+                              type="button"
+                              onClick={() => setSelectedChannels(selectedChannels.filter(c => c !== legacyChan))}
+                              className="px-2.5 py-1 rounded text-xs font-semibold cursor-pointer border transition-colors flex items-center gap-1 bg-amber-500/20 border-amber-500/50 text-amber-300"
+                              title="Legacy channel currently disabled for agency"
+                            >
+                              <span>✓</span>
+                              <span>{legacyChan} (Legacy)</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="flex gap-2 pt-0.5">
+                          <input
+                            type="text"
+                            placeholder="+ Add Custom Channel to Client"
+                            value={customClientChannelInput}
+                            onChange={(e) => setCustomClientChannelInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                const trimmed = customClientChannelInput.trim();
+                                if (trimmed && !selectedChannels.includes(trimmed)) {
+                                  setSelectedChannels([...selectedChannels, trimmed]);
+                                  setCustomClientChannelInput("");
+                                }
+                              }
+                            }}
+                            className="bg-slate-900/50 border border-slate-800 text-slate-200 text-xs rounded-lg p-2 outline-none focus:ring-1 focus:ring-violet-500 flex-1 font-sans"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const trimmed = customClientChannelInput.trim();
+                              if (trimmed && !selectedChannels.includes(trimmed)) {
+                                setSelectedChannels([...selectedChannels, trimmed]);
+                                setCustomClientChannelInput("");
+                              }
+                            }}
+                            disabled={!customClientChannelInput.trim()}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer shrink-0"
+                          >
+                            Add Channel
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {formErrors.channels && (
+                    <span className="text-[10px] text-rose-400 font-semibold mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> {formErrors.channels}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-col">

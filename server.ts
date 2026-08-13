@@ -13,6 +13,7 @@ import {
   generateRawPortalToken 
 } from "./services/portalSecurity.js";
 import { generateInsights } from "./services/aiInsightsService.js";
+import { sanitizeAgencyChannels, DEFAULT_ENABLED_CHANNELS } from "./src/constants/channels.js";
 
 dotenv.config();
 
@@ -411,7 +412,7 @@ app.post("/api/admin/agencies/onboard", requireAuth, async (req, res) => {
     return res.status(403).json({ error: "Access Denied: Admin role required." });
   }
 
-  const { name, slug, logoUrl, primaryColor, accentColor, clientLimit, clients, isDemo, timezone, industry } = req.body;
+  const { name, slug, logoUrl, primaryColor, accentColor, clientLimit, clients, isDemo, timezone, industry, enabledChannels } = req.body;
 
   if (!name || !slug) {
     return res.status(400).json({ error: "Agency name and slug are required." });
@@ -430,7 +431,8 @@ app.post("/api/admin/agencies/onboard", requireAuth, async (req, res) => {
         client_limit: typeof clientLimit === "number" ? clientLimit : 5,
         is_demo: isDemo === true,
         timezone: timezone ? timezone.trim() : null,
-        industry: industry ? industry.trim() : null
+        industry: industry ? industry.trim() : null,
+        enabled_channels: sanitizeAgencyChannels(enabledChannels)
       })
       .select()
       .single();
@@ -515,6 +517,7 @@ app.get("/api/admin/agencies", requireAuth, async (req, res) => {
       const agencyClientsCount = clients?.filter((c: any) => c.agency_id === a.id).length || 0;
       return {
         ...a,
+        enabledChannels: sanitizeAgencyChannels(a.enabled_channels),
         clientsCount: agencyClientsCount
       };
     });
@@ -534,7 +537,7 @@ app.put("/api/admin/agencies/:id", requireAuth, async (req, res) => {
   }
 
   const { id } = req.params;
-  const { name, slug, logoUrl, primaryColor, accentColor, clientLimit, isDemo, timezone, industry } = req.body;
+  const { name, slug, logoUrl, primaryColor, accentColor, clientLimit, isDemo, timezone, industry, enabledChannels } = req.body;
 
   try {
     const updates: any = {};
@@ -547,6 +550,7 @@ app.put("/api/admin/agencies/:id", requireAuth, async (req, res) => {
     if (isDemo !== undefined) updates.is_demo = isDemo === true;
     if (timezone !== undefined) updates.timezone = timezone ? timezone.trim() : null;
     if (industry !== undefined) updates.industry = industry ? industry.trim() : null;
+    if (enabledChannels !== undefined) updates.enabled_channels = sanitizeAgencyChannels(enabledChannels);
 
     const { data: updatedAgency, error } = await supabase
       .from("agencies")

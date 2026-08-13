@@ -2,7 +2,7 @@ export interface ClientAccount {
   id: string;
   name: string;
   domain: string;
-  platform: "Google Ads" | "Meta Ads" | "TikTok Ads" | "All Platforms";
+  platform: string;
   monthlyBudget: number;
   status: "Active" | "Paused" | "Needs Review";
   createdAt: string;
