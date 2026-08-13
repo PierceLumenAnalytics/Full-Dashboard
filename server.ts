@@ -73,7 +73,8 @@ app.use(express.json());
 // Global read-only protection for public demo mode (bypassable for admin/windsor)
 app.use(async (req, res, next) => {
   const isWriteMethod = ["POST", "PUT", "DELETE", "PATCH"].includes(req.method);
-  const isMutation = isWriteMethod && !req.path.endsWith("/summary") && !req.path.endsWith("/config") && !req.path.includes("/dashboard-config") && !req.path.includes("/portal-access");
+  const fullPath = req.originalUrl || req.path || "";
+  const isMutation = isWriteMethod && !fullPath.endsWith("/summary") && !fullPath.endsWith("/config") && !fullPath.includes("/dashboard-config") && !fullPath.includes("/portal-access");
   
   if (isMutation) {
     // 1. Check if authenticated as Windsor.ai (only if key is defined in env)
@@ -1641,12 +1642,12 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
 
   if (!forceRegenerate) {
     try {
-      // Check Cache first - tone-specific date_range keying
+      // Check Cache first - exact tone-specific date_range keying
       const { data: cachedSummary } = await supabase
         .from("ai_summaries")
         .select("summary_data, date_range")
         .eq("client_id", clientId)
-        .in("date_range", [dateRangeKey, `30days-${tone}`]);
+        .eq("date_range", dateRangeKey);
 
       if (cachedSummary && cachedSummary.length > 0) {
         const bestMatch = cachedSummary.find(s => s.date_range === dateRangeKey) || cachedSummary[0];
