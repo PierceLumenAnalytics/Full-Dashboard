@@ -74,7 +74,7 @@ app.use(express.json());
 app.use(async (req, res, next) => {
   const isWriteMethod = ["POST", "PUT", "DELETE", "PATCH"].includes(req.method);
   const fullPath = req.originalUrl || req.path || "";
-  const isMutation = isWriteMethod && !fullPath.endsWith("/summary") && !fullPath.endsWith("/config") && !fullPath.includes("/dashboard-config") && !fullPath.includes("/portal-access");
+  const isMutation = isWriteMethod && !fullPath.includes("/summary") && !fullPath.includes("/config") && !fullPath.includes("/dashboard-config") && !fullPath.includes("/portal-access");
   
   if (isMutation) {
     // 1. Check if authenticated as Windsor.ai (only if key is defined in env)
