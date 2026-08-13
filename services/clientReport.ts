@@ -188,7 +188,7 @@ export async function generateReportData(
     .sort((a, b) => b.conversions - a.conversions);
 
   // 10. AI Summary Generation
-  const summary = await getWeeklyAISummary(client.name, currentStats, comparison, campaigns);
+  const summary = await generateAiSummary(client.name, currentStats, comparison, campaigns);
 
   // 11. Custom branding colors
   const primaryColor = agency.primary_color && isValidHex(agency.primary_color) ? agency.primary_color : "#D6B77A";
@@ -219,25 +219,27 @@ export async function generateReportData(
   };
 }
 
-// Generate the weekly report AI summary using Claude, falling back to deterministic template if needed
-async function getWeeklyAISummary(
+async function generateAiSummary(
   clientName: string,
   metrics: any,
   comparison: any,
   campaigns: any[]
 ): Promise<ClientReportSummary> {
-  const claudeApiKey = process.env.ANTHROPIC_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY;
 
-  if (claudeApiKey) {
+  if (geminiApiKey) {
     try {
-      const topCampaignText = campaigns && campaigns.length > 0
-        ? `The top-performing campaign was "${campaigns[0].campaign_name}" with $${campaigns[0].spend.toLocaleString()} spend and ${campaigns[0].conversions} conversions.`
-        : "";
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
-      const systemPrompt = `You are a strategic marketing reporting AI for Lumen Analytics. 
-You translate ad account performance metrics into client-ready insights.
-You MUST output ONLY a valid JSON object matching the following structure. Do NOT include extra prose, markdown, or headers:
+      const topCampaigns = campaigns.slice(0, 3).map(c => `- ${c.campaign_name}: Spend $${Number(c.spend || 0).toLocaleString()}, Conversions ${Number(c.conversions || 0)}`).join("\n");
+      const topCampaignText = topCampaigns ? `Top Active Campaigns:\n${topCampaigns}` : "No specific campaign breakdown available.";
 
+      const systemPrompt = `You are an elite senior performance analytics AI for Lumen Analytics.
+Analyze paid advertising performance metrics and generate structured executive report insights.
+
+OUTPUT FORMAT:
+Respond ONLY with a valid JSON object matching this exact schema:
 {
   "executiveSummary": "brief high level summary under 3 sentences",
   "whatImproved": "what metric or platform improved, referencing actual numbers",
@@ -246,12 +248,12 @@ You MUST output ONLY a valid JSON object matching the following structure. Do NO
   "recommendedNextStep": "one clear strategic recommendation"
 }
 
-IMPORTANT:
+FACT SAFETY (CRITICAL):
 - NEVER fabricate, guess, or hallucinate metrics, platforms, or campaign names.
 - All numbers must come from the metrics provided.
 - Keep the tone professional, client-friendly, concise, and clear.`;
 
-      const prompt = `Please analyze the performance metrics for "${clientName}":
+      const prompt = `Please analyze performance metrics for "${clientName}":
 Weekly Metrics:
 - Spend: $${metrics.spend.toLocaleString()} (Change: ${comparison.spend !== null ? comparison.spend.toFixed(1) + "%" : "N/A"})
 - Conversions: ${metrics.conversions.toLocaleString()} (Change: ${comparison.conversions !== null ? comparison.conversions.toFixed(1) + "%" : "N/A"})
@@ -264,55 +266,32 @@ ${topCampaignText}
 
 Please write the JSON response.`;
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": claudeApiKey,
-          "anthropic-version": "2023-06-01"
-        },
-        body: JSON.stringify({
-          model: "claude-3-5-sonnet-20241022",
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: [
-            {
-              role: "user",
-              content: prompt
-            }
-          ]
-        })
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: systemPrompt,
+          temperature: 0.4,
+          responseMimeType: "application/json"
+        }
       });
 
-      if (response.ok) {
-        const data: any = await response.json();
-        let text = data.content?.[0]?.text;
-        if (text) {
-          text = text.trim();
-          if (text.startsWith("```json")) {
-            text = text.substring(7);
-          } else if (text.startsWith("```")) {
-            text = text.substring(3);
-          }
-          if (text.endsWith("```")) {
-            text = text.substring(0, text.length - 3);
-          }
-          text = text.trim();
-
-          const parsed = JSON.parse(text);
-          if (
-            parsed.executiveSummary &&
-            parsed.whatImproved &&
-            parsed.whatDeclined &&
-            parsed.campaignObservations &&
-            parsed.recommendedNextStep
-          ) {
-            return parsed;
-          }
+      const responseText = response.text ? response.text.trim() : "";
+      if (responseText) {
+        const cleanedText = responseText.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+        const parsed = JSON.parse(cleanedText);
+        if (
+          parsed.executiveSummary &&
+          parsed.whatImproved &&
+          parsed.whatDeclined &&
+          parsed.campaignObservations &&
+          parsed.recommendedNextStep
+        ) {
+          return parsed;
         }
       }
-    } catch (err) {
-      console.warn("Claude report summary generation failed/skipped:", err);
+    } catch (err: any) {
+      console.warn("Gemini report summary generation failed/skipped:", err.message);
     }
   }
 

@@ -136,7 +136,7 @@ export default function AIDailySummary({ selectedClient, clients = [], dateRange
       });
 
       if (!response.ok) {
-        throw new Error("Claude AI failed to compile the performance summary.");
+        throw new Error("Performance insights are temporarily unavailable.");
       }
 
       const data = await response.json();

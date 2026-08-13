@@ -12,6 +12,7 @@ import {
   decryptPortalToken, 
   generateRawPortalToken 
 } from "./services/portalSecurity.js";
+import { generateInsights } from "./services/aiInsightsService.js";
 
 dotenv.config();
 
@@ -1662,360 +1663,43 @@ app.post("/api/summary", requireAuth, rateLimiter(10, 60000), async (req, res) =
     }
   }
 
-  // Dynamic ranking variables for agency-overview fallback
-  let bestClientName = "Apex Roofing";
-  let secondBestClientName = "Summit Fitness";
-  let worstClientName = "Canyon Home Services";
-  let worstCpl = 102.50;
-  let worstTargetCpl = 70.00;
-
-  if (clientId === "agency-overview") {
-    try {
-      const { data: dbClients } = await supabase
-        .from("clients")
-        .select("id, name, target_cpl")
-        .eq("agency_id", user.agencyId);
-
-      if (dbClients && dbClients.length > 0) {
-        const clientMap = new Map<string, { name: string; targetCpl: number }>();
-        dbClients.forEach(c => clientMap.set(c.id, { name: c.name, targetCpl: Number(c.target_cpl || 0) }));
-
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
-
-        const { data: recentMetrics } = await supabase
-          .from("campaign_metrics")
-          .select("client_id, spend, conversions, conversion_value")
-          .eq("agency_id", user.agencyId)
-          .gte("date", thirtyDaysAgoStr);
-
-        if (recentMetrics && recentMetrics.length > 0) {
-          const clientStats: { [id: string]: { spend: number; conversions: number; conversionValue: number } } = {};
-          recentMetrics.forEach(m => {
-            if (!clientStats[m.client_id]) {
-              clientStats[m.client_id] = { spend: 0, conversions: 0, conversionValue: 0 };
-            }
-            clientStats[m.client_id].spend += Number(m.spend);
-            clientStats[m.client_id].conversions += Number(m.conversions);
-            clientStats[m.client_id].conversionValue += Number(m.conversion_value || 0);
-          });
-
-          const clientPerformances = Object.keys(clientStats).map(id => {
-            const meta = clientMap.get(id) || { name: id, targetCpl: 0 };
-            const s = clientStats[id];
-            const cpl = s.conversions > 0 ? s.spend / s.conversions : 0;
-            const roas = s.spend > 0 ? s.conversionValue / s.spend : 0;
-            const cplRatio = meta.targetCpl > 0 ? cpl / meta.targetCpl : 0;
-            return {
-              id,
-              name: meta.name,
-              targetCpl: meta.targetCpl,
-              spend: s.spend,
-              conversions: s.conversions,
-              cpl,
-              roas,
-              cplRatio
-            };
-          });
-
-          // Sort by ROAS descending to find best performing clients
-          const sortedByRoas = [...clientPerformances].sort((a, b) => b.roas - a.roas);
-          if (sortedByRoas.length > 0) {
-            bestClientName = sortedByRoas[0].name;
-            if (sortedByRoas.length > 1) {
-              secondBestClientName = sortedByRoas[1].name;
-            } else {
-              secondBestClientName = "other campaigns";
-            }
-          }
-
-          // Sort by CPL ratio descending to find worst performing clients relative to target CPL
-          const sortedByCplRatio = [...clientPerformances].filter(c => c.targetCpl > 0).sort((a, b) => b.cplRatio - a.cplRatio);
-          if (sortedByCplRatio.length > 0) {
-            worstClientName = sortedByCplRatio[0].name;
-            worstCpl = sortedByCplRatio[0].cpl;
-            worstTargetCpl = sortedByCplRatio[0].targetCpl;
-          }
-        }
-      }
-    } catch (err: any) {
-      console.error("Error calculating dynamic fallback insights:", err.message);
-    }
-  }
-
-  // Graceful fallback generator using actual client performance metrics and requested tone
-  const generateDynamicFallbackInsights = (name: string, summary: any) => {
-    const totalSpend = summary.totalSpend || 0;
-    const totalConversions = summary.totalConversions || 0;
-    const avgConvRate = summary.avgConvRate || 0;
-    const totalClicks = summary.totalClicks || 0;
-    const avgCtr = summary.avgCtr || 0;
-    const costPerConv = summary.costPerConversion || (totalConversions > 0 ? totalSpend / totalConversions : 0);
-
-    if (clientId === "agency-overview") {
-      const totalConversionValue = summary.totalConversionValue || 0;
-      const roas = totalSpend > 0 ? totalConversionValue / totalSpend : 0;
-
-      return [
-        {
-          type: "scale",
-          label: "AGENCY SUMMARY",
-          number: "01",
-          what: `Agency-wide spend is tracking at $${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })} producing ${totalConversions.toLocaleString()} leads overall.`,
-          why: `Overall agency CPL is tracking efficiently at $${costPerConv.toFixed(2)}, indicating a stable performance baseline across all marketing channels.`,
-          action: "Maintain current target bid caps. Continue monitoring campaign fatigue on lower-performing accounts."
-        },
-        {
-          type: "opportunity",
-          label: "OPPORTUNITY",
-          number: "02",
-          what: `Overall agency performance improved, driven primarily by ${bestClientName} and ${secondBestClientName}.`,
-          why: `${bestClientName} and ${secondBestClientName} accounts generated high ROAS and efficient conversion volume, boosting average ROAS to ${roas.toFixed(2)}x.`,
-          action: "Shift budget allocations from under-performing accounts to scale high-performing campaigns on these two clients."
-        },
-        {
-          type: "alert",
-          label: "ALERT",
-          number: "03",
-          what: `${worstClientName} is experiencing performance deterioration.`,
-          why: `${worstClientName} cost-per-lead rose to $${worstCpl.toFixed(2)} (target CPL: $${worstTargetCpl.toFixed(2)}).`,
-          action: "Audit the landing page form and check match query report for negative search terms."
-        }
-      ];
-    }
-
-    const toneText = (tone || "Executive").toLowerCase();
-    if (toneText === "data-driven") {
-      return [
-        {
-          type: "scale",
-          label: "SCALE",
-          number: "01",
-          what: `Ad acquisition efficiency recorded at $${costPerConv.toFixed(2)} CPL with ${totalConversions.toLocaleString()} conversion events for ${name}.`,
-          why: `Total expenditure of $${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })} against ${totalClicks.toLocaleString()} click events yielded a ${avgConvRate.toFixed(2)}% conversion rate.`,
-          action: "Reallocate spend budget toward campaigns operating below target cost-per-lead thresholds."
-        },
-        {
-          type: "watch",
-          label: "WATCH",
-          number: "02",
-          what: `Click-through rate benchmark tracking at ${avgCtr.toFixed(2)}% across active ad sets.`,
-          why: `Variation in ad creative CTR indicates sub-optimal engagement on high-cost placements.`,
-          action: "Perform statistical split tests on lower-performing ad creative variations."
-        },
-        {
-          type: "opportunity",
-          label: "OPPORTUNITY",
-          number: "03",
-          what: `Conversion efficiency ratio increased with ${totalClicks.toLocaleString()} high-intent visitors.`,
-          why: `Target audience response rates demonstrate stronger ad relevancy on core campaigns.`,
-          action: "Expand target audience reach parameters while maintaining strict bid caps."
-        }
-      ];
-    } else if (toneText === "casual") {
-      return [
-        {
-          type: "scale",
-          label: "SCALE",
-          number: "01",
-          what: `Great week for ${name}! We brought in ${totalConversions.toLocaleString()} leads at around $${costPerConv.toFixed(2)} each.`,
-          why: `Total spend was $${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}, and the conversion rate held up nicely at ${avgConvRate.toFixed(2)}%.`,
-          action: "Let's put a bit more budget behind what's working best to keep the momentum going."
-        },
-        {
-          type: "watch",
-          label: "WATCH",
-          number: "02",
-          what: `Click-through rate is sitting right at ${avgCtr.toFixed(2)}%.`,
-          why: `A couple of older ads are starting to fade a little in audience response.`,
-          action: "We'll swap out a few ad images and test fresh headline variations this week."
-        },
-        {
-          type: "opportunity",
-          label: "OPPORTUNITY",
-          number: "03",
-          what: `Lead volume remains strong and cost per acquisition is heading in the right direction.`,
-          why: `The core targeting setup is connecting well with potential customers.`,
-          action: "Test a slightly wider audience to discover new qualified prospects."
-        }
-      ];
-    } else {
-      // Executive
-      return [
-        {
-          type: "scale",
-          label: "SCALE",
-          number: "01",
-          what: `Executive performance summary for ${name}: Campaign generated ${totalConversions.toLocaleString()} conversions at $${costPerConv.toFixed(2)} CPL.`,
-          why: `Strategic spend allocation of $${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })} maintained strong conversion rate efficiency at ${avgConvRate.toFixed(2)}%.`,
-          action: "Scale investment on high-ROI campaign assets to maximize total lead acquisition."
-        },
-        {
-          type: "watch",
-          label: "WATCH",
-          number: "02",
-          what: `Click-through efficiency currently averages ${avgCtr.toFixed(2)}%.`,
-          why: `Ad fatigue across top placements requires scheduled creative refresh.`,
-          action: "Authorize rollout of updated ad messaging to protect brand positioning and performance."
-        },
-        {
-          type: "opportunity",
-          label: "OPPORTUNITY",
-          number: "03",
-          what: `Strong baseline ROI provides expansion leverage across core channels.`,
-          why: `Consistent acquisition metrics signal market capacity for strategic scaling.`,
-          action: "Approve campaign expansion plan for upcoming period."
-        }
-      ];
-    }
-  };
-
-  const systemPrompt = `You are an elite digital marketing performance analyst and executive reporting expert.
-You translate complex paid advertising performance metrics into a structured JSON object containing three strategic marketing insights.
-IMPORTANT: You MUST return ONLY a valid JSON object matching the following TypeScript interface. Do NOT write any conversational prose, markdown blocks (other than wrapping the JSON in a json block if required), or extra characters.
-
-Interface:
-interface Response {
-  insights: Array<{
-    type: "scale" | "watch" | "opportunity" | "alert";
-    label: "SCALE" | "WATCH" | "OPPORTUNITY" | "ALERT";
-    number: string; // e.g. "01", "02", "03"
-    what: string;   // a clear summary of what happened
-    why: string;    // the underlying cause or reason
-    action: string; // recommended action
-  }>;
-}
-
-IMPORTANT:
-- Only reference ad channels and platforms that have data in the metrics provided to you.
-- Tailor vocabulary and phrasing to the requested tone: ${tone}.
-  * Executive: Concise, leadership focused, business impact, clear strategic recommendations.
-  * Data-driven: Metric-heavy, explicit percentages, comparisons, efficiency ratios.
-  * Casual: Plain English, client-friendly, natural, accessible, conversational.
-- All numbers must come from the metrics provided.`;
-
-  const prompt = `Please analyze the performance metrics over the last 30 days for our client "${clientName}":
-Metrics summary:
-- Total Spend: $${metricsSummary.totalSpend.toLocaleString()}
-- Total Conversions: ${metricsSummary.totalConversions.toLocaleString()}
-- Avg Conversion Rate: ${metricsSummary.avgConvRate.toFixed(2)}%
-- Total Clicks: ${metricsSummary.totalClicks.toLocaleString()}
-- Avg Click-Through Rate: ${metricsSummary.avgCtr.toFixed(2)}%
-- Cost per Conversion: $${(metricsSummary.costPerConversion || 0).toFixed(2)}
-
-Please write three structured insights matching the JSON schema using tone: ${tone}.
-Make the insights feel highly strategic, calm, and tailored to "${clientName}".`;
-
-  const claudeApiKey = process.env.ANTHROPIC_API_KEY;
-
   try {
-    if (claudeApiKey) {
-      try {
-        console.log(`Attempting to compile structured insights with Claude (${tone})...`);
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-api-key": claudeApiKey,
-            "anthropic-version": "2023-06-01"
-          },
-          body: JSON.stringify({
-            model: "claude-3-5-sonnet-20241022",
-            max_tokens: 1500,
-            system: systemPrompt,
-            messages: [
-              {
-                role: "user",
-                content: prompt
-              }
-            ]
-          })
-        });
+    const metricsPayload = {
+      totalSpend: Number(metricsSummary?.totalSpend || 0),
+      totalConversions: Number(metricsSummary?.totalConversions || 0),
+      avgConvRate: Number(metricsSummary?.avgConvRate || 0),
+      avgCtr: Number(metricsSummary?.avgCtr || 0),
+      costPerConversion: Number(metricsSummary?.costPerConversion || (metricsSummary?.totalConversions > 0 ? metricsSummary.totalSpend / metricsSummary.totalConversions : 0)),
+      totalClicks: Number(metricsSummary?.totalClicks || 0),
+      totalImpressions: Number(metricsSummary?.totalImpressions || 0)
+    };
 
-        if (response.ok) {
-          const data: any = await response.json();
-          let summaryText = data.content?.[0]?.text;
-          if (summaryText) {
-            summaryText = summaryText.trim();
-            if (summaryText.startsWith("```json")) {
-              summaryText = summaryText.substring(7);
-            } else if (summaryText.startsWith("```")) {
-              summaryText = summaryText.substring(3);
-            }
-            if (summaryText.endsWith("```")) {
-              summaryText = summaryText.substring(0, summaryText.length - 3);
-            }
-            summaryText = summaryText.trim();
+    const aiResult = await generateInsights({
+      clientName,
+      metrics: metricsPayload,
+      tone
+    });
 
-            try {
-              const parsed = JSON.parse(summaryText);
-              if (parsed.insights && Array.isArray(parsed.insights)) {
-                await supabase.from("ai_summaries").delete().eq("client_id", clientId).eq("date_range", dateRangeKey);
-                await supabase.from("ai_summaries").insert({
-                  client_id: clientId,
-                  agency_id: clientData.agency_id,
-                  date_range: dateRangeKey,
-                  summary_data: parsed.insights
-                });
-
-                return res.json({
-                  insights: parsed.insights,
-                  provider: "Claude"
-                });
-              }
-            } catch (err) {
-              console.warn("Failed to parse Claude output as JSON:", err);
-            }
-          }
-        } else {
-          const errText = await response.text();
-          console.warn(`Claude API returned error status ${response.status}: ${errText}`);
-        }
-      } catch (claudeError: any) {
-        console.warn("Claude API call exception:", claudeError.message);
-      }
-    } else {
-      console.warn("Warning: ANTHROPIC_API_KEY environment variable is not defined.");
-    }
-
-    // Fallback to structured insights sandbox
-    const mockInsights = generateDynamicFallbackInsights(clientName, metricsSummary);
     try {
       await supabase.from("ai_summaries").delete().eq("client_id", clientId).eq("date_range", dateRangeKey);
       await supabase.from("ai_summaries").insert({
         client_id: clientId,
         agency_id: clientData.agency_id,
         date_range: dateRangeKey,
-        summary_data: mockInsights
+        summary_data: aiResult.insights
       });
     } catch (saveErr: any) {
-      console.warn("Failed to cache fallback insights:", saveErr.message);
+      console.warn("Failed to cache AI insights:", saveErr.message);
     }
 
     return res.json({
-      insights: mockInsights,
-      warning: "Demonstration Sandbox Active: Structured insights computed from metrics."
+      insights: aiResult.insights,
+      provider: aiResult.provider,
+      warning: aiResult.warning
     });
-
   } catch (error: any) {
     console.error("General error in server summary endpoint:", error);
-    const mockInsights = generateDynamicFallbackInsights(clientName, metricsSummary);
-    try {
-      await supabase.from("ai_summaries").delete().eq("client_id", clientId).eq("date_range", dateRangeKey);
-      await supabase.from("ai_summaries").insert({
-        client_id: clientId,
-        agency_id: clientData.agency_id,
-        date_range: dateRangeKey,
-        summary_data: mockInsights
-      });
-    } catch (saveErr: any) {
-      console.warn("Failed to cache fallback insights:", saveErr.message);
-    }
-    return res.json({
-      insights: mockInsights,
-      warning: "Demonstration Sandbox Active: Structured insights computed from metrics."
-    });
+    return res.status(500).json({ error: "Performance insights are temporarily unavailable." });
   }
 });
 
