@@ -102,6 +102,9 @@ export default function DashboardShell({ session, onLogout }: DashboardShellProp
       if (res.ok) {
         const data = await res.json();
         setProfile(data);
+        if (data.agencyId) {
+          setSelectedAgencyId(data.agencyId);
+        }
       }
     } catch (err) {
       console.error("Failed to load user profile:", err);

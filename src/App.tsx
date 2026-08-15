@@ -12,11 +12,14 @@ export default function App() {
   const [portalToken, setPortalToken] = useState<string | null>(null);
   const [agencySlug, setAgencySlug] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [tenantNotFound, setTenantNotFound] = useState(false);
+  const [invalidSlugName, setInvalidSlugName] = useState<string>("");
 
   useEffect(() => {
     const initApp = async () => {
       const path = window.location.pathname;
       
+      // Portal Route: /portal/:token
       const portalMatch = path.match(/^\/portal\/([^/]+)/i);
       if (portalMatch && portalMatch[1]) {
         setPortalToken(portalMatch[1]);
@@ -25,11 +28,23 @@ export default function App() {
         return;
       }
 
+      // Legacy Route Redirect: e.g. /envision-response -> redirect explicitly to /agency/envision-response
+      const legacySlugMatch = path.match(/^\/([^/]+)$/i);
+      if (legacySlugMatch && legacySlugMatch[1]) {
+        const candidateSlug = legacySlugMatch[1].trim().toLowerCase();
+        const reservedRoutes = ["admin", "portal", "agency", "api", "login"];
+        if (!reservedRoutes.includes(candidateSlug)) {
+          window.location.replace(`/agency/${candidateSlug}`);
+          return;
+        }
+      }
+
+      // Canonical Agency Route: /agency/:agencySlug
       const agencyMatch = path.match(/^\/agency\/([^/]+)/i);
       if (agencyMatch && agencyMatch[1]) {
         const slug = agencyMatch[1].trim().toLowerCase();
 
-        // STEP 1: ALWAYS check if an authenticated Supabase session exists FIRST!
+        // STEP 1: Check if an authenticated Supabase session exists
         try {
           const { data: { session: activeSession } } = await supabase.auth.getSession();
           
@@ -46,23 +61,31 @@ export default function App() {
             if (res.ok) {
               const profile = await res.json();
 
-              // IF System Admin: establish secure ADMIN PREVIEW context for requested slug
+              // System Admin: establish secure ADMIN PREVIEW context if requested slug resolved to an agency in DB
               if (profile.isAdmin) {
-                setAgencySlug(slug);
-                setIsAdminRoute(false);
-                setIsAdmin(true);
-                const previewSession = {
-                  ...activeSession,
-                  agencySlug: slug,
-                  adminPreviewAgencySlug: slug
-                };
-                setSession(previewSession);
-                setGlobalSession(previewSession);
-                setLoading(false);
-                return;
+                if (profile.previewAgencySlug === slug || profile.agencySlug === slug) {
+                  setAgencySlug(slug);
+                  setIsAdminRoute(false);
+                  setIsAdmin(true);
+                  const previewSession = {
+                    ...activeSession,
+                    agencySlug: slug,
+                    adminPreviewAgencySlug: slug
+                  };
+                  setSession(previewSession);
+                  setGlobalSession(previewSession);
+                  setLoading(false);
+                  return;
+                } else {
+                  // Requested agency slug does not exist in DB -> Tenant Not Found!
+                  setInvalidSlugName(slug);
+                  setTenantNotFound(true);
+                  setLoading(false);
+                  return;
+                }
               }
 
-              // ELSE IF normal agency user: verify requested slug belongs to user's agency
+              // Normal Agency User: verify requested slug belongs to user's agency
               if (profile.agencySlug === slug) {
                 setAgencySlug(slug);
                 setIsAdminRoute(false);
@@ -81,15 +104,17 @@ export default function App() {
               await supabase.auth.signOut().catch(() => {});
               setGlobalSession(null);
               setSession(null);
-              setIsAdminRoute(true);
+              setInvalidSlugName(slug);
+              setTenantNotFound(true);
               setLoading(false);
               return;
             } else {
-              // Authenticated request failed or was rejected (e.g. 403 cross-tenant error) -> Deny!
+              // Authenticated request failed -> Deny!
               await supabase.auth.signOut().catch(() => {});
               setGlobalSession(null);
               setSession(null);
-              setIsAdminRoute(true);
+              setInvalidSlugName(slug);
+              setTenantNotFound(true);
               setLoading(false);
               return;
             }
@@ -98,7 +123,7 @@ export default function App() {
           console.error("Agency session auth check error:", err);
         }
 
-        // STEP 2: NO authenticated session exists -> Check if agency is a public demo
+        // STEP 2: NO authenticated session exists -> Check if agency is a public demo agency
         try {
           const publicRes = await fetch(`/api/agency/public-check/${slug}`);
           if (publicRes.ok) {
@@ -117,16 +142,27 @@ export default function App() {
               setGlobalSession(publicSession);
               setLoading(false);
               return;
+            } else {
+              // Unauthenticated access to private agency -> Redirect to admin login
+              setGlobalSession(null);
+              setSession(null);
+              setIsAdminRoute(true);
+              setLoading(false);
+              return;
             }
+          } else if (publicRes.status === 404) {
+            // Invalid agency slug -> Tenant Not Found!
+            setInvalidSlugName(slug);
+            setTenantNotFound(true);
+            setLoading(false);
+            return;
           }
         } catch (err) {
           console.error("Public agency check failed:", err);
         }
 
-        // Unauthenticated access to private production agency -> Deny! Redirect to login/admin
-        setGlobalSession(null);
-        setSession(null);
-        setIsAdminRoute(true);
+        setInvalidSlugName(slug);
+        setTenantNotFound(true);
         setLoading(false);
         return;
       }
@@ -230,6 +266,30 @@ export default function App() {
     return (
       <div className="w-screen h-screen flex items-center justify-center bg-slate-950 text-slate-400 font-mono text-xs">
         Connecting to Lumen Services...
+      </div>
+    );
+  }
+
+  if (tenantNotFound) {
+    return (
+      <div className="w-screen h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-200 font-sans p-6 text-center">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-2xl space-y-4">
+          <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto text-xl font-bold font-mono">
+            404
+          </div>
+          <h1 className="text-xl font-bold text-white tracking-tight">Agency Tenant Not Found</h1>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            The requested agency route <span className="font-mono text-amber-400 font-semibold">/agency/{invalidSlugName}</span> does not exist or is not available.
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => window.location.href = "/admin"}
+              className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-xs rounded-lg transition-colors cursor-pointer"
+            >
+              Return to System Admin
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
