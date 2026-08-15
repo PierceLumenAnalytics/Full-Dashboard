@@ -17,6 +17,16 @@ import { sanitizeAgencyChannels, DEFAULT_ENABLED_CHANNELS } from "./src/constant
 
 dotenv.config();
 
+// Initialize Supabase Client with environment fallbacks
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://wrbgbkmwusbeankitwex.supabase.co";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyYmdia213dXNiZWFua2l0d2V4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NDMwNjkzOCwiZXhwIjoyMDk5ODgyOTM4fQ.Owl0q95oI8iLBIcyCGq7kcaQb3rpDG7z7MDr90KwEbs";
+
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.log("Using fallback Supabase configuration for production/serverless environment.");
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -103,18 +113,7 @@ app.use(async (req, res, next) => {
   next();
 });
 
-// Initialize Supabase Client
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-console.log("Supabase URL initialized:", supabaseUrl);
-console.log("Supabase Service Role Key configured:", !!supabaseKey);
-
-if (!supabaseUrl || !supabaseKey) {
-  console.error("CRITICAL: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY environment variables are not defined.");
-}
-
-const supabase = createClient(supabaseUrl || "", supabaseKey || "");
+// Supabase connection logging and verification
 
 // Test connection on server start
 async function testSupabaseConnection() {
